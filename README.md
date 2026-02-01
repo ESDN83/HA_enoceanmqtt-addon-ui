@@ -1,316 +1,230 @@
-# HA_enoceanmqtt-addon-ui
+# EnOcean MQTT - All-in-One Home Assistant Add-on
 
 [![Add to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/ESDN83/HA_enoceanmqtt-addon-ui)
 
-A comprehensive Home Assistant addon that provides a user-friendly web-based interface for configuring the HA_enoceanmqtt addon. This tool eliminates the need for manual YAML editing by offering visual editors for EnOcean device configurations and MQTT mappings.
+> **⚠️ EARLY RELEASE WARNING**
+>
+> This is an initial release (v2.0.0) and should be considered **beta software**.
+> While functional, there may be bugs or unexpected behavior.
+>
+> **Please:**
+> - **Backup your existing configuration** before installing
+> - **Do not use in production** without thorough testing
+> - **Report issues and feedback** on [GitHub Issues](https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/issues)
+>
+> Your feedback is essential to improve this addon!
 
-## Table of Contents
+---
 
-- [Overview](#overview)
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-- [API Reference](#api-reference)
-- [Development](#development)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
+Modern web-based EnOcean to MQTT bridge for Home Assistant with visual device configuration.
 
-## Overview
-
-The HA_enoceanmqtt-addon-ui is designed to simplify the complex process of configuring EnOcean devices in Home Assistant. EnOcean technology uses wireless sensors and actuators that communicate via radio telegrams. The HA_enoceanmqtt addon bridges these devices to Home Assistant via MQTT, but configuring it requires understanding EEP (EnOcean Equipment Profile) specifications and manual YAML file editing.
-
-This UI addon provides:
-- Visual exploration of EEP profiles
-- Form-based device configuration
-- Drag-and-drop MQTT mapping creation
-- Configuration validation and testing
-- Pre-built templates for common devices
+**This is an All-in-One solution** - it completely replaces the ChristopheHD enocean-mqtt addon. No separate addon required!
 
 ## Features
 
-### EEP Browser
-- **Searchable Database**: Browse all available EnOcean Equipment Profiles (EEPs) from the official EnOcean Alliance XML database.
-- **Detailed Information**: View RORG, FUNC, TYPE, descriptions, and telegram structures for each EEP.
-- **Real-time Search**: Filter EEPs by keywords, RORG, or device type.
-
-### Device Editor
-- **Form-Based Input**: Easy-to-use forms for device parameters (address, RORG, FUNC, TYPE, sender ID).
-- **Hex Validation**: Automatic validation of hexadecimal addresses and codes.
-- **Device Management**: Add, edit, and delete device configurations.
-- **Import/Export**: Load existing `enoceanmqtt.devices` files for editing.
-
-### Mapping Editor
-- **Visual Mapping**: Link EEP telegram fields to Home Assistant entities (sensors, switches, lights).
-- **MQTT Discovery**: Generate proper MQTT discovery payloads for automatic HA entity creation.
-- **JSON Editor**: Direct editing of mapping.yaml with syntax highlighting and validation.
-
-### Validation Tools
-- **YAML Syntax Check**: Validate configuration file syntax.
-- **EEP Compatibility**: Ensure device configurations match selected EEPs.
-- **Telegram Simulation**: Test configurations with simulated EnOcean telegrams.
-
-### Wizards
-- **Device Templates**: Pre-configured setups for popular devices:
-  - Eltako TF61J Jalousie Actor (A5-3F-7F)
-  - Kessel Stauffix Valve (A5-20-04)
-- **Quick Setup**: Fill forms with template data and customize as needed.
-
-### Export/Import
-- **File Generation**: Download configured `enoceanmqtt.devices` and `mapping.yaml` files.
-- **Backup/Restore**: Import existing configurations for modification.
-
-## Prerequisites
-
-- Home Assistant (2023+ recommended)
-- HA_enoceanmqtt addon installed and configured
-- USB300 EnOcean gateway or compatible hardware
-- Basic understanding of EnOcean concepts (optional, as the UI guides you)
+- **Visual Device Wizard** - Add EnOcean devices via teach-in or manual entry
+- **EEP Profile Browser** - Browse all EnOcean Equipment Profiles with detailed field information
+- **Custom EEP Profiles** - Create and edit custom profiles for non-standard devices (e.g., Kessel Staufix)
+- **MQTT/HA Entity Mapping** - Visual mapping editor for Home Assistant integration
+- **Live Telegram Monitor** - Debug incoming EnOcean telegrams in real-time
+- **Unknown Device Detection** - Automatically detect and list unconfigured devices
+- **Home Assistant MQTT Discovery** - Automatic entity creation in Home Assistant
+- **Configuration Export/Import** - Backup and restore your configuration
 
 ## Installation
 
-### Method 1: Via Home Assistant Add-on Store
+### Via Home Assistant Add-on Store (Recommended)
 
-1. In Home Assistant, go to **Settings** > **Add-ons** > **Add-on Store**.
-2. Click the menu (three dots) and select **Repositories**.
-3. Add repository: `https://github.com/ESDN83/HA_enoceanmqtt-addon-ui`
-4. Find "EnOcean Config UI" in the add-on list and click **Install**.
-5. Start the add-on.
-6. Access the UI via the add-on panel or at `http://homeassistant:8000`.
-
-### Method 2: Manual Installation
-
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/ESDN83/HA_enoceanmqtt-addon-ui.git
+1. Click the button above or add this repository URL to your Home Assistant Add-on Store:
+   ```
+   https://github.com/ESDN83/HA_enoceanmqtt-addon-ui
    ```
 
-2. Copy the `addon/` directory to your HA add-ons folder.
+2. Install the "EnOcean MQTT" add-on
 
-3. In HA, go to **Settings** > **Add-ons** and install "EnOcean Config UI" from local add-ons.
+3. Configure the add-on:
+   - **Serial Port**: Select your EnOcean USB transceiver (e.g., `/dev/ttyUSB0`)
+   - **TCP Port**: Or use TCP connection (format: `tcp:host:port`)
 
-4. Start the add-on and access the interface.
+4. Start the add-on and open the Web UI via the sidebar
+
+## Quick Start
+
+1. **Start the add-on** and open the Web UI
+2. **Add your first device**:
+   - Click "Add Device" in the sidebar
+   - Choose "Automatic (Teach-In)" and press the button on your EnOcean device
+   - Or enter device details manually
+3. **Devices appear automatically** in Home Assistant via MQTT Discovery
 
 ## Configuration
 
-The add-on requires access to HA's configuration directory to read/write config files. This is configured automatically in `addon/config.yaml`:
+### Add-on Options
 
-```yaml
-map:
-  - config:rw
+| Option | Description |
+|--------|-------------|
+| `serial_port` | Serial port of EnOcean USB transceiver |
+| `tcp_port` | TCP connection string (e.g., `tcp:192.168.1.100:9637`) |
+| `log_level` | Logging level (debug, info, warning, error) |
+| `mqtt.discovery_prefix` | Home Assistant MQTT discovery prefix (default: `homeassistant`) |
+| `mqtt.prefix` | MQTT topic prefix for EnOcean devices (default: `enocean`) |
+| `mqtt.client_id` | MQTT client identifier |
+
+### Supported EnOcean Profiles
+
+This add-on uses the official EnOcean Alliance EEP.xml containing all standard profiles including:
+
+- **RPS (F6)** - Rocker switches, window handles
+- **1BS (D5)** - Single input contacts
+- **4BS (A5)** - Temperature, humidity, occupancy, light sensors
+- **VLD (D2)** - Electronic switches, dimmers, blinds
+
+### Custom Profiles
+
+Create custom EEP profiles for devices not covered by the official specification:
+
+1. Go to "EEP Profiles" in the web UI
+2. Click "Create Custom Profile"
+3. Enter RORG, FUNC, TYPE and field definitions
+4. Save and use with your devices
+
+An example custom profile for Kessel Staufix is included.
+
+## Web UI
+
+Access the web UI via Home Assistant sidebar (EnOcean icon) or directly at:
+```
+http://homeassistant.local:8099
 ```
 
-No additional configuration is needed. The UI will manage files in `/config/enoceanmqtt.devices` and `/config/mapping.yaml`.
+### Dashboard
+- Connection status (MQTT & EnOcean)
+- Device and profile counts
+- Recent telegram activity
+- Unknown device detection with quick-add buttons
 
-## Usage
+### Devices
+- List all configured devices
+- Add, edit, delete devices
+- Search and filter
 
-### Getting Started
+### EEP Profiles
+- Browse profile tree by RORG/FUNC/TYPE
+- View field definitions
+- Create custom profiles
 
-1. **Access the UI**: Open the add-on panel in Home Assistant or navigate to the ingress URL.
+### Add Device (Teach-In)
+- Automatic device detection via teach-in
+- Manual entry option
+- Profile suggestion based on detected EEP
 
-2. **Explore EEPs**: Use the EEP Browser to find profiles matching your devices.
-
-3. **Configure Devices**: In the Device Editor, add your EnOcean devices with their addresses and select appropriate EEPs.
-
-4. **Create Mappings**: Use the Mapping Editor to link device data to HA entities.
-
-5. **Validate**: Run validation checks to ensure configurations are correct.
-
-6. **Export**: Download the generated config files and place them in your HA_enoceanmqtt addon configuration.
-
-### Detailed Workflow
-
-#### 1. Device Discovery
-- Note your device's EnOcean address (e.g., from device manual or HA logs).
-- Identify the device type and find matching EEP in the browser.
-
-#### 2. Device Configuration
-- Enter device address in hex format (e.g., 0xFFBD7480).
-- Select RORG, FUNC, TYPE from dropdowns or manual entry.
-- Add optional sender ID if bidirectional communication is needed.
-
-#### 3. MQTT Mapping
-- For each EEP field, specify the HA entity type (sensor, switch, etc.).
-- Configure MQTT topics and payloads for discovery.
-- Example mapping for a temperature sensor:
-  ```yaml
-  temperature:
-    component: sensor
-    config:
-      name: "Room Temperature"
-      device_class: temperature
-      unit_of_measurement: "°C"
-  ```
-
-#### 4. Validation and Testing
-- Use the validation tool to check YAML syntax.
-- Simulate telegrams to test mappings.
-- Verify MQTT topics are correctly formatted.
-
-#### 5. Deployment
-- Export configurations.
-- Copy files to HA_enoceanmqtt addon config directory.
-- Restart HA_enoceanmqtt addon.
-- Check HA for new entities.
+### Settings
+- Export/Import configuration
+- Restart services
 
 ## API Reference
 
-The add-on provides a REST API for programmatic access:
+The add-on provides a REST API for automation:
 
-### GET /api/eeps
-Returns all available EEPs.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/devices` | GET | List all devices |
+| `/api/devices` | POST | Create device |
+| `/api/devices/{name}` | PUT | Update device |
+| `/api/devices/{name}` | DELETE | Delete device |
+| `/api/eep` | GET | List all EEP profiles |
+| `/api/eep/{eep_id}` | GET | Get profile details |
+| `/api/eep/tree` | GET | Get profiles as tree |
+| `/api/eep/custom` | POST | Create custom profile |
+| `/api/gateway/recent-telegrams` | GET | Get recent telegrams |
+| `/api/gateway/unknown-devices` | GET | List unknown devices |
+| `/api/gateway/teach-in` | WebSocket | Teach-in mode |
+| `/api/mappings` | GET | Get all mappings |
+| `/api/mappings/{eep_id}` | PUT | Update mapping |
+| `/api/system/status` | GET | System status |
+| `/api/system/export` | POST | Export config (ZIP) |
+| `/api/system/import` | POST | Import config |
+| `/api/system/restart` | POST | Restart services |
 
-**Response:**
-```json
-{
-  "A5-02-05": {
-    "rorg": "0xA5",
-    "func": "0x02",
-    "type": "0x05",
-    "description": "Temperature Sensor",
-    "fields": [...]
-  }
-}
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   Web UI (Bootstrap 5)               │
+├─────────────────────────────────────────────────────┤
+│                  FastAPI REST API                    │
+├─────────────────────────────────────────────────────┤
+│  EEPManager │ DeviceManager │ MappingManager        │
+│  MQTTHandler │ SerialHandler │ TelegramBuffer       │
+├─────────────────────────────────────────────────────┤
+│        EnOcean USB300/TCM515     │     MQTT Broker  │
+└─────────────────────────────────────────────────────┘
 ```
 
-### GET /api/devices
-Returns current device configurations.
+## Migration from ChristopheHD addon
 
-### POST /api/devices
-Update device configurations.
+If you're migrating from the ChristopheHD enocean-mqtt addon:
 
-**Body:**
-```json
-{
-  "device_name": {
-    "address": "0xFFBD7480",
-    "rorg": "0xA5",
-    "func": "0x02",
-    "type": "0x05"
-  }
-}
-```
-
-### GET /api/mappings
-Returns current MQTT mappings.
-
-### POST /api/mappings
-Update MQTT mappings.
-
-### POST /api/validate
-Validate a configuration file.
-
-**Body:** Multipart form with `file` field.
-
-### GET /api/wizards/{device_type}
-Get template configuration for a device type.
-
-### GET /api/export/{type}
-Download configuration file (devices or mappings).
+1. **Export your config** from the old addon (if possible)
+2. **Install this addon** and stop the old one
+3. **Import your devices** via the Settings page or manually re-add them
+4. Your existing `enoceanmqtt.devices` file format is supported for import
 
 ## Development
 
-### Local Setup
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/ESDN83/HA_enoceanmqtt-addon-ui.git
-   cd HA_enoceanmqtt-addon-ui
-   ```
-
-2. Install dependencies:
-   ```bash
-   pip install -r addon/rootfs/app/requirements.txt
-   ```
-
-3. Set config directory (optional):
-   ```bash
-   export CONFIG_DIR=./test_config
-   ```
-
-4. Run the development server:
-   ```bash
-   cd addon/rootfs/app
-   uvicorn main:app --reload --host 0.0.0.0 --port 8000
-   ```
-
-5. Access at `http://localhost:8000`
-
-### Project Structure
-
-```
-addon/
-├── config.yaml          # HA addon configuration
-├── Dockerfile           # Container build instructions
-├── icon.png            # Addon icon
-├── logo.png            # Addon logo
-└── rootfs/
-    └── app/
-        ├── main.py         # FastAPI application
-        ├── requirements.txt # Python dependencies
-        └── templates/
-            └── index.html  # Frontend UI
-```
-
-### Building the Addon
+### Local Development
 
 ```bash
-ha addon build --target addon/
+cd addon/rootfs/app
+pip install -r requirements.txt
+export CONFIG_PATH=./test_config
+python main.py
+```
+
+Access at `http://localhost:8099`
+
+### Building the Add-on
+
+```bash
+cd addon
+docker build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.11-alpine3.18 -t enocean-mqtt .
 ```
 
 ## Troubleshooting
 
-### Common Issues
+### EnOcean Gateway Not Connecting
+- Verify the correct serial port is selected
+- Check USB device permissions
+- Try unplugging and reconnecting the USB transceiver
 
-**EEP Browser Not Loading**
-- Check internet connection for EEP XML download.
-- Verify EnOcean Alliance website is accessible.
+### MQTT Not Connected
+- Ensure MQTT broker is running
+- Check MQTT credentials in Home Assistant
+- Verify mosquitto or similar MQTT broker addon is installed
 
-**Configuration Not Saving**
-- Ensure HA config directory is writable.
-- Check addon logs for permission errors.
+### Devices Not Appearing in Home Assistant
+- Check MQTT Discovery is enabled in HA
+- Verify the `homeassistant` prefix matches your MQTT configuration
+- Check the addon logs for errors
 
-**Validation Errors**
-- Verify hex addresses are properly formatted (0x prefix).
-- Ensure RORG/FUNC/TYPE combinations are valid.
+### Teach-In Not Working
+- Ensure EnOcean gateway is connected (green status)
+- Press the teach-in button firmly on the device
+- Some devices require multiple presses
 
-**MQTT Entities Not Appearing**
-- Confirm HA_enoceanmqtt addon is running.
-- Check MQTT broker configuration.
-- Verify mapping.yaml syntax.
+## Support
 
-### Logs
+- Report issues on [GitHub Issues](https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/issues)
+- Check logs in Home Assistant: Settings > Add-ons > EnOcean MQTT > Log
 
-View addon logs in Home Assistant:
-- Go to **Settings** > **Add-ons** > **EnOcean Config UI** > **Log**
+## Credits
 
-### Support
-
-- Report issues on [GitHub Issues](https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/issues).
-
-## Contributing
-
-We welcome contributions! Please:
-
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes and add tests.
-4. Commit: `git commit -m 'Add feature'`
-5. Push: `git push origin feature-name`
-6. Create a Pull Request.
-
-### Development Guidelines
-
-- Follow PEP 8 for Python code.
-- Use meaningful commit messages.
-- Add documentation for new features.
-- Test changes locally before submitting.
+- EnOcean Alliance for the EEP specification
+- Home Assistant community
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see LICENSE file
 
 ---
 

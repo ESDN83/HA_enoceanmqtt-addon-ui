@@ -1,9 +1,32 @@
-FROM python:3.11-slim
+ARG BUILD_FROM
+FROM $BUILD_FROM
 
-COPY rootfs/app /app
+# Set shell
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-RUN pip install -r /app/requirements.txt
+# Install requirements
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    py3-setuptools \
+    py3-wheel \
+    gcc \
+    musl-dev \
+    python3-dev \
+    libxml2-dev \
+    libxslt-dev
 
-EXPOSE 8000
+# Copy application files
+COPY rootfs /
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Install Python dependencies
+RUN pip3 install --no-cache-dir -r /app/requirements.txt
+
+# Set working directory
+WORKDIR /app
+
+# Make run script executable
+RUN chmod a+x /run.sh
+
+# Run
+CMD ["/run.sh"]

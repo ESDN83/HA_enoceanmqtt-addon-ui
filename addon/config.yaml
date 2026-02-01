@@ -1,23 +1,43 @@
-name: EnOcean Config UI
-version: "0.1.0"
-slug: enocean-config-ui
-description: Visual editor for EnOcean MQTT configs
-url: https://github.com/ESDN83/HA_enoceanmqtt-addon-ui
+---
+name: "EnOcean MQTT"
+version: "2.0.0"
+slug: "enocean-mqtt"
+description: "All-in-One EnOcean to MQTT bridge with web UI. Configure devices visually, create custom EEP profiles, and manage MQTT mappings - no config files needed!"
+url: "https://github.com/ESDN83/HA_enoceanmqtt-addon-ui"
 arch:
-  - amd64
-  - armhf
-  - armv7
   - aarch64
-  - 386
-  - armv6
-startup: application
-boot: auto
+  - amd64
+  - armv7
+  - armhf
+  - i386
+init: false
+uart: true
 ingress: true
-ingress_port: 8000
-panel_icon: mdi:settings
-panel_title: EnOcean Config UI
+ingress_port: 8099
+panel_icon: mdi:radio-tower
+panel_title: "EnOcean"
+homeassistant_api: true
+hassio_api: true
+services:
+  - mqtt:need
 map:
   - config:rw
-options: {}
-schema: {}
-image: homeassistant/{arch}-base
+  - share:rw
+
+options:
+  serial_port: ""
+  tcp_port: ""
+  log_level: "info"
+  mqtt:
+    discovery_prefix: "homeassistant"
+    prefix: "enocean"
+    client_id: "enocean_gateway"
+
+schema:
+  serial_port: "device(subsystem=tty)?"
+  tcp_port: "match(^(tcp:.+:[0-9]+)?$)?"
+  log_level: "list(debug|info|warning|error)"
+  mqtt:
+    discovery_prefix: "str"
+    prefix: "str"
+    client_id: "str"

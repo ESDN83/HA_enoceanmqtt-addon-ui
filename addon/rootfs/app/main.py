@@ -1,192 +1,218 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Request
-from fastapi.responses import FileResponse
-from fastapi.templating import Jinja2Templates
-from lxml import etree
-import requests
-import yaml
-import os
-from pydantic import BaseModel
-from typing import Dict, List, Optional
+"""
+EnOcean MQTT - All-in-One Home Assistant Add-on
+Main application entry point
+"""
 
-app = FastAPI()
+import os
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
+
+# Import API routers
+from api import devices, eep, mappings, system, gateway
+
+# Import core components
+from core.mqtt_handler import MQTTHandler
+from core.serial_handler import SerialHandler
+from core.device_manager import DeviceManager
+from core.eep_manager import EEPManager
+from core.mapping_manager import MappingManager
+from core.telegram_buffer import TelegramBuffer
+
+# Configure logging
+LOG_LEVEL = os.getenv("LOG_LEVEL", "info").upper()
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Configuration
+CONFIG_PATH = os.getenv("CONFIG_PATH", "/config/enocean")
+ENOCEAN_PORT = os.getenv("ENOCEAN_PORT", "")
+
+# Global instances
+mqtt_handler: MQTTHandler = None
+serial_handler: SerialHandler = None
+device_manager: DeviceManager = None
+eep_manager: EEPManager = None
+mapping_manager: MappingManager = None
+telegram_buffer: TelegramBuffer = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan - startup and shutdown"""
+    global mqtt_handler, serial_handler, device_manager, eep_manager, mapping_manager, telegram_buffer
+
+    logger.info("Starting EnOcean MQTT Add-on...")
+
+    # Initialize Telegram Buffer
+    telegram_buffer = TelegramBuffer(max_size=200)
+
+    # Initialize EEP Manager
+    eep_manager = EEPManager(CONFIG_PATH)
+    await eep_manager.initialize()
+    logger.info(f"Loaded {eep_manager.profile_count} EEP profiles")
+
+    # Initialize Mapping Manager
+    mapping_manager = MappingManager(CONFIG_PATH)
+    await mapping_manager.initialize()
+
+    # Initialize Device Manager
+    device_manager = DeviceManager(CONFIG_PATH, eep_manager)
+    await device_manager.load_devices()
+    logger.info(f"Loaded {device_manager.device_count} devices")
+
+    # Initialize MQTT Handler
+    mqtt_host = os.getenv("MQTT_HOST", "")
+    mqtt_port = int(os.getenv("MQTT_PORT", "1883"))
+    mqtt_user = os.getenv("MQTT_USER", "")
+    mqtt_password = os.getenv("MQTT_PASSWORD", "")
+    mqtt_prefix = os.getenv("MQTT_PREFIX", "enocean")
+    mqtt_discovery_prefix = os.getenv("MQTT_DISCOVERY_PREFIX", "homeassistant")
+
+    if mqtt_host:
+        mqtt_handler = MQTTHandler(
+            host=mqtt_host,
+            port=mqtt_port,
+            username=mqtt_user,
+            password=mqtt_password,
+            prefix=mqtt_prefix,
+            discovery_prefix=mqtt_discovery_prefix,
+            device_manager=device_manager
+        )
+        await mqtt_handler.connect()
+        logger.info(f"Connected to MQTT broker at {mqtt_host}:{mqtt_port}")
+    else:
+        logger.warning("MQTT not configured - running in UI-only mode")
+
+    # Initialize Serial Handler (EnOcean communication)
+    if ENOCEAN_PORT:
+        serial_handler = SerialHandler(
+            port=ENOCEAN_PORT,
+            device_manager=device_manager,
+            mqtt_handler=mqtt_handler,
+            eep_manager=eep_manager,
+            telegram_buffer=telegram_buffer
+        )
+        await serial_handler.connect()
+        logger.info(f"Connected to EnOcean transceiver at {ENOCEAN_PORT}")
+    else:
+        logger.warning("EnOcean port not configured - running without EnOcean communication")
+
+    # Publish HA discovery for all devices
+    if mqtt_handler and device_manager and mapping_manager:
+        await _publish_all_discoveries()
+
+    # Store instances in app state for access in routes
+    app.state.mqtt_handler = mqtt_handler
+    app.state.serial_handler = serial_handler
+    app.state.device_manager = device_manager
+    app.state.eep_manager = eep_manager
+    app.state.mapping_manager = mapping_manager
+    app.state.telegram_buffer = telegram_buffer
+    app.state.config_path = CONFIG_PATH
+
+    logger.info("EnOcean MQTT Add-on started successfully")
+
+    yield
+
+    # Shutdown
+    logger.info("Shutting down EnOcean MQTT Add-on...")
+
+    if serial_handler:
+        await serial_handler.disconnect()
+
+    if mqtt_handler:
+        await mqtt_handler.disconnect()
+
+    logger.info("EnOcean MQTT Add-on stopped")
+
+
+async def _publish_all_discoveries():
+    """Publish HA MQTT discovery for all configured devices"""
+    global mqtt_handler, device_manager, mapping_manager
+
+    if not mqtt_handler or not device_manager or not mapping_manager:
+        return
+
+    # Publish gateway availability
+    await mqtt_handler.publish("enocean/status", "online", retain=True)
+
+    for device in device_manager.devices.values():
+        try:
+            device_info = mapping_manager.build_device_info(device)
+            configs = mapping_manager.get_ha_discovery_configs(
+                device.name,
+                device.eep_id,
+                device_info
+            )
+
+            for item in configs:
+                component = item["component"]
+                config = item["config"]
+                unique_id = config["unique_id"]
+
+                discovery_topic = f"{mqtt_handler.discovery_prefix}/{component}/{unique_id}/config"
+                await mqtt_handler.publish(discovery_topic, config, retain=True)
+
+            logger.debug(f"Published discovery for {device.name}")
+
+        except Exception as e:
+            logger.error(f"Failed to publish discovery for {device.name}: {e}")
+
+    logger.info(f"Published HA discovery for {device_manager.device_count} devices")
+
+
+# Create FastAPI app
+app = FastAPI(
+    title="EnOcean MQTT",
+    description="All-in-One EnOcean to MQTT bridge with web UI",
+    version="2.0.0",
+    lifespan=lifespan
+)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Templates
 templates = Jinja2Templates(directory="templates")
 
-CONFIG_DIR = os.getenv("CONFIG_DIR", "/config")  # Mounted in HA, or local for testing
+# Include API routers
+app.include_router(devices.router, prefix="/api/devices", tags=["devices"])
+app.include_router(eep.router, prefix="/api/eep", tags=["eep"])
+app.include_router(mappings.router, prefix="/api/mappings", tags=["mappings"])
+app.include_router(system.router, prefix="/api/system", tags=["system"])
+app.include_router(gateway.router, prefix="/api/gateway", tags=["gateway"])
 
-class Device(BaseModel):
-    name: str
-    address: str
-    rorg: str
-    func: str
-    type: str
-    sender_id: Optional[str] = None
 
-class Mapping(BaseModel):
-    eep: str
-    components: Dict[str, Dict]
-
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    """Serve the main UI"""
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "version": "2.0.0"
+    })
+
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
-
-@app.get("/api/eeps")
-async def get_eeps():
-    try:
-        # Download EEP.xml from EnOcean Alliance
-        url = "https://www.enocean-alliance.org/wp-content/uploads/2020/08/EEP.xml"
-        response = requests.get(url)
-        response.raise_for_status()
-        root = etree.fromstring(response.content)
-
-        eeps = {}
-        for profile in root.findall(".//profile"):
-            rorg = profile.find("rorg").text
-            func = profile.find("func").text
-            type_ = profile.find("type").text
-            key = f"{rorg}-{func}-{type_}"
-            description = profile.find("description").text if profile.find("description") is not None else ""
-            eeps[key] = {
-                "rorg": rorg,
-                "func": func,
-                "type": type_,
-                "description": description,
-                "fields": []  # TODO: Parse telegram fields from XML
-            }
-        return eeps
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load EEPs: {str(e)}")
-
-@app.get("/api/devices")
-async def get_devices():
-    try:
-        devices_file = os.path.join(CONFIG_DIR, "enoceanmqtt.devices")
-        if os.path.exists(devices_file):
-            with open(devices_file, "r") as f:
-                content = f.read()
-                # Parse INI-like format or YAML
-                # For simplicity, return as text or parse
-                return {"content": content}
-        return {}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/devices")
-async def update_devices(devices: Dict[str, Device]):
-    try:
-        devices_file = os.path.join(CONFIG_DIR, "enoceanmqtt.devices")
-        # Convert to INI format
-        content = ""
-        for name, dev in devices.items():
-            content += f"[{name}]\n"
-            content += f"address = {dev.address}\n"
-            content += f"rorg = {dev.rorg}\n"
-            content += f"func = {dev.func}\n"
-            content += f"type = {dev.type}\n"
-            if dev.sender_id:
-                content += f"sender_id = {dev.sender_id}\n"
-            content += "\n"
-        with open(devices_file, "w") as f:
-            f.write(content)
-        return {"status": "updated"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/mappings")
-async def get_mappings():
-    try:
-        mappings_file = os.path.join(CONFIG_DIR, "mapping.yaml")
-        if os.path.exists(mappings_file):
-            with open(mappings_file, "r") as f:
-                data = yaml.safe_load(f)
-                return data or {}
-        return {}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/mappings")
-async def update_mappings(mappings: Dict):
-    try:
-        mappings_file = os.path.join(CONFIG_DIR, "mapping.yaml")
-        with open(mappings_file, "w") as f:
-            yaml.dump(mappings, f)
-        return {"status": "updated"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/validate")
-async def validate_config(file: UploadFile = File(...)):
-    try:
-        content = await file.read()
-        # Validate YAML
-        data = yaml.safe_load(content)
-        # TODO: Add EEP validation logic
-        return {"valid": True, "errors": []}
-    except yaml.YAMLError as e:
-        return {"valid": False, "errors": [str(e)]}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/wizards/{device_type}")
-async def get_wizard(device_type: str):
-    # Pre-defined templates
-    wizards = {
-        "eltako_tf61j": {
-            "eep": "A5-3F-7F",
-            "description": "Eltako TF61J Jalousie Actor",
-            "config": {
-                "address": "0xFF8CE888",
-                "rorg": "0xA5",
-                "func": "0x3F",
-                "type": "0x7F"
-            }
-        },
-        "kessel_staufix": {
-            "eep": "A5-20-04",
-            "description": "Kessel Stauffix Valve",
-            "config": {
-                "address": "0x01234567",
-                "rorg": "0xA5",
-                "func": "0x20",
-                "type": "0x04"
-            }
-        }
+    """Health check endpoint"""
+    return {
+        "status": "ok",
+        "mqtt_connected": mqtt_handler.is_connected if mqtt_handler else False,
+        "enocean_connected": serial_handler.is_connected if serial_handler else False,
+        "device_count": device_manager.device_count if device_manager else 0,
+        "profile_count": eep_manager.profile_count if eep_manager else 0
     }
-    if device_type in wizards:
-        return wizards[device_type]
-    raise HTTPException(status_code=404, detail="Wizard not found")
 
-@app.get("/api/export/{type}")
-async def export_config(type: str):
-    if type == "devices":
-        file_path = os.path.join(CONFIG_DIR, "enoceanmqtt.devices")
-    elif type == "mappings":
-        file_path = os.path.join(CONFIG_DIR, "mapping.yaml")
-    else:
-        raise HTTPException(status_code=400, detail="Invalid type")
-    if os.path.exists(file_path):
-        return FileResponse(file_path, media_type='application/octet-stream', filename=f"{type}.yaml" if type == "mappings" else f"{type}.ini")
-    raise HTTPException(status_code=404, detail="File not found")
 
-@app.post("/api/import")
-async def import_config(file: UploadFile = File(...)):
-    try:
-        content = await file.read()
-        # Determine type from filename or content
-        if file.filename.endswith(".yaml"):
-            data = yaml.safe_load(content)
-            # Assume mappings
-            mappings_file = os.path.join(CONFIG_DIR, "mapping.yaml")
-            with open(mappings_file, "w") as f:
-                yaml.dump(data, f)
-        else:
-            # Assume devices
-            devices_file = os.path.join(CONFIG_DIR, "enoceanmqtt.devices")
-            with open(devices_file, "w") as f:
-                f.write(content.decode())
-        return {"status": "imported"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8099)

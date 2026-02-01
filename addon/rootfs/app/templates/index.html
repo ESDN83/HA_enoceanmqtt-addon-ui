@@ -3,213 +3,1076 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EnOcean Config UI</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>EnOcean MQTT</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #0d6efd;
+            --success-color: #198754;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+        }
+        body {
+            background-color: #f8f9fa;
+        }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 100;
+            padding: 48px 0 0;
+            box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+            background-color: #fff;
+        }
+        .sidebar-sticky {
+            position: relative;
+            top: 0;
+            height: calc(100vh - 48px);
+            padding-top: .5rem;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+        .nav-link {
+            color: #333;
+            padding: 0.75rem 1rem;
+        }
+        .nav-link:hover, .nav-link.active {
+            background-color: #e9ecef;
+            color: var(--primary-color);
+        }
+        .nav-link i {
+            margin-right: 0.5rem;
+        }
+        .main-content {
+            margin-left: 240px;
+            padding: 20px;
+        }
+        .status-card {
+            border-left: 4px solid var(--primary-color);
+        }
+        .status-card.connected {
+            border-left-color: var(--success-color);
+        }
+        .status-card.disconnected {
+            border-left-color: var(--danger-color);
+        }
+        .device-card {
+            transition: transform 0.2s;
+        }
+        .device-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .eep-tree {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .eep-item {
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+        .eep-item:hover {
+            background-color: #e9ecef;
+        }
+        .eep-item.custom {
+            background-color: #fff3cd;
+        }
+        .teach-in-indicator {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .wizard-step {
+            display: none;
+        }
+        .wizard-step.active {
+            display: block;
+        }
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+    </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <!-- Top Navbar -->
+    <nav class="navbar navbar-dark bg-primary fixed-top">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">EnOcean Config UI</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav">
-                    <li class="nav-item"><a class="nav-link" href="#eep-browser">EEP Browser</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#device-editor">Device Editor</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#mapping-editor">Mapping Editor</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#wizards">Wizards</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#validate">Validate</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#export">Export</a></li>
-                </ul>
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-broadcast-pin"></i> EnOcean MQTT
+            </a>
+            <div class="d-flex align-items-center">
+                <span id="mqtt-status" class="badge bg-danger me-2">
+                    <i class="bi bi-wifi-off"></i> MQTT
+                </span>
+                <span id="enocean-status" class="badge bg-danger">
+                    <i class="bi bi-usb-symbol"></i> EnOcean
+                </span>
             </div>
         </div>
     </nav>
 
-    <div class="container mt-4">
-        <div id="eep-browser" class="mb-5">
-            <h2>EEP Browser</h2>
-            <input type="text" id="eep-search" class="form-control mb-3" placeholder="Search EEPs...">
-            <div id="eep-tree" class="border p-3" style="height: 400px; overflow-y: auto;">
-                Loading EEPs...
+    <!-- Sidebar -->
+    <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+        <div class="sidebar-sticky pt-4">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#" data-page="dashboard">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="devices">
+                        <i class="bi bi-cpu"></i> Devices
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="profiles">
+                        <i class="bi bi-file-earmark-code"></i> EEP Profiles
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="mappings">
+                        <i class="bi bi-diagram-3"></i> Mappings
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="teach-in">
+                        <i class="bi bi-plus-circle"></i> Add Device
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="settings">
+                        <i class="bi bi-gear"></i> Settings
+                    </a>
+                </li>
+            </ul>
+            <hr>
+            <div class="px-3">
+                <small class="text-muted">Version {{ version }}</small>
             </div>
         </div>
+    </nav>
 
-        <div id="device-editor" class="mb-5">
-            <h2>Device Editor</h2>
-            <form id="device-form">
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label>Name</label>
-                        <input type="text" class="form-control" name="name" required>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label>Address (hex)</label>
-                        <input type="text" class="form-control" name="address" placeholder="0xFFBD7480" required>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label>RORG</label>
-                        <input type="text" class="form-control" name="rorg" placeholder="0xD5" required>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label>Func</label>
-                        <input type="text" class="form-control" name="func" placeholder="0x00" required>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label>Type</label>
-                        <input type="text" class="form-control" name="type" placeholder="0x01" required>
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Dashboard Page -->
+        <div id="page-dashboard" class="page-content">
+            <h2 class="mb-4">Dashboard</h2>
+
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card status-card" id="card-mqtt">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted">MQTT Broker</h6>
+                            <h4 class="card-title" id="mqtt-host">-</h4>
+                            <span class="badge bg-secondary" id="mqtt-connection">Checking...</span>
+                        </div>
                     </div>
                 </div>
-                <div class="mb-3">
-                    <label>Sender ID (optional)</label>
-                    <input type="text" class="form-control" name="sender_id" placeholder="0xFFBD7480">
+                <div class="col-md-3">
+                    <div class="card status-card" id="card-enocean">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted">EnOcean Gateway</h6>
+                            <h4 class="card-title" id="enocean-port">-</h4>
+                            <span class="badge bg-secondary" id="enocean-connection">Checking...</span>
+                        </div>
+                    </div>
                 </div>
-                <button type="submit" class="btn btn-primary">Save Device</button>
-            </form>
-            <div id="device-list" class="mt-3">
-                <!-- Device list will be loaded here -->
+                <div class="col-md-3">
+                    <div class="card status-card connected">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted">Devices</h6>
+                            <h4 class="card-title" id="device-count">0</h4>
+                            <span class="badge bg-success">Configured</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card status-card connected">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted">EEP Profiles</h6>
+                            <h4 class="card-title" id="profile-count">0</h4>
+                            <span class="badge bg-success">Loaded</span>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
 
-        <div id="mapping-editor" class="mb-5">
-            <h2>Mapping Editor</h2>
-            <textarea id="mapping-text" class="form-control" rows="10" placeholder="Paste or edit mapping.yaml here..."></textarea>
-            <button id="save-mapping" class="btn btn-primary mt-2">Save Mapping</button>
-        </div>
-
-        <div id="wizards" class="mb-5">
-            <h2>Wizards</h2>
             <div class="row">
                 <div class="col-md-6">
                     <div class="card">
+                        <div class="card-header">
+                            <i class="bi bi-lightning"></i> Quick Actions
+                        </div>
                         <div class="card-body">
-                            <h5 class="card-title">Eltako TF61J</h5>
-                            <p class="card-text">Jalousie Actor</p>
-                            <button class="btn btn-secondary" onclick="loadWizard('eltako_tf61j')">Load Template</button>
+                            <button class="btn btn-primary me-2" onclick="navigateTo('teach-in')">
+                                <i class="bi bi-plus-circle"></i> Add Device
+                            </button>
+                            <button class="btn btn-outline-primary me-2" onclick="navigateTo('profiles')">
+                                <i class="bi bi-file-earmark-code"></i> Browse Profiles
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="exportConfig()">
+                                <i class="bi bi-download"></i> Export Config
+                            </button>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-clock-history"></i> Recent Telegrams</span>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="loadRecentTelegrams()">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                        <div class="card-body" id="recent-activity" style="max-height: 300px; overflow-y: auto;">
+                            <p class="text-muted">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-question-circle"></i> Unknown Devices</span>
+                            <small class="text-muted">Devices sending telegrams but not yet configured</small>
+                        </div>
                         <div class="card-body">
-                            <h5 class="card-title">Kessel Stauffix</h5>
-                            <p class="card-text">Valve</p>
-                            <button class="btn btn-secondary" onclick="loadWizard('kessel_staufix')">Load Template</button>
+                            <div id="unknown-devices-list">
+                                <p class="text-muted">No unknown devices detected</p>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div id="validate" class="mb-5">
-            <h2>Validate Config</h2>
-            <input type="file" id="validate-file" class="form-control mb-3">
-            <button id="validate-btn" class="btn btn-warning">Validate</button>
-            <div id="validate-result" class="mt-3"></div>
+        <!-- Devices Page -->
+        <div id="page-devices" class="page-content" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Devices</h2>
+                <button class="btn btn-primary" onclick="navigateTo('teach-in')">
+                    <i class="bi bi-plus-circle"></i> Add Device
+                </button>
+            </div>
+
+            <div class="mb-3">
+                <input type="text" class="form-control" id="device-search" placeholder="Search devices...">
+            </div>
+
+            <div id="device-list" class="row">
+                <!-- Devices will be loaded here -->
+            </div>
         </div>
 
-        <div id="export" class="mb-5">
-            <h2>Export</h2>
-            <button class="btn btn-success me-2" onclick="exportConfig('devices')">Export Devices</button>
-            <button class="btn btn-success" onclick="exportConfig('mappings')">Export Mappings</button>
+        <!-- EEP Profiles Page -->
+        <div id="page-profiles" class="page-content" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>EEP Profiles</h2>
+                <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#customProfileModal">
+                    <i class="bi bi-plus-circle"></i> Create Custom Profile
+                </button>
+            </div>
+
+            <div class="mb-3">
+                <input type="text" class="form-control" id="profile-search" placeholder="Search profiles (e.g., temperature, A5-02, switch)...">
+            </div>
+
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">Profile Tree</div>
+                        <div class="card-body eep-tree" id="eep-tree">
+                            <!-- Tree will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">Profile Details</div>
+                        <div class="card-body" id="profile-details">
+                            <p class="text-muted">Select a profile to view details</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mappings Page -->
+        <div id="page-mappings" class="page-content" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Entity Mappings</h2>
+                <div>
+                    <button class="btn btn-outline-primary me-2" onclick="loadMappingTemplates()">
+                        <i class="bi bi-file-earmark-text"></i> Templates
+                    </button>
+                    <button class="btn btn-primary" onclick="saveMappings()">
+                        <i class="bi bi-save"></i> Save
+                    </button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <textarea id="mapping-editor" class="form-control font-monospace" rows="20" placeholder="# Mapping configuration (YAML format)"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Teach-In / Add Device Page -->
+        <div id="page-teach-in" class="page-content" style="display: none;">
+            <h2 class="mb-4">Add New Device</h2>
+
+            <div class="card">
+                <div class="card-body">
+                    <!-- Wizard Steps -->
+                    <div class="wizard-step active" id="step-1">
+                        <h4>Step 1: Detect Device</h4>
+                        <p class="text-muted">Choose how to add your device</p>
+
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="bi bi-broadcast display-4 text-primary"></i>
+                                        <h5 class="mt-3">Automatic (Teach-In)</h5>
+                                        <p>Press the teach-in button on your device</p>
+                                        <button class="btn btn-primary" onclick="startTeachIn()">
+                                            Start Teach-In
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="bi bi-pencil-square display-4 text-secondary"></i>
+                                        <h5 class="mt-3">Manual Entry</h5>
+                                        <p>Enter device details manually</p>
+                                        <button class="btn btn-outline-secondary" onclick="showManualEntry()">
+                                            Enter Manually
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="teach-in-status" class="mt-4" style="display: none;">
+                            <div class="alert alert-info teach-in-indicator">
+                                <i class="bi bi-broadcast"></i>
+                                Waiting for device... Press the teach-in button now.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="wizard-step" id="step-2">
+                        <h4>Step 2: Configure Device</h4>
+
+                        <form id="device-form">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Device Name *</label>
+                                    <input type="text" class="form-control" name="name" required placeholder="e.g., Living Room Temperature">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Address *</label>
+                                    <input type="text" class="form-control" name="address" required placeholder="0x05834FA4">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">RORG *</label>
+                                    <input type="text" class="form-control" name="rorg" required placeholder="A5">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">FUNC *</label>
+                                    <input type="text" class="form-control" name="func" required placeholder="02">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">TYPE *</label>
+                                    <input type="text" class="form-control" name="type" required placeholder="05">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Description</label>
+                                    <input type="text" class="form-control" name="description" placeholder="Optional description">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Room</label>
+                                    <input type="text" class="form-control" name="room" placeholder="e.g., Living Room">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Sender ID (for bidirectional devices)</label>
+                                <input type="text" class="form-control" name="sender_id" placeholder="0xFFBD7480">
+                            </div>
+
+                            <div id="profile-suggestion" class="alert alert-info" style="display: none;">
+                                <strong>Suggested Profile:</strong> <span id="suggested-profile"></span>
+                            </div>
+
+                            <div class="mt-4">
+                                <button type="button" class="btn btn-outline-secondary" onclick="wizardBack()">Back</button>
+                                <button type="submit" class="btn btn-primary">Add Device</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="wizard-step" id="step-3">
+                        <div class="text-center py-5">
+                            <i class="bi bi-check-circle display-1 text-success"></i>
+                            <h4 class="mt-3">Device Added Successfully!</h4>
+                            <p class="text-muted">The device will appear in Home Assistant shortly.</p>
+                            <button class="btn btn-primary" onclick="navigateTo('devices')">View Devices</button>
+                            <button class="btn btn-outline-secondary" onclick="resetWizard()">Add Another</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Page -->
+        <div id="page-settings" class="page-content" style="display: none;">
+            <h2 class="mb-4">Settings</h2>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header">Import / Export</div>
+                        <div class="card-body">
+                            <button class="btn btn-outline-primary me-2" onclick="exportConfig()">
+                                <i class="bi bi-download"></i> Export All
+                            </button>
+                            <label class="btn btn-outline-secondary">
+                                <i class="bi bi-upload"></i> Import
+                                <input type="file" id="import-file" style="display: none;" accept=".zip" onchange="importConfig(this)">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header">System</div>
+                        <div class="card-body">
+                            <button class="btn btn-warning" onclick="restartServices()">
+                                <i class="bi bi-arrow-clockwise"></i> Restart Services
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Custom Profile Modal -->
+    <div class="modal fade" id="customProfileModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create Custom EEP Profile</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="custom-profile-form">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">RORG</label>
+                                <input type="text" class="form-control" name="rorg" required placeholder="A5">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">FUNC</label>
+                                <input type="text" class="form-control" name="func" required placeholder="30">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">TYPE</label>
+                                <input type="text" class="form-control" name="type" required placeholder="03">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <input type="text" class="form-control" name="description" required placeholder="e.g., Kessel Staufix Control">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Fields (JSON)</label>
+                            <textarea class="form-control font-monospace" name="fields" rows="10" placeholder='[{"shortcut": "AL", "description": "Alarm", "offset": 29, "size": 1, "type": "enum"}]'></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveCustomProfile()">Save Profile</button>
+                </div>
+            </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Load EEPs
-        fetch('/api/eeps')
-            .then(response => response.json())
-            .then(data => {
-                const tree = document.getElementById('eep-tree');
-                tree.innerHTML = '';
-                for (const [key, eep] of Object.entries(data)) {
-                    const div = document.createElement('div');
-                    div.className = 'p-2 border-bottom';
-                    div.innerHTML = `<strong>${key}</strong>: ${eep.description}`;
-                    tree.appendChild(div);
-                }
-            })
-            .catch(err => {
-                document.getElementById('eep-tree').innerHTML = 'Failed to load EEPs: ' + err.message;
-            });
+        // Global state
+        let currentPage = 'dashboard';
+        let teachInSocket = null;
 
-        // Device form submit
-        document.getElementById('device-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const device = Object.fromEntries(formData);
-            fetch('/api/devices', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({[device.name]: device})
-            })
-            .then(response => response.json())
-            .then(data => alert('Device saved!'))
-            .catch(err => alert('Error: ' + err.message));
-        });
-
-        // Load mappings
-        fetch('/api/mappings')
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('mapping-text').value = JSON.stringify(data, null, 2);
-            });
-
-        // Save mapping
-        document.getElementById('save-mapping').addEventListener('click', function() {
-            const text = document.getElementById('mapping-text').value;
-            try {
-                const data = JSON.parse(text);
-                fetch('/api/mappings', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(data)
-                })
-                .then(response => response.json())
-                .then(data => alert('Mapping saved!'));
-            } catch (err) {
-                alert('Invalid JSON: ' + err.message);
-            }
-        });
-
-        // Load wizard
-        function loadWizard(type) {
-            fetch(`/api/wizards/${type}`)
-                .then(response => response.json())
-                .then(data => {
-                    // Populate device form
-                    document.querySelector('[name="name"]').value = data.description;
-                    document.querySelector('[name="address"]').value = data.config.address;
-                    document.querySelector('[name="rorg"]').value = data.config.rorg;
-                    document.querySelector('[name="func"]').value = data.config.func;
-                    document.querySelector('[name="type"]').value = data.config.type;
-                    alert('Template loaded! Edit and save.');
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Navigation
+            document.querySelectorAll('[data-page]').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    navigateTo(this.dataset.page);
                 });
+            });
+
+            // Load initial data
+            loadStatus();
+            loadRecentTelegrams();
+            loadUnknownDevices();
+            setInterval(loadStatus, 10000); // Refresh every 10 seconds
+            setInterval(loadRecentTelegrams, 5000); // Refresh telegrams every 5 seconds
+            setInterval(loadUnknownDevices, 15000); // Refresh unknown devices every 15 seconds
+
+            // Device form
+            document.getElementById('device-form').addEventListener('submit', saveDevice);
+
+            // Search handlers
+            document.getElementById('device-search')?.addEventListener('input', filterDevices);
+            document.getElementById('profile-search')?.addEventListener('input', filterProfiles);
+        });
+
+        function navigateTo(page) {
+            // Hide all pages
+            document.querySelectorAll('.page-content').forEach(p => p.style.display = 'none');
+            // Show selected page
+            document.getElementById('page-' + page).style.display = 'block';
+            // Update nav
+            document.querySelectorAll('[data-page]').forEach(link => {
+                link.classList.toggle('active', link.dataset.page === page);
+            });
+            currentPage = page;
+
+            // Load page-specific data
+            if (page === 'devices') loadDevices();
+            if (page === 'profiles') loadProfiles();
+            if (page === 'mappings') loadMappings();
         }
 
-        // Validate
-        document.getElementById('validate-btn').addEventListener('click', function() {
-            const fileInput = document.getElementById('validate-file');
-            if (fileInput.files.length === 0) return alert('Select a file');
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
-            fetch('/api/validate', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                const result = document.getElementById('validate-result');
-                result.innerHTML = data.valid ? '<div class="alert alert-success">Valid!</div>' : '<div class="alert alert-danger">Errors: ' + data.errors.join(', ') + '</div>';
-            });
-        });
+        async function loadStatus() {
+            try {
+                const response = await fetch('/api/system/status');
+                const data = await response.json();
 
-        // Export
-        function exportConfig(type) {
-            window.open(`/api/export/${type}`, '_blank');
+                // Update MQTT status
+                const mqttBadge = document.getElementById('mqtt-status');
+                const mqttConn = document.getElementById('mqtt-connection');
+                const mqttCard = document.getElementById('card-mqtt');
+                if (data.mqtt.connected) {
+                    mqttBadge.className = 'badge bg-success me-2';
+                    mqttBadge.innerHTML = '<i class="bi bi-wifi"></i> MQTT';
+                    mqttConn.className = 'badge bg-success';
+                    mqttConn.textContent = 'Connected';
+                    mqttCard.classList.add('connected');
+                    mqttCard.classList.remove('disconnected');
+                } else {
+                    mqttBadge.className = 'badge bg-danger me-2';
+                    mqttBadge.innerHTML = '<i class="bi bi-wifi-off"></i> MQTT';
+                    mqttConn.className = 'badge bg-danger';
+                    mqttConn.textContent = 'Disconnected';
+                    mqttCard.classList.add('disconnected');
+                    mqttCard.classList.remove('connected');
+                }
+                document.getElementById('mqtt-host').textContent = data.mqtt.host || 'Not configured';
+
+                // Update EnOcean status
+                const enoceanBadge = document.getElementById('enocean-status');
+                const enoceanConn = document.getElementById('enocean-connection');
+                const enoceanCard = document.getElementById('card-enocean');
+                if (data.enocean.connected) {
+                    enoceanBadge.className = 'badge bg-success';
+                    enoceanBadge.innerHTML = '<i class="bi bi-usb-symbol"></i> EnOcean';
+                    enoceanConn.className = 'badge bg-success';
+                    enoceanConn.textContent = 'Connected';
+                    enoceanCard.classList.add('connected');
+                    enoceanCard.classList.remove('disconnected');
+                } else {
+                    enoceanBadge.className = 'badge bg-danger';
+                    enoceanBadge.innerHTML = '<i class="bi bi-usb-symbol"></i> EnOcean';
+                    enoceanConn.className = 'badge bg-danger';
+                    enoceanConn.textContent = 'Disconnected';
+                    enoceanCard.classList.add('disconnected');
+                    enoceanCard.classList.remove('connected');
+                }
+                document.getElementById('enocean-port').textContent = data.enocean.port || 'Not configured';
+
+                // Update counts
+                document.getElementById('device-count').textContent = data.devices.count;
+                document.getElementById('profile-count').textContent = data.profiles.count;
+
+            } catch (error) {
+                console.error('Failed to load status:', error);
+            }
+        }
+
+        async function loadDevices() {
+            try {
+                const response = await fetch('/api/devices');
+                const devices = await response.json();
+
+                const container = document.getElementById('device-list');
+                container.innerHTML = '';
+
+                if (devices.length === 0) {
+                    container.innerHTML = '<div class="col-12"><p class="text-muted">No devices configured. <a href="#" onclick="navigateTo(\'teach-in\')">Add your first device</a></p></div>';
+                    return;
+                }
+
+                devices.forEach(device => {
+                    const card = document.createElement('div');
+                    card.className = 'col-md-4 mb-3';
+                    card.innerHTML = `
+                        <div class="card device-card">
+                            <div class="card-body">
+                                <h5 class="card-title">${device.name}</h5>
+                                <p class="card-text">
+                                    <small class="text-muted">${device.address}</small><br>
+                                    <span class="badge bg-primary">${device.rorg}-${device.func}-${device.type}</span>
+                                </p>
+                                ${device.description ? `<p class="card-text"><small>${device.description}</small></p>` : ''}
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary" onclick="editDevice('${device.name}')">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger" onclick="deleteDevice('${device.name}')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                showToast('Failed to load devices', 'danger');
+            }
+        }
+
+        async function loadProfiles() {
+            try {
+                const response = await fetch('/api/eep/tree');
+                const tree = await response.json();
+
+                const container = document.getElementById('eep-tree');
+                container.innerHTML = '';
+
+                for (const [rorg, rorgData] of Object.entries(tree)) {
+                    const rorgDiv = document.createElement('div');
+                    rorgDiv.className = 'mb-2';
+                    rorgDiv.innerHTML = `<strong><i class="bi bi-folder"></i> ${rorg} - ${rorgData.description}</strong>`;
+
+                    for (const [func, funcData] of Object.entries(rorgData.funcs)) {
+                        const funcDiv = document.createElement('div');
+                        funcDiv.className = 'ms-3';
+                        funcDiv.innerHTML = `<i class="bi bi-folder2"></i> FUNC ${func}`;
+
+                        for (const [type, typeData] of Object.entries(funcData.types)) {
+                            const typeDiv = document.createElement('div');
+                            typeDiv.className = `ms-4 eep-item ${typeData.is_custom ? 'custom' : ''}`;
+                            typeDiv.innerHTML = `<i class="bi bi-file-earmark"></i> ${typeData.eep_id} - ${typeData.description}`;
+                            typeDiv.onclick = () => showProfileDetails(typeData.eep_id);
+                            funcDiv.appendChild(typeDiv);
+                        }
+
+                        rorgDiv.appendChild(funcDiv);
+                    }
+
+                    container.appendChild(rorgDiv);
+                }
+            } catch (error) {
+                showToast('Failed to load profiles', 'danger');
+            }
+        }
+
+        async function showProfileDetails(eepId) {
+            try {
+                const response = await fetch(`/api/eep/${eepId}`);
+                const profile = await response.json();
+
+                const container = document.getElementById('profile-details');
+                container.innerHTML = `
+                    <h5>${profile.eep_id}</h5>
+                    <p>${profile.description}</p>
+                    ${profile.is_custom ? '<span class="badge bg-warning">Custom Profile</span>' : ''}
+                    <hr>
+                    <h6>Fields</h6>
+                    ${profile.fields.length ? profile.fields.map(f => `
+                        <div class="border rounded p-2 mb-2">
+                            <strong>${f.shortcut}</strong> - ${f.description}<br>
+                            <small>Offset: ${f.offset}, Size: ${f.size} bits, Type: ${f.type}</small>
+                        </div>
+                    `).join('') : '<p class="text-muted">No field definitions</p>'}
+                `;
+            } catch (error) {
+                showToast('Failed to load profile details', 'danger');
+            }
+        }
+
+        async function loadMappings() {
+            try {
+                const response = await fetch('/api/mappings');
+                const data = await response.json();
+                document.getElementById('mapping-editor').value = JSON.stringify(data, null, 2);
+            } catch (error) {
+                showToast('Failed to load mappings', 'danger');
+            }
+        }
+
+        async function saveMappings() {
+            try {
+                const text = document.getElementById('mapping-editor').value;
+                const data = JSON.parse(text);
+
+                await fetch('/api/mappings/common', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({eep_id: 'common', mappings: data})
+                });
+
+                showToast('Mappings saved', 'success');
+            } catch (error) {
+                showToast('Failed to save mappings: ' + error.message, 'danger');
+            }
+        }
+
+        function startTeachIn() {
+            const status = document.getElementById('teach-in-status');
+            status.style.display = 'block';
+
+            // Connect to WebSocket
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            teachInSocket = new WebSocket(`${wsProtocol}//${window.location.host}/api/gateway/teach-in`);
+
+            teachInSocket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.type === 'teach_in') {
+                    // Auto-fill form with detected device
+                    document.querySelector('[name="address"]').value = data.data.sender_id;
+                    document.querySelector('[name="rorg"]').value = data.data.rorg;
+                    document.querySelector('[name="func"]').value = data.data.func;
+                    document.querySelector('[name="type"]').value = data.data.type;
+
+                    status.style.display = 'none';
+                    wizardNext();
+
+                    showToast('Device detected!', 'success');
+                }
+            };
+
+            teachInSocket.onerror = function() {
+                status.innerHTML = '<div class="alert alert-danger">Connection failed. EnOcean gateway may not be connected.</div>';
+            };
+        }
+
+        function showManualEntry() {
+            wizardNext();
+        }
+
+        function wizardNext() {
+            const steps = document.querySelectorAll('.wizard-step');
+            let currentIndex = -1;
+            steps.forEach((step, index) => {
+                if (step.classList.contains('active')) currentIndex = index;
+            });
+            if (currentIndex < steps.length - 1) {
+                steps[currentIndex].classList.remove('active');
+                steps[currentIndex + 1].classList.add('active');
+            }
+        }
+
+        function wizardBack() {
+            const steps = document.querySelectorAll('.wizard-step');
+            let currentIndex = -1;
+            steps.forEach((step, index) => {
+                if (step.classList.contains('active')) currentIndex = index;
+            });
+            if (currentIndex > 0) {
+                steps[currentIndex].classList.remove('active');
+                steps[currentIndex - 1].classList.add('active');
+            }
+        }
+
+        function resetWizard() {
+            document.querySelectorAll('.wizard-step').forEach((step, index) => {
+                step.classList.toggle('active', index === 0);
+            });
+            document.getElementById('device-form').reset();
+        }
+
+        async function saveDevice(e) {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            const device = Object.fromEntries(formData);
+            const editMode = form.dataset.editMode;
+
+            try {
+                let response;
+                if (editMode) {
+                    // Update existing device
+                    response = await fetch(`/api/devices/${editMode}`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(device)
+                    });
+                } else {
+                    // Create new device
+                    response = await fetch('/api/devices', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(device)
+                    });
+                }
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to save device');
+                }
+
+                // Clear edit mode
+                delete form.dataset.editMode;
+
+                wizardNext();
+                showToast(editMode ? 'Device updated successfully' : 'Device saved successfully', 'success');
+            } catch (error) {
+                showToast(error.message, 'danger');
+            }
+        }
+
+        async function editDevice(name) {
+            try {
+                const response = await fetch(`/api/devices/${name}`);
+                const device = await response.json();
+
+                // Navigate to teach-in page and pre-fill form
+                navigateTo('teach-in');
+                showManualEntry();
+
+                document.querySelector('[name="name"]').value = device.name;
+                document.querySelector('[name="address"]').value = device.address;
+                document.querySelector('[name="rorg"]').value = device.rorg;
+                document.querySelector('[name="func"]').value = device.func;
+                document.querySelector('[name="type"]').value = device.type;
+                document.querySelector('[name="description"]').value = device.description || '';
+                document.querySelector('[name="room"]').value = device.room || '';
+                document.querySelector('[name="sender_id"]').value = device.sender_id || '';
+
+                // Mark as edit mode
+                document.getElementById('device-form').dataset.editMode = name;
+
+            } catch (error) {
+                showToast('Failed to load device', 'danger');
+            }
+        }
+
+        async function deleteDevice(name) {
+            if (!confirm(`Delete device "${name}"?`)) return;
+
+            try {
+                await fetch(`/api/devices/${name}`, {method: 'DELETE'});
+                loadDevices();
+                showToast('Device deleted', 'success');
+            } catch (error) {
+                showToast('Failed to delete device', 'danger');
+            }
+        }
+
+        async function exportConfig() {
+            window.open('/api/system/export', '_blank');
+        }
+
+        async function importConfig(input) {
+            if (!input.files.length) return;
+
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+
+            try {
+                const response = await fetch('/api/system/import', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                showToast(`Import successful: ${result.details.devices ? 'devices, ' : ''}${result.details.mappings ? 'mappings, ' : ''}${result.details.custom_profiles} custom profiles`, 'success');
+                loadStatus();
+            } catch (error) {
+                showToast('Import failed', 'danger');
+            }
+        }
+
+        async function restartServices() {
+            if (!confirm('Restart EnOcean and MQTT services?')) return;
+
+            try {
+                await fetch('/api/system/restart', {method: 'POST'});
+                showToast('Services restarting...', 'info');
+                setTimeout(loadStatus, 3000);
+            } catch (error) {
+                showToast('Restart failed', 'danger');
+            }
+        }
+
+        async function saveCustomProfile() {
+            const form = document.getElementById('custom-profile-form');
+            const formData = new FormData(form);
+
+            try {
+                const fields = formData.get('fields') ? JSON.parse(formData.get('fields')) : [];
+
+                const response = await fetch('/api/eep/custom', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        rorg: formData.get('rorg'),
+                        func: formData.get('func'),
+                        type: formData.get('type'),
+                        description: formData.get('description'),
+                        fields: fields
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to save profile');
+
+                bootstrap.Modal.getInstance(document.getElementById('customProfileModal')).hide();
+                form.reset();
+                loadProfiles();
+                showToast('Custom profile created', 'success');
+            } catch (error) {
+                showToast(error.message, 'danger');
+            }
+        }
+
+        function filterDevices() {
+            // TODO: Implement client-side filtering
+        }
+
+        function filterProfiles() {
+            // TODO: Implement client-side filtering
+        }
+
+        async function loadRecentTelegrams() {
+            try {
+                const response = await fetch('/api/gateway/recent-telegrams?limit=10');
+                const telegrams = await response.json();
+
+                const container = document.getElementById('recent-activity');
+
+                if (telegrams.length === 0) {
+                    container.innerHTML = '<p class="text-muted">No telegrams received yet</p>';
+                    return;
+                }
+
+                container.innerHTML = telegrams.map(t => `
+                    <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                        <div>
+                            <strong>${t.device_name || 'Unknown'}</strong>
+                            <small class="text-muted ms-2">${t.sender_id}</small>
+                            ${t.is_teach_in ? '<span class="badge bg-warning ms-2">Teach-In</span>' : ''}
+                        </div>
+                        <div>
+                            <span class="badge bg-secondary">${t.rorg}</span>
+                            <small class="text-muted">${t.dbm} dBm</small>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load recent telegrams:', error);
+            }
+        }
+
+        async function loadUnknownDevices() {
+            try {
+                const response = await fetch('/api/gateway/unknown-devices');
+                const devices = await response.json();
+
+                const container = document.getElementById('unknown-devices-list');
+
+                if (devices.length === 0) {
+                    container.innerHTML = '<p class="text-muted">No unknown devices detected</p>';
+                    return;
+                }
+
+                container.innerHTML = `
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Address</th>
+                                    <th>RORG</th>
+                                    <th>Signal</th>
+                                    <th>Count</th>
+                                    <th>Last Seen</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${devices.map(d => `
+                                    <tr>
+                                        <td><code>${d.sender_id}</code></td>
+                                        <td><span class="badge bg-primary">${d.rorg}</span></td>
+                                        <td>${d.dbm} dBm</td>
+                                        <td>${d.count}</td>
+                                        <td><small>${new Date(d.last_seen).toLocaleTimeString()}</small></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="addUnknownDevice('${d.sender_id}', '${d.rorg}')">
+                                                <i class="bi bi-plus"></i> Add
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Failed to load unknown devices:', error);
+            }
+        }
+
+        function addUnknownDevice(senderId, rorg) {
+            // Navigate to teach-in page and pre-fill the form
+            navigateTo('teach-in');
+            showManualEntry();
+            document.querySelector('[name="address"]').value = senderId;
+            document.querySelector('[name="rorg"]').value = rorg;
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center text-white bg-${type} border-0`;
+            toast.setAttribute('role', 'alert');
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+            container.appendChild(toast);
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+            toast.addEventListener('hidden.bs.toast', () => toast.remove());
         }
     </script>
 </body>
