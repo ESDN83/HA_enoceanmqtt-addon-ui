@@ -1,0 +1,89 @@
+# Kessel Staufix EnOcean Profile
+# Based on A5-30-03 (Digital Input, 4 Channels)
+# Custom mapping for Kessel Staufix backwater valve
+
+profile:
+  rorg: "A5"
+  func: "30"
+  type: "03"
+  description: "Kessel Staufix Backwater Valve"
+  manufacturer: "Kessel"
+  fields:
+    - shortcut: "AL"
+      description: "Alarm Status"
+      offset: 0
+      size: 1
+      type: "enum"
+      values:
+        - value: 0
+          description: "No Alarm"
+        - value: 1
+          description: "Alarm Active"
+    - shortcut: "DI0"
+      description: "Digital Input 0 - Valve Closed"
+      offset: 4
+      size: 1
+      type: "enum"
+      values:
+        - value: 0
+          description: "Open"
+        - value: 1
+          description: "Closed"
+    - shortcut: "DI1"
+      description: "Digital Input 1 - Error"
+      offset: 5
+      size: 1
+      type: "enum"
+      values:
+        - value: 0
+          description: "OK"
+        - value: 1
+          description: "Error"
+    - shortcut: "DI2"
+      description: "Digital Input 2 - Maintenance Required"
+      offset: 6
+      size: 1
+      type: "enum"
+      values:
+        - value: 0
+          description: "OK"
+        - value: 1
+          description: "Maintenance Required"
+    - shortcut: "DI3"
+      description: "Digital Input 3 - Battery Low"
+      offset: 7
+      size: 1
+      type: "enum"
+      values:
+        - value: 0
+          description: "OK"
+        - value: 1
+          description: "Battery Low"
+
+# Mapping for Home Assistant
+ha_mapping:
+  AL:
+    component: "binary_sensor"
+    name: "Alarm"
+    device_class: "problem"
+    icon: "mdi:alert"
+  DI0:
+    component: "binary_sensor"
+    name: "Valve Closed"
+    device_class: "opening"
+    icon: "mdi:pipe-valve"
+  DI1:
+    component: "binary_sensor"
+    name: "Error"
+    device_class: "problem"
+    icon: "mdi:alert-circle"
+  DI2:
+    component: "binary_sensor"
+    name: "Maintenance Required"
+    device_class: "problem"
+    icon: "mdi:wrench"
+  DI3:
+    component: "binary_sensor"
+    name: "Battery Low"
+    device_class: "battery"
+    icon: "mdi:battery-alert"
