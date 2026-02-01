@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EnOcean Config UI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">EnOcean Config UI</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item"><a class="nav-link" href="#eep-browser">EEP Browser</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#device-editor">Device Editor</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#mapping-editor">Mapping Editor</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#wizards">Wizards</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#validate">Validate</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#export">Export</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div id="eep-browser" class="mb-5">
+            <h2>EEP Browser</h2>
+            <input type="text" id="eep-search" class="form-control mb-3" placeholder="Search EEPs...">
+            <div id="eep-tree" class="border p-3" style="height: 400px; overflow-y: auto;">
+                Loading EEPs...
+            </div>
+        </div>
+
+        <div id="device-editor" class="mb-5">
+            <h2>Device Editor</h2>
+            <form id="device-form">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label>Name</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label>Address (hex)</label>
+                        <input type="text" class="form-control" name="address" placeholder="0xFFBD7480" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label>RORG</label>
+                        <input type="text" class="form-control" name="rorg" placeholder="0xD5" required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label>Func</label>
+                        <input type="text" class="form-control" name="func" placeholder="0x00" required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label>Type</label>
+                        <input type="text" class="form-control" name="type" placeholder="0x01" required>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label>Sender ID (optional)</label>
+                    <input type="text" class="form-control" name="sender_id" placeholder="0xFFBD7480">
+                </div>
+                <button type="submit" class="btn btn-primary">Save Device</button>
+            </form>
+            <div id="device-list" class="mt-3">
+                <!-- Device list will be loaded here -->
+            </div>
+        </div>
+
+        <div id="mapping-editor" class="mb-5">
+            <h2>Mapping Editor</h2>
+            <textarea id="mapping-text" class="form-control" rows="10" placeholder="Paste or edit mapping.yaml here..."></textarea>
+            <button id="save-mapping" class="btn btn-primary mt-2">Save Mapping</button>
+        </div>
+
+        <div id="wizards" class="mb-5">
+            <h2>Wizards</h2>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Eltako TF61J</h5>
+                            <p class="card-text">Jalousie Actor</p>
+                            <button class="btn btn-secondary" onclick="loadWizard('eltako_tf61j')">Load Template</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Kessel Stauffix</h5>
+                            <p class="card-text">Valve</p>
+                            <button class="btn btn-secondary" onclick="loadWizard('kessel_staufix')">Load Template</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="validate" class="mb-5">
+            <h2>Validate Config</h2>
+            <input type="file" id="validate-file" class="form-control mb-3">
+            <button id="validate-btn" class="btn btn-warning">Validate</button>
+            <div id="validate-result" class="mt-3"></div>
+        </div>
+
+        <div id="export" class="mb-5">
+            <h2>Export</h2>
+            <button class="btn btn-success me-2" onclick="exportConfig('devices')">Export Devices</button>
+            <button class="btn btn-success" onclick="exportConfig('mappings')">Export Mappings</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Load EEPs
+        fetch('/api/eeps')
+            .then(response => response.json())
+            .then(data => {
+                const tree = document.getElementById('eep-tree');
+                tree.innerHTML = '';
+                for (const [key, eep] of Object.entries(data)) {
+                    const div = document.createElement('div');
+                    div.className = 'p-2 border-bottom';
+                    div.innerHTML = `<strong>${key}</strong>: ${eep.description}`;
+                    tree.appendChild(div);
+                }
+            })
+            .catch(err => {
+                document.getElementById('eep-tree').innerHTML = 'Failed to load EEPs: ' + err.message;
+            });
+
+        // Device form submit
+        document.getElementById('device-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const device = Object.fromEntries(formData);
+            fetch('/api/devices', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({[device.name]: device})
+            })
+            .then(response => response.json())
+            .then(data => alert('Device saved!'))
+            .catch(err => alert('Error: ' + err.message));
+        });
+
+        // Load mappings
+        fetch('/api/mappings')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('mapping-text').value = JSON.stringify(data, null, 2);
+            });
+
+        // Save mapping
+        document.getElementById('save-mapping').addEventListener('click', function() {
+            const text = document.getElementById('mapping-text').value;
+            try {
+                const data = JSON.parse(text);
+                fetch('/api/mappings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(data => alert('Mapping saved!'));
+            } catch (err) {
+                alert('Invalid JSON: ' + err.message);
+            }
+        });
+
+        // Load wizard
+        function loadWizard(type) {
+            fetch(`/api/wizards/${type}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Populate device form
+                    document.querySelector('[name="name"]').value = data.description;
+                    document.querySelector('[name="address"]').value = data.config.address;
+                    document.querySelector('[name="rorg"]').value = data.config.rorg;
+                    document.querySelector('[name="func"]').value = data.config.func;
+                    document.querySelector('[name="type"]').value = data.config.type;
+                    alert('Template loaded! Edit and save.');
+                });
+        }
+
+        // Validate
+        document.getElementById('validate-btn').addEventListener('click', function() {
+            const fileInput = document.getElementById('validate-file');
+            if (fileInput.files.length === 0) return alert('Select a file');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            fetch('/api/validate', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                const result = document.getElementById('validate-result');
+                result.innerHTML = data.valid ? '<div class="alert alert-success">Valid!</div>' : '<div class="alert alert-danger">Errors: ' + data.errors.join(', ') + '</div>';
+            });
+        });
+
+        // Export
+        function exportConfig(type) {
+            window.open(`/api/export/${type}`, '_blank');
+        }
+    </script>
+</body>
+</html>

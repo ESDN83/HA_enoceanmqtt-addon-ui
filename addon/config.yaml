@@ -1,0 +1,23 @@
+name: EnOcean Config UI
+version: "0.1.0"
+slug: enocean-config-ui
+description: Visual editor for EnOcean MQTT configs
+url: https://github.com/ESDN83/HA_enoceanmqtt-addon-ui
+arch:
+  - amd64
+  - armhf
+  - armv7
+  - aarch64
+  - 386
+  - armv6
+startup: application
+boot: auto
+ingress: true
+ingress_port: 8000
+panel_icon: mdi:settings
+panel_title: EnOcean Config UI
+map:
+  - config:rw
+options: {}
+schema: {}
+image: homeassistant/{arch}-base
