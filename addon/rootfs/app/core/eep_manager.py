@@ -1,6 +1,8 @@
 """
 EEP Manager - Handles EnOcean Equipment Profile loading and parsing
 Supports official EEP.xml and custom overrides
+
+The EEP.xml is bundled with the addon - no external downloads required.
 """
 
 import os
@@ -12,9 +14,6 @@ import yaml
 import aiofiles
 
 logger = logging.getLogger(__name__)
-
-# URL to official EnOcean Alliance EEP.xml
-EEP_XML_URL = "https://www.enocean-alliance.org/wp-content/uploads/2020/08/EEP.xml"
 
 
 class EEPProfile:
@@ -71,41 +70,33 @@ class EEPManager:
         logger.info(f"EEP Manager initialized with {self.profile_count} profiles")
 
     async def _load_base_eep(self):
-        """Load and parse the base EEP.xml file"""
-        # Check for local cached copy first
-        local_eep = os.path.join(self.config_path, "EEP.xml")
+        """Load and parse the base EEP.xml file
+
+        The EEP.xml is bundled with the addon in the data directory.
+        Users can also provide their own EEP.xml in the config directory.
+        No external downloads are performed.
+        """
+        # Bundled EEP.xml (shipped with addon)
         bundled_eep = os.path.join(os.path.dirname(__file__), "..", "data", "EEP.xml")
+        # User-provided EEP.xml (optional override in config)
+        user_eep = os.path.join(self.config_path, "EEP.xml")
 
         xml_content = None
 
-        # Try local cache
-        if os.path.exists(local_eep):
-            logger.info(f"Loading EEP.xml from local cache: {local_eep}")
-            async with aiofiles.open(local_eep, 'rb') as f:
+        # Try user-provided EEP.xml first (allows updates without addon rebuild)
+        if os.path.exists(user_eep):
+            logger.info(f"Loading user EEP.xml from: {user_eep}")
+            async with aiofiles.open(user_eep, 'rb') as f:
                 xml_content = await f.read()
 
-        # Try bundled version
+        # Use bundled version (default)
         elif os.path.exists(bundled_eep):
             logger.info(f"Loading bundled EEP.xml: {bundled_eep}")
             async with aiofiles.open(bundled_eep, 'rb') as f:
                 xml_content = await f.read()
 
-        # Download from EnOcean Alliance
         else:
-            logger.info(f"Downloading EEP.xml from {EEP_XML_URL}")
-            try:
-                import aiohttp
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(EEP_XML_URL) as response:
-                        if response.status == 200:
-                            xml_content = await response.read()
-                            # Cache locally
-                            os.makedirs(self.config_path, exist_ok=True)
-                            async with aiofiles.open(local_eep, 'wb') as f:
-                                await f.write(xml_content)
-                            logger.info(f"Cached EEP.xml to {local_eep}")
-            except Exception as e:
-                logger.error(f"Failed to download EEP.xml: {e}")
+            logger.error(f"CRITICAL: Bundled EEP.xml not found at {bundled_eep}")
 
         if xml_content:
             await self._parse_eep_xml(xml_content)
