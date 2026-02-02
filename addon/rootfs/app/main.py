@@ -85,10 +85,14 @@ async def lifespan(app: FastAPI):
             password=mqtt_password,
             prefix=mqtt_prefix,
             discovery_prefix=mqtt_discovery_prefix,
-            device_manager=device_manager
+            device_manager=device_manager,
+            config_path=CONFIG_PATH
         )
         await mqtt_handler.connect()
         logger.info(f"Connected to MQTT broker at {mqtt_host}:{mqtt_port}")
+
+        # Load and republish persisted states (important for infrequent sensors like Kessel Staufix)
+        await mqtt_handler.load_persisted_states()
     else:
         logger.warning("MQTT not configured - running in UI-only mode")
 
