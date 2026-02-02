@@ -352,7 +352,10 @@
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2>Entity Mappings</h2>
                 <div>
-                    <button class="btn btn-outline-primary me-2" onclick="loadMappingTemplates()">
+                    <button class="btn btn-outline-secondary me-2" onclick="showMappingHelp()">
+                        <i class="bi bi-question-circle"></i> Help
+                    </button>
+                    <button class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#templatesModal">
                         <i class="bi bi-file-earmark-text"></i> Templates
                     </button>
                     <button class="btn btn-primary" onclick="saveMappings()">
@@ -361,9 +364,60 @@
                 </div>
             </div>
 
+            <!-- Metadata Row -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <small class="text-muted">
+                        <i class="bi bi-clock"></i> Last modified: <span id="mapping-last-modified">Never</span>
+                    </small>
+                </div>
+                <div class="col-md-6 text-end">
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" id="restore-dropdown">
+                            <i class="bi bi-arrow-counterclockwise"></i> Restore
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" id="restore-versions">
+                            <li><span class="dropdown-item text-muted">No backups available</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
             <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>YAML Editor</span>
+                    <small class="text-muted">Define how EEP fields map to Home Assistant entities</small>
+                </div>
                 <div class="card-body">
-                    <textarea id="mapping-editor" class="form-control font-monospace" rows="20" placeholder="# Mapping configuration (YAML format)"></textarea>
+                    <textarea id="mapping-editor" class="form-control font-monospace" rows="20" placeholder="# Mapping configuration (YAML format)
+#
+# Example for a temperature sensor:
+# A5-02-05:
+#   TMP:
+#     component: sensor
+#     name: Temperature
+#     device_class: temperature
+#     unit_of_measurement: °C
+#     icon: mdi:thermometer
+"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Templates Modal -->
+        <div class="modal fade" id="templatesModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Mapping Templates</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted">Click a template to insert it into the editor:</p>
+                        <div id="templates-list" class="row">
+                            <!-- Templates loaded here -->
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -802,7 +856,37 @@
             try {
                 const response = await fetch(getApiUrl('/api/mappings'));
                 const data = await response.json();
-                document.getElementById('mapping-editor').value = JSON.stringify(data, null, 2);
+
+                // Update editor with YAML content
+                if (data.mappings && Object.keys(data.mappings).length > 0) {
+                    // Convert to YAML-like format for display
+                    document.getElementById('mapping-editor').value = JSON.stringify(data.mappings, null, 2);
+                } else {
+                    document.getElementById('mapping-editor').value = '';
+                }
+
+                // Update metadata
+                if (data.metadata) {
+                    const lastMod = data.metadata.last_modified;
+                    document.getElementById('mapping-last-modified').textContent =
+                        lastMod ? new Date(lastMod).toLocaleString() : 'Never';
+
+                    // Update restore dropdown
+                    const dropdown = document.getElementById('restore-versions');
+                    if (data.metadata.versions_available && data.metadata.versions_available.length > 0) {
+                        dropdown.innerHTML = data.metadata.versions_available.map(v =>
+                            `<li><a class="dropdown-item" href="#" onclick="restoreMapping(${v.version})">
+                                Version ${v.version} - ${new Date(v.date).toLocaleString()}
+                            </a></li>`
+                        ).join('');
+                    } else {
+                        dropdown.innerHTML = '<li><span class="dropdown-item text-muted">No backups available</span></li>';
+                    }
+                }
+
+                // Load templates
+                loadMappingTemplates();
+
             } catch (error) {
                 showToast('Failed to load mappings', 'danger');
             }
@@ -811,18 +895,127 @@
         async function saveMappings() {
             try {
                 const text = document.getElementById('mapping-editor').value;
-                const data = JSON.parse(text);
+                let data = {};
 
-                await fetch(getApiUrl('/api/mappings/common'), {
+                if (text.trim()) {
+                    data = JSON.parse(text);
+                }
+
+                const response = await fetch(getApiUrl('/api/mappings/save'), {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({eep_id: 'common', mappings: data})
+                    body: JSON.stringify(data)
                 });
 
+                if (!response.ok) {
+                    throw new Error('Save failed');
+                }
+
                 showToast('Mappings saved', 'success');
+                loadMappings(); // Reload to update metadata
+
             } catch (error) {
                 showToast('Failed to save mappings: ' + error.message, 'danger');
             }
+        }
+
+        async function restoreMapping(version) {
+            if (!confirm(`Restore mapping from version ${version}? Current mappings will be backed up.`)) return;
+
+            try {
+                const response = await fetch(getApiUrl(`/api/mappings/restore/${version}`), {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Restore failed');
+                }
+
+                showToast(`Restored from version ${version}`, 'success');
+                loadMappings();
+
+            } catch (error) {
+                showToast('Failed to restore: ' + error.message, 'danger');
+            }
+        }
+
+        async function loadMappingTemplates() {
+            try {
+                const response = await fetch(getApiUrl('/api/mappings/templates'));
+                const templates = await response.json();
+
+                const container = document.getElementById('templates-list');
+                container.innerHTML = Object.entries(templates).map(([name, mapping]) => `
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="card-title">${name.replace(/_/g, ' ')}</h6>
+                                <pre class="small bg-light p-2 mb-2" style="max-height: 100px; overflow: auto;">${JSON.stringify(mapping, null, 2)}</pre>
+                                <button class="btn btn-sm btn-outline-primary" onclick="insertTemplate('${name}', ${JSON.stringify(JSON.stringify(mapping))})">
+                                    <i class="bi bi-plus"></i> Insert
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                console.error('Failed to load templates:', error);
+            }
+        }
+
+        function insertTemplate(name, mappingJson) {
+            const editor = document.getElementById('mapping-editor');
+            let current = {};
+
+            try {
+                if (editor.value.trim()) {
+                    current = JSON.parse(editor.value);
+                }
+            } catch (e) {
+                // Start fresh if invalid
+            }
+
+            current[name] = JSON.parse(mappingJson);
+            editor.value = JSON.stringify(current, null, 2);
+
+            // Close modal
+            bootstrap.Modal.getInstance(document.getElementById('templatesModal'))?.hide();
+            showToast(`Template "${name}" inserted`, 'success');
+        }
+
+        function showMappingHelp() {
+            alert(`Mapping Configuration Help:
+
+Mappings define how EnOcean EEP fields are converted to Home Assistant entities.
+
+Format (JSON):
+{
+  "EEP-ID": {
+    "FIELD": {
+      "component": "sensor|binary_sensor|switch|light|cover",
+      "name": "Display Name",
+      "device_class": "temperature|humidity|door|...",
+      "unit_of_measurement": "°C|%|...",
+      "icon": "mdi:icon-name"
+    }
+  }
+}
+
+Example for temperature sensor (A5-02-05):
+{
+  "A5-02-05": {
+    "TMP": {
+      "component": "sensor",
+      "name": "Temperature",
+      "device_class": "temperature",
+      "unit_of_measurement": "°C"
+    }
+  }
+}
+
+Use Templates button to insert common configurations.
+Use Restore to roll back to previous versions.`);
         }
 
         function startTeachIn() {

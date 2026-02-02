@@ -3,6 +3,8 @@ Mappings API - MQTT/HA entity mappings management
 """
 
 import os
+import shutil
+from datetime import datetime
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -12,6 +14,8 @@ import aiofiles
 
 router = APIRouter()
 
+MAX_VERSIONS = 3  # Keep last 3 versions for rollback
+
 
 class MappingUpdate(BaseModel):
     """Mapping update model"""
@@ -19,20 +23,63 @@ class MappingUpdate(BaseModel):
     mappings: Dict[str, Dict[str, Any]]
 
 
+async def _create_backup(config_path: str, mappings_file: str):
+    """Create a backup before saving, rotating old versions"""
+    if not os.path.exists(mappings_file):
+        return
+
+    # Rotate existing backups (v3 -> delete, v2 -> v3, v1 -> v2, current -> v1)
+    for i in range(MAX_VERSIONS, 0, -1):
+        old_backup = os.path.join(config_path, f"mapping.yaml.v{i}")
+        if i == MAX_VERSIONS:
+            if os.path.exists(old_backup):
+                os.remove(old_backup)
+        else:
+            new_backup = os.path.join(config_path, f"mapping.yaml.v{i+1}")
+            if os.path.exists(old_backup):
+                shutil.move(old_backup, new_backup)
+
+    # Copy current to v1
+    backup_file = os.path.join(config_path, "mapping.yaml.v1")
+    shutil.copy2(mappings_file, backup_file)
+
+
 @router.get("")
 async def get_all_mappings(request: Request) -> Dict[str, Any]:
-    """Get all mappings"""
+    """Get all mappings with metadata"""
     config_path = request.app.state.config_path
     mappings_file = os.path.join(config_path, "mapping.yaml")
 
+    result = {
+        "mappings": {},
+        "metadata": {
+            "last_modified": None,
+            "versions_available": []
+        }
+    }
+
+    # Get available backup versions
+    for i in range(1, MAX_VERSIONS + 1):
+        backup_file = os.path.join(config_path, f"mapping.yaml.v{i}")
+        if os.path.exists(backup_file):
+            mtime = os.path.getmtime(backup_file)
+            result["metadata"]["versions_available"].append({
+                "version": i,
+                "date": datetime.fromtimestamp(mtime).isoformat()
+            })
+
     if not os.path.exists(mappings_file):
-        return {"common": {}, "profiles": {}}
+        return result
 
     try:
+        # Get last modified time
+        mtime = os.path.getmtime(mappings_file)
+        result["metadata"]["last_modified"] = datetime.fromtimestamp(mtime).isoformat()
+
         async with aiofiles.open(mappings_file, 'r') as f:
             content = await f.read()
-            data = yaml.safe_load(content) or {}
-            return data
+            result["mappings"] = yaml.safe_load(content) or {}
+            return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read mappings: {e}")
 
@@ -69,6 +116,9 @@ async def update_mapping(eep_id: str, mapping: MappingUpdate, request: Request) 
     mappings_file = os.path.join(config_path, "mapping.yaml")
 
     try:
+        # Create backup before modifying
+        await _create_backup(config_path, mappings_file)
+
         # Load existing mappings
         data = {}
         if os.path.exists(mappings_file):
@@ -88,6 +138,53 @@ async def update_mapping(eep_id: str, mapping: MappingUpdate, request: Request) 
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update mapping: {e}")
+
+
+@router.post("/restore/{version}")
+async def restore_mapping_version(version: int, request: Request) -> Dict[str, str]:
+    """Restore mappings from a previous version"""
+    if version < 1 or version > MAX_VERSIONS:
+        raise HTTPException(status_code=400, detail=f"Version must be between 1 and {MAX_VERSIONS}")
+
+    config_path = request.app.state.config_path
+    mappings_file = os.path.join(config_path, "mapping.yaml")
+    backup_file = os.path.join(config_path, f"mapping.yaml.v{version}")
+
+    if not os.path.exists(backup_file):
+        raise HTTPException(status_code=404, detail=f"Version {version} not found")
+
+    try:
+        # Create backup of current before restoring
+        await _create_backup(config_path, mappings_file)
+
+        # Restore from backup
+        shutil.copy2(backup_file, mappings_file)
+
+        return {"status": "restored", "version": version}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to restore: {e}")
+
+
+@router.put("/save")
+async def save_all_mappings(request: Request, data: Dict[str, Any]) -> Dict[str, str]:
+    """Save complete mappings (for editor)"""
+    config_path = request.app.state.config_path
+    mappings_file = os.path.join(config_path, "mapping.yaml")
+
+    try:
+        # Create backup before saving
+        await _create_backup(config_path, mappings_file)
+
+        # Save new mappings
+        os.makedirs(config_path, exist_ok=True)
+        async with aiofiles.open(mappings_file, 'w') as f:
+            await f.write(yaml.dump(data, default_flow_style=False, allow_unicode=True))
+
+        return {"status": "saved"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save mappings: {e}")
 
 
 @router.delete("/{eep_id}")
