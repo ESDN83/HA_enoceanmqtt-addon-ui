@@ -323,6 +323,12 @@
                 </button>
             </div>
 
+            <div class="alert alert-info mb-3">
+                <i class="bi bi-info-circle"></i>
+                <strong>56 standard profiles</strong> from the EnOcean protocol are included.
+                Need a missing profile? Create a <strong>Custom Profile</strong> for devices like Kessel Staufix or manufacturer-specific sensors.
+            </div>
+
             <div class="mb-3">
                 <input type="text" class="form-control" id="profile-search" placeholder="Search profiles (e.g., temperature, A5-02, switch)...">
             </div>
@@ -1245,7 +1251,43 @@ Use Restore to roll back to previous versions.`);
         }
 
         function filterProfiles() {
-            // TODO: Implement client-side filtering
+            const query = document.getElementById('profile-search').value.toLowerCase();
+            const container = document.getElementById('eep-tree');
+            const items = container.querySelectorAll('.eep-item');
+            const rorgDivs = container.querySelectorAll(':scope > div');
+
+            if (!query) {
+                // Show all items
+                items.forEach(item => item.style.display = '');
+                rorgDivs.forEach(div => div.style.display = '');
+                return;
+            }
+
+            // Hide/show based on search
+            rorgDivs.forEach(rorgDiv => {
+                let rorgHasVisible = false;
+                const funcDivs = rorgDiv.querySelectorAll(':scope > .ms-3');
+
+                funcDivs.forEach(funcDiv => {
+                    let funcHasVisible = false;
+                    const typeItems = funcDiv.querySelectorAll('.eep-item');
+
+                    typeItems.forEach(item => {
+                        const text = item.textContent.toLowerCase();
+                        if (text.includes(query)) {
+                            item.style.display = '';
+                            funcHasVisible = true;
+                            rorgHasVisible = true;
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    });
+
+                    funcDiv.style.display = funcHasVisible ? '' : 'none';
+                });
+
+                rorgDiv.style.display = rorgHasVisible ? '' : 'none';
+            });
         }
 
         async function loadRecentTelegrams() {
