@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.1] - 2024-01-XX
+## [2.0.2] - 2025-02-02
 
 ### Added
 - **Cache Device States** option - Persist and restore device states after restart
@@ -20,7 +20,7 @@
 - UI content hidden behind navbar
 - Status indicator not updating correctly
 
-## [2.0.0] - 2024-01-XX
+## [2.0.0] - 2025-02-01
 
 ### Added
 - Complete rewrite as All-in-One addon
