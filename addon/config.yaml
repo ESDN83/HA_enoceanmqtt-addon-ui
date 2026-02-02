@@ -1,6 +1,6 @@
 ---
 name: "EnOcean MQTT"
-version: "2.0.0"
+version: "2.0.1"
 slug: "enocean-mqtt"
 description: "All-in-One EnOcean to MQTT bridge with web UI. Configure devices visually, create custom EEP profiles, and manage MQTT mappings - no config files needed!"
 url: "https://github.com/ESDN83/HA_enoceanmqtt-addon-ui"
@@ -26,7 +26,8 @@ map:
 
 options:
   serial_port: ""
-  tcp_port: ""
+  tcp_host: ""
+  tcp_port: 9637
   log_level: "info"
   mqtt:
     discovery_prefix: "homeassistant"
@@ -35,7 +36,8 @@ options:
 
 schema:
   serial_port: "device(subsystem=tty)?"
-  tcp_port: "match(^(tcp:.+:[0-9]+)?$)?"
+  tcp_host: "str?"
+  tcp_port: "int(1,65535)?"
   log_level: "list(debug|info|warning|error)"
   mqtt:
     discovery_prefix: "str"

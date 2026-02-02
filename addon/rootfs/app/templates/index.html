@@ -565,6 +565,20 @@
         let currentPage = 'dashboard';
         let teachInSocket = null;
 
+        // API base URL - handles HA Ingress path
+        function getApiUrl(path) {
+            // Get base path from current URL (for HA Ingress)
+            const basePath = window.location.pathname.replace(/\/$/, '');
+            return basePath + path;
+        }
+
+        // WebSocket URL helper
+        function getWsUrl(path) {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const basePath = window.location.pathname.replace(/\/$/, '');
+            return `${wsProtocol}//${window.location.host}${basePath}${path}`;
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
             // Navigation
@@ -627,7 +641,7 @@
 
         async function loadStatus() {
             try {
-                const response = await fetch('/api/system/status');
+                const response = await fetch(getApiUrl('/api/system/status'));
                 const data = await response.json();
 
                 // Update MQTT status
@@ -683,7 +697,7 @@
 
         async function loadDevices() {
             try {
-                const response = await fetch('/api/devices');
+                const response = await fetch(getApiUrl('/api/devices'));
                 const devices = await response.json();
 
                 const container = document.getElementById('device-list');
@@ -726,7 +740,7 @@
 
         async function loadProfiles() {
             try {
-                const response = await fetch('/api/eep/tree');
+                const response = await fetch(getApiUrl('/api/eep/tree'));
                 const tree = await response.json();
 
                 const container = document.getElementById('eep-tree');
@@ -762,7 +776,7 @@
 
         async function showProfileDetails(eepId) {
             try {
-                const response = await fetch(`/api/eep/${eepId}`);
+                const response = await fetch(getApiUrl(`/api/eep/${eepId}`));
                 const profile = await response.json();
 
                 const container = document.getElementById('profile-details');
@@ -786,7 +800,7 @@
 
         async function loadMappings() {
             try {
-                const response = await fetch('/api/mappings');
+                const response = await fetch(getApiUrl('/api/mappings'));
                 const data = await response.json();
                 document.getElementById('mapping-editor').value = JSON.stringify(data, null, 2);
             } catch (error) {
@@ -799,7 +813,7 @@
                 const text = document.getElementById('mapping-editor').value;
                 const data = JSON.parse(text);
 
-                await fetch('/api/mappings/common', {
+                await fetch(getApiUrl('/api/mappings/common'), {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({eep_id: 'common', mappings: data})
@@ -816,8 +830,7 @@
             status.style.display = 'block';
 
             // Connect to WebSocket
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            teachInSocket = new WebSocket(`${wsProtocol}//${window.location.host}/api/gateway/teach-in`);
+            teachInSocket = new WebSocket(getWsUrl('/api/gateway/teach-in'));
 
             teachInSocket.onmessage = function(event) {
                 const data = JSON.parse(event.data);
@@ -886,7 +899,7 @@
                 let response;
                 if (editMode) {
                     // Update existing device
-                    response = await fetch(`/api/devices/${editMode}`, {
+                    response = await fetch(getApiUrl(`/api/devices/${editMode}`), {
                         method: 'PUT',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify(device)
@@ -917,7 +930,7 @@
 
         async function editDevice(name) {
             try {
-                const response = await fetch(`/api/devices/${name}`);
+                const response = await fetch(getApiUrl(`/api/devices/${name}`));
                 const device = await response.json();
 
                 // Navigate to teach-in page and pre-fill form
@@ -945,7 +958,7 @@
             if (!confirm(`Delete device "${name}"?`)) return;
 
             try {
-                await fetch(`/api/devices/${name}`, {method: 'DELETE'});
+                await fetch(getApiUrl(`/api/devices/${name}`), {method: 'DELETE'});
                 loadDevices();
                 showToast('Device deleted', 'success');
             } catch (error) {
@@ -954,7 +967,7 @@
         }
 
         async function exportConfig() {
-            window.open('/api/system/export', '_blank');
+            window.open(getApiUrl('/api/system/export'), '_blank');
         }
 
         async function importConfig(input) {
@@ -964,7 +977,7 @@
             formData.append('file', input.files[0]);
 
             try {
-                const response = await fetch('/api/system/import', {
+                const response = await fetch(getApiUrl('/api/system/import'), {
                     method: 'POST',
                     body: formData
                 });
@@ -980,7 +993,7 @@
             if (!confirm('Restart EnOcean and MQTT services?')) return;
 
             try {
-                await fetch('/api/system/restart', {method: 'POST'});
+                await fetch(getApiUrl('/api/system/restart'), {method: 'POST'});
                 showToast('Services restarting...', 'info');
                 setTimeout(loadStatus, 3000);
             } catch (error) {
@@ -995,7 +1008,7 @@
             try {
                 const fields = formData.get('fields') ? JSON.parse(formData.get('fields')) : [];
 
-                const response = await fetch('/api/eep/custom', {
+                const response = await fetch(getApiUrl('/api/eep/custom'), {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -1028,7 +1041,7 @@
 
         async function loadRecentTelegrams() {
             try {
-                const response = await fetch('/api/gateway/recent-telegrams?limit=10');
+                const response = await fetch(getApiUrl('/api/gateway/recent-telegrams?limit=10'));
                 const telegrams = await response.json();
 
                 const container = document.getElementById('recent-activity');
@@ -1058,7 +1071,7 @@
 
         async function loadUnknownDevices() {
             try {
-                const response = await fetch('/api/gateway/unknown-devices');
+                const response = await fetch(getApiUrl('/api/gateway/unknown-devices'));
                 const devices = await response.json();
 
                 const container = document.getElementById('unknown-devices-list');
