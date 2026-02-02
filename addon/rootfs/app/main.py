@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/config/enocean")
 ENOCEAN_PORT = os.getenv("ENOCEAN_PORT", "")
 CACHE_DEVICE_STATES = os.getenv("CACHE_DEVICE_STATES", "true").lower() == "true"
+VERSION = "2.0.2"
 
 # Global instances
 mqtt_handler: MQTTHandler = None
@@ -182,7 +183,7 @@ async def _publish_all_discoveries():
 app = FastAPI(
     title="EnOcean MQTT",
     description="All-in-One EnOcean to MQTT bridge with web UI",
-    version="2.0.0",
+    version=VERSION,
     lifespan=lifespan
 )
 
@@ -205,7 +206,7 @@ async def root(request: Request):
     """Serve the main UI"""
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "version": "2.0.0"
+        "version": VERSION
     })
 
 
