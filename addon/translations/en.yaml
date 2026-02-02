@@ -1,0 +1,26 @@
+---
+configuration:
+  serial_port:
+    name: Serial Port
+    description: EnOcean USB transceiver serial port (e.g., /dev/ttyUSB0). Leave empty if using TCP.
+  tcp_host:
+    name: TCP Host
+    description: EnOcean gateway TCP hostname/IP (for network-connected transceivers). Leave empty if using serial.
+  tcp_port:
+    name: TCP Port
+    description: EnOcean gateway TCP port. Default is 9637 if left empty.
+  log_level:
+    name: Log Level
+    description: Application log verbosity level.
+  mqtt:
+    name: MQTT Settings
+    description: MQTT broker configuration for Home Assistant integration.
+  mqtt.discovery_prefix:
+    name: Discovery Prefix
+    description: MQTT topic prefix for Home Assistant auto-discovery (usually 'homeassistant').
+  mqtt.prefix:
+    name: Topic Prefix
+    description: MQTT topic prefix for EnOcean devices (e.g., 'enocean' creates topics like enocean/device/state).
+  mqtt.client_id:
+    name: Client ID
+    description: MQTT client identifier for this add-on.
