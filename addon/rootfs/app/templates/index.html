@@ -15,21 +15,22 @@
         }
         body {
             background-color: #f8f9fa;
+            padding-top: 56px; /* Height of navbar */
         }
         .sidebar {
             position: fixed;
-            top: 0;
+            top: 56px; /* Below navbar */
             bottom: 0;
             left: 0;
             z-index: 100;
-            padding: 48px 0 0;
+            width: 240px;
             box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
             background-color: #fff;
         }
         .sidebar-sticky {
             position: relative;
             top: 0;
-            height: calc(100vh - 48px);
+            height: calc(100vh - 56px);
             padding-top: .5rem;
             overflow-x: hidden;
             overflow-y: auto;
@@ -48,6 +49,36 @@
         .main-content {
             margin-left: 240px;
             padding: 20px;
+        }
+        /* Mobile responsive */
+        @media (max-width: 767.98px) {
+            .sidebar {
+                position: fixed;
+                top: 56px;
+                left: -240px;
+                width: 240px;
+                transition: left 0.3s ease-in-out;
+                z-index: 1040;
+            }
+            .sidebar.show {
+                left: 0;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+            .sidebar-backdrop {
+                position: fixed;
+                top: 56px;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 1030;
+                display: none;
+            }
+            .sidebar-backdrop.show {
+                display: block;
+            }
         }
         .status-card {
             border-left: 4px solid var(--primary-color);
@@ -106,6 +137,10 @@
     <!-- Top Navbar -->
     <nav class="navbar navbar-dark bg-primary fixed-top">
         <div class="container-fluid">
+            <!-- Mobile menu toggle button -->
+            <button class="navbar-toggler d-md-none me-2" type="button" onclick="toggleSidebar()">
+                <span class="navbar-toggler-icon"></span>
+            </button>
             <a class="navbar-brand" href="#">
                 <i class="bi bi-broadcast-pin"></i> EnOcean MQTT
             </a>
@@ -120,8 +155,11 @@
         </div>
     </nav>
 
+    <!-- Mobile sidebar backdrop -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar()"></div>
+
     <!-- Sidebar -->
-    <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+    <nav class="sidebar" id="sidebar">
         <div class="sidebar-sticky pt-4">
             <ul class="nav flex-column">
                 <li class="nav-item">
@@ -553,6 +591,20 @@
             document.getElementById('profile-search')?.addEventListener('input', filterProfiles);
         });
 
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            sidebar.classList.toggle('show');
+            backdrop.classList.toggle('show');
+        }
+
+        function closeSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            sidebar.classList.remove('show');
+            backdrop.classList.remove('show');
+        }
+
         function navigateTo(page) {
             // Hide all pages
             document.querySelectorAll('.page-content').forEach(p => p.style.display = 'none');
@@ -563,6 +615,9 @@
                 link.classList.toggle('active', link.dataset.page === page);
             });
             currentPage = page;
+
+            // Close sidebar on mobile after navigation
+            closeSidebar();
 
             // Load page-specific data
             if (page === 'devices') loadDevices();
