@@ -15,6 +15,9 @@ from datetime import datetime
 
 router = APIRouter()
 
+# Version should match config.yaml
+VERSION = "2.0.2"
+
 
 @router.get("/status")
 async def get_status(request: Request) -> Dict[str, Any]:
@@ -40,7 +43,7 @@ async def get_status(request: Request) -> Dict[str, Any]:
         "profiles": {
             "count": eep_manager.profile_count if eep_manager else 0
         },
-        "version": "2.0.0"
+        "version": VERSION
     }
 
 
@@ -113,7 +116,7 @@ async def export_all(request: Request):
         # Add export metadata
         metadata = {
             "exported_at": datetime.now().isoformat(),
-            "version": "2.0.0",
+            "version": VERSION,
             "device_manager": request.app.state.device_manager.device_count if request.app.state.device_manager else 0,
             "eep_manager": request.app.state.eep_manager.profile_count if request.app.state.eep_manager else 0
         }
