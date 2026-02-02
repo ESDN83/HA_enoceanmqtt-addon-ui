@@ -2,6 +2,7 @@
 
 # Get configuration
 SERIAL_PORT=$(bashio::config 'serial_port')
+TCP_HOST=$(bashio::config 'tcp_host')
 TCP_PORT=$(bashio::config 'tcp_port')
 LOG_LEVEL=$(bashio::config 'log_level')
 MQTT_DISCOVERY_PREFIX=$(bashio::config 'mqtt.discovery_prefix')
@@ -9,12 +10,14 @@ MQTT_PREFIX=$(bashio::config 'mqtt.prefix')
 MQTT_CLIENT_ID=$(bashio::config 'mqtt.client_id')
 
 # Determine EnOcean connection
-if bashio::var.has_value "${TCP_PORT}"; then
-    ENOCEAN_PORT="${TCP_PORT}"
-    bashio::log.info "Using TCP EnOcean connection: ${ENOCEAN_PORT}"
-elif bashio::var.has_value "${SERIAL_PORT}"; then
+# Priority: Serial > TCP > None
+if bashio::var.has_value "${SERIAL_PORT}"; then
     ENOCEAN_PORT="${SERIAL_PORT}"
     bashio::log.info "Using Serial EnOcean connection: ${ENOCEAN_PORT}"
+elif bashio::var.has_value "${TCP_HOST}"; then
+    # TCP connection format: tcp:host:port
+    ENOCEAN_PORT="tcp:${TCP_HOST}:${TCP_PORT}"
+    bashio::log.info "Using TCP EnOcean connection: ${ENOCEAN_PORT}"
 else
     bashio::log.warning "No EnOcean port configured - running in UI-only mode"
     ENOCEAN_PORT=""
