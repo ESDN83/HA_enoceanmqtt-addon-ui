@@ -44,6 +44,17 @@ async def list_devices(request: Request) -> List[Dict[str, Any]]:
     return device_manager.get_all_devices()
 
 
+@router.get("/search/{query}")
+async def search_devices(query: str, request: Request) -> List[Dict[str, Any]]:
+    """Search devices"""
+    device_manager = request.app.state.device_manager
+    if not device_manager:
+        raise HTTPException(status_code=500, detail="Device manager not initialized")
+
+    results = device_manager.search_devices(query)
+    return [d.to_dict() for d in results]
+
+
 @router.get("/{name}")
 async def get_device(name: str, request: Request) -> Dict[str, Any]:
     """Get a specific device"""
@@ -158,14 +169,3 @@ async def delete_device(name: str, request: Request) -> Dict[str, str]:
         raise HTTPException(status_code=500, detail="Failed to delete device")
 
     return {"status": "deleted"}
-
-
-@router.get("/search/{query}")
-async def search_devices(query: str, request: Request) -> List[Dict[str, Any]]:
-    """Search devices"""
-    device_manager = request.app.state.device_manager
-    if not device_manager:
-        raise HTTPException(status_code=500, detail="Device manager not initialized")
-
-    results = device_manager.search_devices(query)
-    return [d.to_dict() for d in results]

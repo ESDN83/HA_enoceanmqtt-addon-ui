@@ -28,6 +28,40 @@ async def list_profiles(request: Request) -> List[Dict[str, Any]]:
     return eep_manager.get_all_profiles()
 
 
+@router.get("/tree")
+async def get_profile_tree(request: Request) -> Dict[str, Any]:
+    """Get profiles organized as a tree structure by RORG/FUNC/TYPE"""
+    eep_manager = request.app.state.eep_manager
+    if not eep_manager:
+        raise HTTPException(status_code=500, detail="EEP manager not initialized")
+
+    tree = {}
+
+    for profile in eep_manager.profiles.values():
+        if profile.rorg not in tree:
+            tree[profile.rorg] = {
+                "rorg": profile.rorg,
+                "description": _get_rorg_description(profile.rorg),
+                "funcs": {}
+            }
+
+        if profile.func not in tree[profile.rorg]["funcs"]:
+            tree[profile.rorg]["funcs"][profile.func] = {
+                "func": profile.func,
+                "description": "",
+                "types": {}
+            }
+
+        tree[profile.rorg]["funcs"][profile.func]["types"][profile.type] = {
+            "type": profile.type,
+            "eep_id": profile.eep_id,
+            "description": profile.description,
+            "is_custom": profile.is_custom
+        }
+
+    return tree
+
+
 @router.get("/search/{query}")
 async def search_profiles(query: str, request: Request) -> List[Dict[str, Any]]:
     """Search EEP profiles"""
@@ -138,40 +172,6 @@ async def delete_custom_profile(eep_id: str, request: Request) -> Dict[str, str]
         raise HTTPException(status_code=500, detail="Failed to delete custom profile")
 
     return {"status": "deleted"}
-
-
-@router.get("/tree")
-async def get_profile_tree(request: Request) -> Dict[str, Any]:
-    """Get profiles organized as a tree structure by RORG/FUNC/TYPE"""
-    eep_manager = request.app.state.eep_manager
-    if not eep_manager:
-        raise HTTPException(status_code=500, detail="EEP manager not initialized")
-
-    tree = {}
-
-    for profile in eep_manager.profiles.values():
-        if profile.rorg not in tree:
-            tree[profile.rorg] = {
-                "rorg": profile.rorg,
-                "description": _get_rorg_description(profile.rorg),
-                "funcs": {}
-            }
-
-        if profile.func not in tree[profile.rorg]["funcs"]:
-            tree[profile.rorg]["funcs"][profile.func] = {
-                "func": profile.func,
-                "description": "",
-                "types": {}
-            }
-
-        tree[profile.rorg]["funcs"][profile.func]["types"][profile.type] = {
-            "type": profile.type,
-            "eep_id": profile.eep_id,
-            "description": profile.description,
-            "is_custom": profile.is_custom
-        }
-
-    return tree
 
 
 def _get_rorg_description(rorg: str) -> str:
