@@ -29,7 +29,8 @@ class MQTTHandler:
         discovery_prefix: str = "homeassistant",
         device_manager=None,
         client_id: str = "enocean_gateway",
-        config_path: str = "/config/enocean"
+        config_path: str = "/config/enocean",
+        cache_states: bool = True
     ):
         self.host = host
         self.port = port
@@ -40,6 +41,7 @@ class MQTTHandler:
         self.device_manager = device_manager
         self.client_id = client_id
         self.config_path = config_path
+        self.cache_states = cache_states
 
         self._client: Optional[mqtt.Client] = None
         self._connected = False
@@ -189,9 +191,10 @@ class MQTTHandler:
         # Add timestamp
         state["_last_update"] = datetime.now().isoformat()
 
-        # Persist state for recovery
-        self._last_states[device_name] = state
-        await self._save_states()
+        # Persist state for recovery (only if caching enabled)
+        if self.cache_states:
+            self._last_states[device_name] = state
+            await self._save_states()
 
         await self.publish(topic, state, retain=True)
 

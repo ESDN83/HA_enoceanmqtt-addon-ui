@@ -622,7 +622,18 @@
         // API base URL - handles HA Ingress path
         function getApiUrl(path) {
             // Get base path from current URL (for HA Ingress)
-            const basePath = window.location.pathname.replace(/\/$/, '');
+            // pathname could be "/" or "/api/hassio_ingress/<token>/" etc
+            let basePath = window.location.pathname;
+
+            // Remove trailing slash
+            basePath = basePath.replace(/\/$/, '');
+
+            // If we're at root or basePath already contains /api/, don't prepend
+            if (basePath === '' || basePath === '/') {
+                return path;
+            }
+
+            // For HA Ingress: basePath will be like /api/hassio_ingress/abc123
             return basePath + path;
         }
 
@@ -795,6 +806,11 @@
         async function loadProfiles() {
             try {
                 const response = await fetch(getApiUrl('/api/eep/tree'));
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('EEP tree API error:', response.status, errorText);
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
                 const tree = await response.json();
 
                 const container = document.getElementById('eep-tree');
