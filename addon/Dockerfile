@@ -19,8 +19,8 @@ RUN apk add --no-cache \
 # Copy application files
 COPY rootfs /
 
-# Install Python dependencies
-RUN pip3 install --no-cache-dir -r /app/requirements.txt
+# Install Python dependencies with retry logic for network issues
+RUN pip3 install --no-cache-dir --timeout=120 --retries=3 -r /app/requirements.txt
 
 # Set working directory
 WORKDIR /app
