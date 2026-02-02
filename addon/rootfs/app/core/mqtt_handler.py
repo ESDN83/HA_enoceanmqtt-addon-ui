@@ -1,13 +1,17 @@
 """
 MQTT Handler - Manages MQTT communication and Home Assistant discovery
+
+Includes state persistence for devices that send infrequent updates (like Kessel Staufix).
 """
 
 import os
 import json
 import logging
 import asyncio
+from datetime import datetime
 from typing import Dict, Any, Optional, Callable
 import paho.mqtt.client as mqtt
+import aiofiles
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +28,8 @@ class MQTTHandler:
         prefix: str = "enocean",
         discovery_prefix: str = "homeassistant",
         device_manager=None,
-        client_id: str = "enocean_gateway"
+        client_id: str = "enocean_gateway",
+        config_path: str = "/config/enocean"
     ):
         self.host = host
         self.port = port
@@ -34,11 +39,16 @@ class MQTTHandler:
         self.discovery_prefix = discovery_prefix.rstrip("/")
         self.device_manager = device_manager
         self.client_id = client_id
+        self.config_path = config_path
 
         self._client: Optional[mqtt.Client] = None
         self._connected = False
         self._message_callbacks: Dict[str, Callable] = {}
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+
+        # State persistence for infrequent sensors (like Kessel Staufix)
+        self._last_states: Dict[str, Dict[str, Any]] = {}
+        self._states_file = os.path.join(config_path, "last_states.json")
 
     @property
     def is_connected(self) -> bool:
@@ -173,9 +183,61 @@ class MQTTHandler:
         logger.debug(f"Published to {topic}: {payload}")
 
     async def publish_state(self, device_name: str, state: Dict[str, Any]):
-        """Publish device state"""
+        """Publish device state and persist for recovery after restart"""
         topic = f"{self.prefix}/{device_name}/state"
+
+        # Add timestamp
+        state["_last_update"] = datetime.now().isoformat()
+
+        # Persist state for recovery
+        self._last_states[device_name] = state
+        await self._save_states()
+
         await self.publish(topic, state, retain=True)
+
+    async def _save_states(self):
+        """Save last known states to file for recovery after restart"""
+        try:
+            os.makedirs(self.config_path, exist_ok=True)
+            async with aiofiles.open(self._states_file, 'w') as f:
+                await f.write(json.dumps(self._last_states, indent=2))
+        except Exception as e:
+            logger.error(f"Failed to save states: {e}")
+
+    async def load_persisted_states(self):
+        """Load and republish last known states after restart
+
+        This is important for sensors that send infrequently (like Kessel Staufix
+        which only sends every 8-10 hours). Without this, the state would be
+        unknown until the next telegram.
+        """
+        if not os.path.exists(self._states_file):
+            logger.info("No persisted states to restore")
+            return
+
+        try:
+            async with aiofiles.open(self._states_file, 'r') as f:
+                content = await f.read()
+                self._last_states = json.loads(content)
+
+            logger.info(f"Loaded {len(self._last_states)} persisted device states")
+
+            # Republish all states with retain flag
+            for device_name, state in self._last_states.items():
+                topic = f"{self.prefix}/{device_name}/state"
+                # Mark as restored state
+                state["_restored"] = True
+                await self.publish(topic, state, retain=True)
+                logger.debug(f"Restored state for {device_name}")
+
+            logger.info(f"Republished {len(self._last_states)} device states")
+
+        except Exception as e:
+            logger.error(f"Failed to load persisted states: {e}")
+
+    def get_last_state(self, device_name: str) -> Optional[Dict[str, Any]]:
+        """Get last known state for a device"""
+        return self._last_states.get(device_name)
 
     async def publish_discovery(self, device_name: str, component: str, config: Dict[str, Any]):
         """Publish Home Assistant MQTT discovery config"""
