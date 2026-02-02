@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/config/enocean")
 ENOCEAN_PORT = os.getenv("ENOCEAN_PORT", "")
+CACHE_DEVICE_STATES = os.getenv("CACHE_DEVICE_STATES", "true").lower() == "true"
 
 # Global instances
 mqtt_handler: MQTTHandler = None
@@ -86,13 +87,16 @@ async def lifespan(app: FastAPI):
             prefix=mqtt_prefix,
             discovery_prefix=mqtt_discovery_prefix,
             device_manager=device_manager,
-            config_path=CONFIG_PATH
+            config_path=CONFIG_PATH,
+            cache_states=CACHE_DEVICE_STATES
         )
         await mqtt_handler.connect()
         logger.info(f"Connected to MQTT broker at {mqtt_host}:{mqtt_port}")
 
         # Load and republish persisted states (important for infrequent sensors like Kessel Staufix)
-        await mqtt_handler.load_persisted_states()
+        if CACHE_DEVICE_STATES:
+            await mqtt_handler.load_persisted_states()
+            logger.info("Device state caching enabled - states will be persisted and restored")
     else:
         logger.warning("MQTT not configured - running in UI-only mode")
 

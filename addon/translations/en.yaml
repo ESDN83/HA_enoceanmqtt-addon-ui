@@ -2,16 +2,13 @@
 configuration:
   serial_port:
     name: Serial Port
-    description: EnOcean USB transceiver serial port (e.g., /dev/ttyUSB0). Leave empty if using TCP.
-  tcp_host:
-    name: TCP Host
-    description: EnOcean gateway TCP hostname/IP (for network-connected transceivers). Leave empty if using serial.
-  tcp_port:
-    name: TCP Port
-    description: EnOcean gateway TCP port. Default is 9637 if left empty.
+    description: EnOcean USB transceiver serial port (e.g., /dev/ttyUSB0).
   log_level:
     name: Log Level
     description: Application log verbosity level.
+  cache_device_states:
+    name: Cache Device States
+    description: Persist and restore device states after restart. Essential for sensors that send infrequently (e.g., Kessel Staufix sends every 8-10 hours).
   mqtt:
     name: MQTT Settings
     description: MQTT broker configuration for Home Assistant integration.

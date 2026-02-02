@@ -26,9 +26,8 @@ map:
 
 options:
   serial_port: ""
-  tcp_host: ""
-  tcp_port: 9637
   log_level: "info"
+  cache_device_states: true
   mqtt:
     discovery_prefix: "homeassistant"
     prefix: "enocean"
@@ -36,9 +35,8 @@ options:
 
 schema:
   serial_port: "device(subsystem=tty)?"
-  tcp_host: "str?"
-  tcp_port: "int(1,65535)?"
   log_level: "list(debug|info|warning|error)"
+  cache_device_states: "bool"
   mqtt:
     discovery_prefix: "str"
     prefix: "str"
