@@ -117,18 +117,19 @@ async def send_command(cmd: SendCommandRequest, request: Request) -> Dict[str, A
 
 
 @router.websocket("/teach-in")
-async def teach_in_websocket(websocket: WebSocket, request: Request = None):
+async def teach_in_websocket(websocket: WebSocket):
     """WebSocket endpoint for teach-in mode"""
     await websocket.accept()
 
     session_id = str(id(websocket))
     active_teach_in_sessions[session_id] = websocket
+    serial_handler = None
 
     logger.info(f"Teach-in session started: {session_id}")
 
     try:
-        # Get serial handler
-        serial_handler = request.app.state.serial_handler if request else None
+        # Get serial handler from app state via websocket.app
+        serial_handler = websocket.app.state.serial_handler
 
         if not serial_handler or not serial_handler.is_connected:
             await websocket.send_json({
@@ -140,10 +141,14 @@ async def teach_in_websocket(websocket: WebSocket, request: Request = None):
         # Set up teach-in callback
         async def on_teach_in(data: Dict[str, Any]):
             if session_id in active_teach_in_sessions:
-                await active_teach_in_sessions[session_id].send_json({
-                    "type": "teach_in",
-                    "data": data
-                })
+                try:
+                    await active_teach_in_sessions[session_id].send_json({
+                        "type": "teach_in",
+                        "data": data
+                    })
+                    logger.info(f"Teach-in data sent to WebSocket: {data}")
+                except Exception as e:
+                    logger.error(f"Failed to send teach-in to WebSocket: {e}")
 
         serial_handler.set_teach_in_callback(on_teach_in)
 
@@ -152,6 +157,7 @@ async def teach_in_websocket(websocket: WebSocket, request: Request = None):
             "type": "ready",
             "message": "Press the teach-in button on your EnOcean device"
         })
+        logger.info("Teach-in mode active - waiting for device telegrams...")
 
         # Keep connection open and handle messages
         while True:
@@ -162,6 +168,7 @@ async def teach_in_websocket(websocket: WebSocket, request: Request = None):
                 )
 
                 if message.get("type") == "stop":
+                    logger.info("Teach-in stopped by user")
                     break
 
             except asyncio.TimeoutError:
@@ -171,7 +178,7 @@ async def teach_in_websocket(websocket: WebSocket, request: Request = None):
     except WebSocketDisconnect:
         logger.info(f"Teach-in session disconnected: {session_id}")
     except Exception as e:
-        logger.error(f"Teach-in session error: {e}")
+        logger.error(f"Teach-in session error: {e}", exc_info=True)
     finally:
         # Clean up
         if session_id in active_teach_in_sessions:
