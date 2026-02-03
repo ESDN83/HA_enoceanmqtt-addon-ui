@@ -1,6 +1,8 @@
 """
 Serial Handler - Handles EnOcean serial/TCP communication
 Based on ESP3 protocol
+
+Uses a dedicated thread for serial I/O to avoid blocking the asyncio event loop.
 """
 
 import os
@@ -8,6 +10,7 @@ import logging
 import asyncio
 import serial
 import socket
+import threading
 from typing import Optional, Callable, List, Dict, Any
 from dataclasses import dataclass
 
@@ -80,7 +83,11 @@ class RadioTelegram:
 
 
 class SerialHandler:
-    """Handles EnOcean serial/TCP communication"""
+    """Handles EnOcean serial/TCP communication
+
+    Uses a dedicated thread for blocking serial I/O to prevent
+    blocking the asyncio event loop.
+    """
 
     def __init__(
         self,
@@ -100,7 +107,8 @@ class SerialHandler:
         self._socket: Optional[socket.socket] = None
         self._connected = False
         self._running = False
-        self._read_task: Optional[asyncio.Task] = None
+        self._read_thread: Optional[threading.Thread] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._telegram_callbacks: List[Callable] = []
         self._teach_in_callback: Optional[Callable] = None
         self._base_id: Optional[int] = None
@@ -118,6 +126,8 @@ class SerialHandler:
     async def connect(self):
         """Connect to EnOcean transceiver"""
         try:
+            self._loop = asyncio.get_event_loop()
+
             if self.is_tcp:
                 await self._connect_tcp()
             else:
@@ -126,10 +136,16 @@ class SerialHandler:
             self._connected = True
             self._running = True
 
-            # Start read loop
-            self._read_task = asyncio.create_task(self._read_loop())
+            # Start read thread (NOT asyncio task - serial I/O is blocking)
+            self._read_thread = threading.Thread(
+                target=self._read_loop_thread,
+                name="enocean-serial-reader",
+                daemon=True
+            )
+            self._read_thread.start()
 
             logger.info(f"Connected to EnOcean transceiver at {self.port}")
+            logger.info("Serial reader thread started")
 
         except Exception as e:
             logger.error(f"Failed to connect to EnOcean transceiver: {e}")
@@ -140,8 +156,9 @@ class SerialHandler:
         self._serial = serial.Serial(
             port=self.port,
             baudrate=57600,
-            timeout=0.1
+            timeout=1.0  # 1 second timeout for blocking reads
         )
+        logger.info(f"Serial port opened: {self.port} @ 57600 baud")
 
     async def _connect_tcp(self):
         """Connect via TCP"""
@@ -156,18 +173,16 @@ class SerialHandler:
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.settimeout(5.0)
         self._socket.connect((host, port))
-        self._socket.setblocking(False)
+        # Keep blocking for the read thread
+        self._socket.settimeout(1.0)
 
     async def disconnect(self):
         """Disconnect from EnOcean transceiver"""
         self._running = False
 
-        if self._read_task:
-            self._read_task.cancel()
-            try:
-                await self._read_task
-            except asyncio.CancelledError:
-                pass
+        if self._read_thread:
+            self._read_thread.join(timeout=3.0)
+            self._read_thread = None
 
         if self._serial:
             self._serial.close()
@@ -180,24 +195,21 @@ class SerialHandler:
         self._connected = False
         logger.info("Disconnected from EnOcean transceiver")
 
-    async def _read_loop(self):
-        """Main read loop for receiving telegrams"""
+    def _read_loop_thread(self):
+        """Main read loop running in a dedicated thread.
+
+        This runs blocking serial reads without affecting the asyncio event loop.
+        Parsed packets are dispatched to asyncio via run_coroutine_threadsafe.
+        """
         buffer = bytearray()
+        logger.info("Serial read thread running - waiting for EnOcean telegrams...")
 
         while self._running:
             try:
-                # Read data
-                if self._serial:
-                    if self._serial.in_waiting:
-                        data = self._serial.read(self._serial.in_waiting)
-                        buffer.extend(data)
-                elif self._socket:
-                    try:
-                        data = self._socket.recv(1024)
-                        if data:
-                            buffer.extend(data)
-                    except BlockingIOError:
-                        pass
+                # Blocking read from serial/socket
+                data = self._read_bytes()
+                if data:
+                    buffer.extend(data)
 
                 # Parse ESP3 packets from buffer
                 while len(buffer) >= 6:
@@ -214,13 +226,14 @@ class SerialHandler:
 
                     # Verify header CRC
                     if crc8(bytes(buffer[1:5])) != header_crc:
+                        logger.debug("Invalid header CRC, skipping byte")
                         buffer.pop(0)
                         continue
 
                     # Check if we have complete packet
                     total_len = 6 + data_len + optional_len + 1  # +1 for data CRC
                     if len(buffer) < total_len:
-                        break
+                        break  # Wait for more data
 
                     # Extract packet data
                     packet_data = bytes(buffer[6:6 + data_len])
@@ -229,21 +242,66 @@ class SerialHandler:
 
                     # Verify data CRC
                     if crc8(packet_data + optional_data) != data_crc:
+                        logger.debug("Invalid data CRC, skipping byte")
                         buffer.pop(0)
                         continue
 
                     # Remove processed packet from buffer
                     del buffer[:total_len]
 
-                    # Process packet
+                    # Process packet - dispatch to asyncio event loop
                     if packet_type == PACKET_TYPE_RADIO:
-                        await self._process_radio_telegram(packet_data, optional_data)
+                        if self._loop and self._loop.is_running():
+                            asyncio.run_coroutine_threadsafe(
+                                self._process_radio_telegram(packet_data, optional_data),
+                                self._loop
+                            )
+                    elif packet_type == PACKET_TYPE_RESPONSE:
+                        logger.debug(f"Response packet received: {packet_data.hex()}")
+                    elif packet_type == PACKET_TYPE_EVENT:
+                        logger.info(f"Event packet received: {packet_data.hex()}")
 
-                await asyncio.sleep(0.01)
-
+            except serial.SerialException as e:
+                logger.error(f"Serial error: {e}")
+                self._connected = False
+                break
+            except socket.timeout:
+                continue  # Normal timeout, just loop
             except Exception as e:
-                logger.error(f"Error in read loop: {e}")
-                await asyncio.sleep(1)
+                if self._running:
+                    logger.error(f"Error in serial read thread: {e}")
+                    import time
+                    time.sleep(1)
+
+        logger.info("Serial read thread stopped")
+
+    def _read_bytes(self) -> bytes:
+        """Read bytes from serial or socket (blocking)"""
+        try:
+            if self._serial:
+                # Blocking read with timeout (set in connect)
+                if self._serial.in_waiting > 0:
+                    return self._serial.read(self._serial.in_waiting)
+                else:
+                    # Wait for at least one byte (blocks up to timeout)
+                    data = self._serial.read(1)
+                    if data:
+                        # Read any additional bytes that arrived
+                        remaining = self._serial.in_waiting
+                        if remaining > 0:
+                            data += self._serial.read(remaining)
+                    return data
+
+            elif self._socket:
+                try:
+                    return self._socket.recv(1024)
+                except socket.timeout:
+                    return b""
+
+        except Exception as e:
+            if self._running:
+                logger.error(f"Read error: {e}")
+        return b""
 
     async def _process_radio_telegram(self, data: bytes, optional: bytes):
         """Process a received radio telegram"""
@@ -484,7 +542,7 @@ class SerialHandler:
             elif self._socket:
                 self._socket.send(packet)
 
-            logger.debug(f"Sent telegram: RORG={rorg:02X}, Data={data.hex()}")
+            logger.info(f"TX EnOcean: RORG={rorg:02X}, Data={data.hex()}, Dest={destination:08X}")
             return True
 
         except Exception as e:
