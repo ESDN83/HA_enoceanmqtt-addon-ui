@@ -10,7 +10,6 @@ import logging
 import asyncio
 import serial
 import socket
-import threading
 from typing import Optional, Callable, List, Dict, Any
 from dataclasses import dataclass
 
@@ -107,8 +106,7 @@ class SerialHandler:
         self._socket: Optional[socket.socket] = None
         self._connected = False
         self._running = False
-        self._read_thread: Optional[threading.Thread] = None
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._read_task: Optional[asyncio.Task] = None
         self._telegram_callbacks: List[Callable] = []
         self._teach_in_callback: Optional[Callable] = None
         self._base_id: Optional[int] = None
@@ -126,8 +124,6 @@ class SerialHandler:
     async def connect(self):
         """Connect to EnOcean transceiver"""
         try:
-            self._loop = asyncio.get_event_loop()
-
             if self.is_tcp:
                 await self._connect_tcp()
             else:
@@ -136,16 +132,10 @@ class SerialHandler:
             self._connected = True
             self._running = True
 
-            # Start read thread (NOT asyncio task - serial I/O is blocking)
-            self._read_thread = threading.Thread(
-                target=self._read_loop_thread,
-                name="enocean-serial-reader",
-                daemon=True
-            )
-            self._read_thread.start()
+            # Start async read loop (uses run_in_executor for blocking serial reads)
+            self._read_task = asyncio.create_task(self._read_loop())
 
             logger.info(f"Connected to EnOcean transceiver at {self.port}")
-            logger.info("Serial reader thread started")
 
         except Exception as e:
             logger.error(f"Failed to connect to EnOcean transceiver: {e}")
@@ -156,13 +146,15 @@ class SerialHandler:
         self._serial = serial.Serial(
             port=self.port,
             baudrate=57600,
-            timeout=1.0  # 1 second timeout for blocking reads
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            timeout=1.0
         )
-        logger.info(f"Serial port opened: {self.port} @ 57600 baud")
+        logger.info(f"Serial port opened: {self.port} @ 57600 baud (8N1)")
 
     async def _connect_tcp(self):
         """Connect via TCP"""
-        # Parse tcp:host:port
         parts = self.port.split(":")
         if len(parts) != 3:
             raise ValueError(f"Invalid TCP port format: {self.port}")
@@ -173,16 +165,19 @@ class SerialHandler:
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.settimeout(5.0)
         self._socket.connect((host, port))
-        # Keep blocking for the read thread
         self._socket.settimeout(1.0)
 
     async def disconnect(self):
         """Disconnect from EnOcean transceiver"""
         self._running = False
 
-        if self._read_thread:
-            self._read_thread.join(timeout=3.0)
-            self._read_thread = None
+        if self._read_task:
+            self._read_task.cancel()
+            try:
+                await self._read_task
+            except asyncio.CancelledError:
+                pass
+            self._read_task = None
 
         if self._serial:
             self._serial.close()
@@ -195,120 +190,106 @@ class SerialHandler:
         self._connected = False
         logger.info("Disconnected from EnOcean transceiver")
 
-    def _read_loop_thread(self):
-        """Main read loop running in a dedicated thread.
+    async def _read_loop(self):
+        """Main read loop using run_in_executor for blocking serial reads.
 
-        This runs blocking serial reads without affecting the asyncio event loop.
-        Parsed packets are dispatched to asyncio via run_coroutine_threadsafe.
+        This approach is proven to work with EnOcean USB sticks.
         """
-        buffer = bytearray()
-        bytes_received = 0
-        loop_count = 0
-        logger.info("Serial read thread running - waiting for EnOcean telegrams...")
+        loop = asyncio.get_event_loop()
+        timeout_count = 0
+        packet_count = 0
+
+        logger.info("Listening for EnOcean telegrams...")
 
         while self._running:
-            loop_count += 1
-            # Log heartbeat every ~30 seconds (30 loops with 1s timeout)
-            if loop_count % 30 == 0:
-                logger.info(f"Serial reader heartbeat: {bytes_received} bytes received so far, buffer={len(buffer)} bytes")
             try:
-                # Blocking read from serial/socket
-                data = self._read_bytes()
-                if data:
-                    buffer.extend(data)
-                    bytes_received += len(data)
-                    logger.debug(f"Serial RX raw: {len(data)} bytes (total: {bytes_received}): {data.hex().upper()}")
+                # Wait for sync byte (0x55) using run_in_executor
+                byte = await loop.run_in_executor(None, self._serial_read, 1)
 
-                # Parse ESP3 packets from buffer
-                while len(buffer) >= 6:
-                    # Find sync byte
-                    if buffer[0] != SYNC_BYTE:
-                        buffer.pop(0)
-                        continue
+                if not byte:
+                    timeout_count += 1
+                    if timeout_count % 30 == 0:
+                        logger.info(f"Serial reader: still waiting for data ({timeout_count}s elapsed, {packet_count} packets so far)")
+                    continue
 
-                    # Parse header
-                    data_len = (buffer[1] << 8) | buffer[2]
-                    optional_len = buffer[3]
-                    packet_type = buffer[4]
-                    header_crc = buffer[5]
+                timeout_count = 0
 
-                    # Verify header CRC
-                    if crc8(bytes(buffer[1:5])) != header_crc:
-                        logger.debug("Invalid header CRC, skipping byte")
-                        buffer.pop(0)
-                        continue
+                if byte[0] != SYNC_BYTE:
+                    logger.debug(f"Non-sync byte: 0x{byte[0]:02X}")
+                    continue
 
-                    # Check if we have complete packet
-                    total_len = 6 + data_len + optional_len + 1  # +1 for data CRC
-                    if len(buffer) < total_len:
-                        break  # Wait for more data
+                logger.debug("Found sync byte 0x55")
 
-                    # Extract packet data
-                    packet_data = bytes(buffer[6:6 + data_len])
-                    optional_data = bytes(buffer[6 + data_len:6 + data_len + optional_len])
-                    data_crc = buffer[6 + data_len + optional_len]
+                # Read header (4 bytes: data_len_hi, data_len_lo, optional_len, packet_type)
+                header = await loop.run_in_executor(None, self._serial_read, 4)
+                if len(header) != 4:
+                    logger.warning("Incomplete header received")
+                    continue
 
-                    # Verify data CRC
-                    if crc8(packet_data + optional_data) != data_crc:
-                        logger.debug("Invalid data CRC, skipping byte")
-                        buffer.pop(0)
-                        continue
+                data_len = (header[0] << 8) | header[1]
+                optional_len = header[2]
+                packet_type = header[3]
 
-                    # Remove processed packet from buffer
-                    del buffer[:total_len]
+                # Read header CRC
+                header_crc_byte = await loop.run_in_executor(None, self._serial_read, 1)
+                if len(header_crc_byte) != 1:
+                    logger.warning("Incomplete header CRC")
+                    continue
 
-                    # Process packet - dispatch to asyncio event loop
-                    if packet_type == PACKET_TYPE_RADIO:
-                        if self._loop and self._loop.is_running():
-                            asyncio.run_coroutine_threadsafe(
-                                self._process_radio_telegram(packet_data, optional_data),
-                                self._loop
-                            )
-                    elif packet_type == PACKET_TYPE_RESPONSE:
-                        logger.debug(f"Response packet received: {packet_data.hex()}")
-                    elif packet_type == PACKET_TYPE_EVENT:
-                        logger.info(f"Event packet received: {packet_data.hex()}")
+                # Verify header CRC
+                if crc8(header) != header_crc_byte[0]:
+                    logger.debug("Invalid header CRC")
+                    continue
 
+                # Read data + optional data + data CRC
+                total_data_len = data_len + optional_len + 1
+                data_block = await loop.run_in_executor(None, self._serial_read, total_data_len)
+                if len(data_block) != total_data_len:
+                    logger.warning(f"Incomplete data block: {len(data_block)}/{total_data_len}")
+                    continue
+
+                # Split into parts
+                packet_data = data_block[:data_len]
+                optional_data = data_block[data_len:data_len + optional_len]
+                data_crc = data_block[-1]
+
+                # Verify data CRC
+                if crc8(packet_data + optional_data) != data_crc:
+                    logger.debug("Invalid data CRC")
+                    continue
+
+                packet_count += 1
+                logger.info(f"ESP3 packet #{packet_count}: type={packet_type:#04x} data_len={data_len} opt_len={optional_len}")
+
+                # Process by packet type
+                if packet_type == PACKET_TYPE_RADIO:
+                    await self._process_radio_telegram(packet_data, optional_data)
+                elif packet_type == PACKET_TYPE_RESPONSE:
+                    logger.debug(f"Response packet: {packet_data.hex()}")
+                elif packet_type == PACKET_TYPE_EVENT:
+                    logger.info(f"Event packet: {packet_data.hex()}")
+
+            except asyncio.CancelledError:
+                break
             except serial.SerialException as e:
                 logger.error(f"Serial error: {e}")
                 self._connected = False
                 break
-            except socket.timeout:
-                continue  # Normal timeout, just loop
             except Exception as e:
                 if self._running:
-                    logger.error(f"Error in serial read thread: {e}")
-                    import time
-                    time.sleep(1)
+                    logger.error(f"Error in read loop: {e}", exc_info=True)
+                    await asyncio.sleep(1)
 
-        logger.info("Serial read thread stopped")
+        logger.info("Serial read loop stopped")
 
-    def _read_bytes(self) -> bytes:
-        """Read bytes from serial or socket (blocking)"""
+    def _serial_read(self, size: int) -> bytes:
+        """Blocking serial read - called via run_in_executor"""
         try:
-            if self._serial:
-                # Blocking read with timeout (set in connect)
-                if self._serial.in_waiting > 0:
-                    return self._serial.read(self._serial.in_waiting)
-                else:
-                    # Wait for at least one byte (blocks up to timeout)
-                    data = self._serial.read(1)
-                    if data:
-                        # Read any additional bytes that arrived
-                        remaining = self._serial.in_waiting
-                        if remaining > 0:
-                            data += self._serial.read(remaining)
-                    return data
-
-            elif self._socket:
-                try:
-                    return self._socket.recv(1024)
-                except socket.timeout:
-                    return b""
-
+            if self._serial and self._serial.is_open:
+                return self._serial.read(size)
         except Exception as e:
             if self._running:
-                logger.error(f"Read error: {e}")
+                logger.error(f"Serial read error: {e}")
         return b""
 
     async def _process_radio_telegram(self, data: bytes, optional: bytes):
