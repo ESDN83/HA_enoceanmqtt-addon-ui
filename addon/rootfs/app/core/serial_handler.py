@@ -202,14 +202,22 @@ class SerialHandler:
         Parsed packets are dispatched to asyncio via run_coroutine_threadsafe.
         """
         buffer = bytearray()
+        bytes_received = 0
+        loop_count = 0
         logger.info("Serial read thread running - waiting for EnOcean telegrams...")
 
         while self._running:
+            loop_count += 1
+            # Log heartbeat every ~30 seconds (30 loops with 1s timeout)
+            if loop_count % 30 == 0:
+                logger.info(f"Serial reader heartbeat: {bytes_received} bytes received so far, buffer={len(buffer)} bytes")
             try:
                 # Blocking read from serial/socket
                 data = self._read_bytes()
                 if data:
                     buffer.extend(data)
+                    bytes_received += len(data)
+                    logger.debug(f"Serial RX raw: {len(data)} bytes (total: {bytes_received}): {data.hex().upper()}")
 
                 # Parse ESP3 packets from buffer
                 while len(buffer) >= 6:
