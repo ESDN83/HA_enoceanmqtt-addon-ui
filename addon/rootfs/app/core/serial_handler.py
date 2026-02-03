@@ -272,7 +272,7 @@ class SerialHandler:
             dbm=dbm
         )
 
-        logger.debug(f"Received telegram: {telegram.to_dict()}")
+        logger.info(f"RX [{telegram.sender_hex}] RORG={telegram.rorg_hex} Data={telegram.data.hex().upper()} dBm={telegram.dbm}")
 
         # Check if this is a teach-in telegram
         is_teach_in = self._is_teach_in(telegram)
@@ -324,7 +324,7 @@ class SerialHandler:
 
     async def _handle_teach_in(self, telegram: RadioTelegram):
         """Handle teach-in telegram"""
-        logger.info(f"Teach-in received from {telegram.sender_hex}")
+        logger.info(f"TEACH-IN [{telegram.sender_hex}] RORG={telegram.rorg_hex} - New device wants to pair!")
 
         # Extract EEP from teach-in data
         func = 0
@@ -355,7 +355,7 @@ class SerialHandler:
         # Find device by address
         device = self.device_manager.get_device_by_address(telegram.sender_hex)
         if not device:
-            logger.debug(f"Unknown device: {telegram.sender_hex}")
+            logger.info(f"RX [{telegram.sender_hex}] Unknown device (not configured)")
             return None, None, None
 
         # Get EEP profile
@@ -370,9 +370,12 @@ class SerialHandler:
         # Decode telegram using EEP profile
         decoded = self._decode_telegram(telegram, profile)
 
+        logger.info(f"RX [{telegram.sender_hex}] Device={device.name} EEP={device.eep_id} Decoded={decoded}")
+
         # Publish to MQTT
         if self.mqtt_handler:
             await self.mqtt_handler.publish_state(device.name, decoded)
+            logger.info(f"TX MQTT [{device.name}] Published state to {self.mqtt_handler.prefix}/{device.name}/state")
 
         return device.name, device.eep_id, decoded
 

@@ -1121,7 +1121,7 @@ Use Restore to roll back to previous versions.`);
                     });
                 } else {
                     // Create new device
-                    response = await fetch('/api/devices', {
+                    response = await fetch(getApiUrl('/api/devices'), {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify(device)
@@ -1129,8 +1129,14 @@ Use Restore to roll back to previous versions.`);
                 }
 
                 if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.detail || 'Failed to save device');
+                    let errorMsg = 'Failed to save device';
+                    try {
+                        const error = await response.json();
+                        errorMsg = error.detail || errorMsg;
+                    } catch (parseError) {
+                        errorMsg = `Server error: ${response.status} ${response.statusText}`;
+                    }
+                    throw new Error(errorMsg);
                 }
 
                 // Clear edit mode
@@ -1138,6 +1144,7 @@ Use Restore to roll back to previous versions.`);
 
                 wizardNext();
                 showToast(editMode ? 'Device updated successfully' : 'Device saved successfully', 'success');
+                loadDevices();
             } catch (error) {
                 showToast(error.message, 'danger');
             }
