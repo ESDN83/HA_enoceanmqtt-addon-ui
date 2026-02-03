@@ -121,7 +121,7 @@ class MQTTHandler:
             topic = message.topic
             payload = message.payload.decode('utf-8')
 
-            logger.debug(f"MQTT message received: {topic} = {payload}")
+            logger.info(f"MQTT RX [{topic}] = {payload}")
 
             # Handle command messages
             if topic.endswith("/set"):
@@ -182,7 +182,7 @@ class MQTTHandler:
             payload = json.dumps(payload)
 
         self._client.publish(topic, payload, retain=retain)
-        logger.debug(f"Published to {topic}: {payload}")
+        logger.info(f"MQTT TX [{topic}] retain={retain}")
 
     async def publish_state(self, device_name: str, state: Dict[str, Any]):
         """Publish device state and persist for recovery after restart"""
