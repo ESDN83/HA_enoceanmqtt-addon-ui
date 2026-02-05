@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.3] - 2025-02-05
+
+### Fixed
+- Edit button now opens device edit form instead of "Device Added Successfully" screen
+- Unknown Devices list now filters out already-configured devices
+- Device cards are clickable and show detail view with recent telegrams and MQTT topics
+
+### Added
+- Device detail view with telegram history, MQTT topic info, and device parameters
+- Clear button for Recent Telegrams to reset telegram buffer
+- Clear also resets Unknown Devices list
+
 ## [2.0.2] - 2025-02-02
 
 ### Added
