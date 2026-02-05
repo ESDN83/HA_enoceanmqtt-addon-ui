@@ -204,13 +204,43 @@ async def get_recent_telegrams(limit: int = 50, request: Request = None) -> List
 
 @router.get("/unknown-devices")
 async def get_unknown_devices(request: Request) -> List[Dict[str, Any]]:
-    """Get list of unknown devices that have sent telegrams"""
+    """Get list of unknown devices that have sent telegrams (excludes configured devices)"""
     telegram_buffer = request.app.state.telegram_buffer if request else None
 
     if not telegram_buffer:
         return []
 
-    return telegram_buffer.get_unknown_devices()
+    unknown = telegram_buffer.get_unknown_devices()
+
+    # Filter out devices that are already configured
+    device_manager = getattr(request.app.state, 'device_manager', None)
+    if device_manager:
+        configured_addresses = set()
+        for device in device_manager.devices.values():
+            addr = device.address.upper().replace("0X", "0x")
+            configured_addresses.add(addr)
+            # Also add without 0x prefix
+            configured_addresses.add(addr.replace("0x", ""))
+
+        unknown = [
+            d for d in unknown
+            if d["sender_id"].upper().replace("0X", "0x") not in configured_addresses
+            and d["sender_id"].upper().replace("0x", "").replace("0X", "") not in configured_addresses
+        ]
+
+    return unknown
+
+
+@router.post("/clear-telegrams")
+async def clear_telegrams(request: Request) -> Dict[str, Any]:
+    """Clear all stored telegrams and unknown devices"""
+    telegram_buffer = request.app.state.telegram_buffer if request else None
+
+    if not telegram_buffer:
+        return {"status": "no buffer"}
+
+    telegram_buffer.clear()
+    return {"status": "cleared"}
 
 
 @router.get("/telegram-stats")

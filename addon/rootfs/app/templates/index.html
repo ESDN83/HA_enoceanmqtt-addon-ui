@@ -268,9 +268,14 @@
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <span><i class="bi bi-clock-history"></i> Recent Telegrams</span>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="loadRecentTelegrams()">
-                                <i class="bi bi-arrow-clockwise"></i>
-                            </button>
+                            <div>
+                                <button class="btn btn-sm btn-outline-danger me-1" onclick="clearTelegrams()" title="Clear all">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="loadRecentTelegrams()" title="Refresh">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="card-body" id="recent-activity" style="max-height: 300px; overflow-y: auto;">
                             <p class="text-muted">Loading...</p>
@@ -783,22 +788,28 @@
                     const card = document.createElement('div');
                     card.className = 'col-md-4 mb-3';
                     card.innerHTML = `
-                        <div class="card device-card">
+                        <div class="card device-card" style="cursor: pointer;" onclick="showDeviceDetail('${device.name}')">
                             <div class="card-body">
-                                <h5 class="card-title">${device.name}</h5>
-                                <p class="card-text">
-                                    <small class="text-muted">${device.address}</small><br>
-                                    <span class="badge bg-primary">${device.rorg}-${device.func}-${device.type}</span>
-                                </p>
-                                ${device.description ? `<p class="card-text"><small>${device.description}</small></p>` : ''}
-                                <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-primary" onclick="editDevice('${device.name}')">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <button class="btn btn-outline-danger" onclick="deleteDevice('${device.name}')">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <h5 class="card-title mb-1">${device.name}</h5>
+                                    <div class="btn-group btn-group-sm" onclick="event.stopPropagation()">
+                                        <button class="btn btn-outline-primary" onclick="editDevice('${device.name}')" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" onclick="deleteDevice('${device.name}')" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
                                 </div>
+                                <p class="card-text mb-1">
+                                    <code class="text-muted">${device.address}</code>
+                                </p>
+                                <p class="card-text mb-1">
+                                    <span class="badge bg-primary">${device.rorg}-${device.func}-${device.type}</span>
+                                    ${device.room ? `<span class="badge bg-secondary ms-1">${device.room}</span>` : ''}
+                                </p>
+                                ${device.description ? `<p class="card-text mb-0"><small class="text-muted">${device.description}</small></p>` : ''}
+                                ${device.sender_id ? `<p class="card-text mb-0"><small class="text-muted"><i class="bi bi-arrow-left-right"></i> Sender: ${device.sender_id}</small></p>` : ''}
                             </div>
                         </div>
                     `;
@@ -1142,8 +1153,15 @@ Use Restore to roll back to previous versions.`);
                 // Clear edit mode
                 delete form.dataset.editMode;
 
-                wizardNext();
-                showToast(editMode ? 'Device updated successfully' : 'Device saved successfully', 'success');
+                if (editMode) {
+                    // After editing, go back to devices page
+                    showToast('Device updated successfully', 'success');
+                    navigateTo('devices');
+                } else {
+                    // After adding new device, show success screen
+                    wizardNext();
+                    showToast('Device saved successfully', 'success');
+                }
                 loadDevices();
             } catch (error) {
                 showToast(error.message, 'danger');
@@ -1173,6 +1191,93 @@ Use Restore to roll back to previous versions.`);
 
             } catch (error) {
                 showToast('Failed to load device', 'danger');
+            }
+        }
+
+        async function showDeviceDetail(name) {
+            try {
+                const response = await fetch(getApiUrl(`/api/devices/${name}`));
+                const device = await response.json();
+
+                // Fetch recent telegrams for this device
+                let telegrams = [];
+                try {
+                    const tRes = await fetch(getApiUrl(`/api/gateway/recent-telegrams?limit=100`));
+                    const allTelegrams = await tRes.json();
+                    telegrams = allTelegrams.filter(t =>
+                        t.device_name === name || t.sender_id === device.address
+                    ).slice(0, 20);
+                } catch (e) { /* ignore */ }
+
+                // Build detail view in the devices page
+                const container = document.getElementById('device-list');
+                container.innerHTML = `
+                    <div class="col-12">
+                        <div class="mb-3">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="loadDevices()">
+                                <i class="bi bi-arrow-left"></i> Back to Devices
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm ms-2" onclick="editDevice('${device.name}')">
+                                <i class="bi bi-pencil"></i> Edit Device
+                            </button>
+                        </div>
+
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="bi bi-cpu"></i> ${device.name}</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <table class="table table-sm">
+                                            <tr><th>Address</th><td><code>${device.address}</code></td></tr>
+                                            <tr><th>EEP Profile</th><td><span class="badge bg-primary">${device.rorg}-${device.func}-${device.type}</span></td></tr>
+                                            ${device.description ? `<tr><th>Description</th><td>${device.description}</td></tr>` : ''}
+                                            ${device.room ? `<tr><th>Room</th><td>${device.room}</td></tr>` : ''}
+                                            ${device.sender_id ? `<tr><th>Sender ID</th><td><code>${device.sender_id}</code></td></tr>` : ''}
+                                            ${device.manufacturer ? `<tr><th>Manufacturer</th><td>${device.manufacturer}</td></tr>` : ''}
+                                        </table>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>MQTT Topics</h6>
+                                        <small class="text-muted">
+                                            <code>enocean/${device.name}/state</code><br>
+                                            ${device.sender_id ? `<code>enocean/${device.name}/set</code>` : ''}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-clock-history"></i> Recent Telegrams for ${device.name}</span>
+                                <small class="text-muted">${telegrams.length} telegram(s)</small>
+                            </div>
+                            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                                ${telegrams.length === 0
+                                    ? '<p class="text-muted">No telegrams received from this device yet</p>'
+                                    : `<div class="table-responsive"><table class="table table-sm">
+                                        <thead><tr><th>Time</th><th>RORG</th><th>Data</th><th>dBm</th><th>Teach-In</th></tr></thead>
+                                        <tbody>
+                                            ${telegrams.map(t => `
+                                                <tr>
+                                                    <td><small>${new Date(t.timestamp).toLocaleTimeString()}</small></td>
+                                                    <td><span class="badge bg-secondary">${t.rorg}</span></td>
+                                                    <td><code>${t.data || '-'}</code></td>
+                                                    <td>${t.dbm} dBm</td>
+                                                    <td>${t.is_teach_in ? '<span class="badge bg-warning">Yes</span>' : '-'}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table></div>`
+                                }
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                showToast('Failed to load device details', 'danger');
             }
         }
 
@@ -1324,6 +1429,17 @@ Use Restore to roll back to previous versions.`);
                 `).join('');
             } catch (error) {
                 console.error('Failed to load recent telegrams:', error);
+            }
+        }
+
+        async function clearTelegrams() {
+            try {
+                await fetch(getApiUrl('/api/gateway/clear-telegrams'), { method: 'POST' });
+                loadRecentTelegrams();
+                loadUnknownDevices();
+                showToast('Telegrams cleared', 'success');
+            } catch (error) {
+                showToast('Failed to clear telegrams', 'danger');
             }
         }
 
