@@ -75,31 +75,146 @@ Create custom EEP profiles for devices not covered by the official specification
 4. Add HA Entity Mappings to control how fields appear in Home Assistant
 5. Save and assign the profile to your devices
 
+## Custom EEP Profile Guide
+
+This guide explains how to create Custom EEP Profiles with real-world examples. A link to this guide is also available directly in the "Create Custom Profile" dialog.
+
+### Understanding EnOcean Telegram Data
+
+EnOcean 4BS (A5) telegrams carry 4 data bytes (DB3, DB2, DB1, DB0 = 32 bits). The **offset** is the bit position counted from the MSB of DB3:
+
+```
+Byte:    DB3 (byte 0)     DB2 (byte 1)     DB1 (byte 2)     DB0 (byte 3)
+Bits:    7 6 5 4 3 2 1 0  7 6 5 4 3 2 1 0  7 6 5 4 3 2 1 0  7 6 5 4 3 2 1 0
+Offset:  0 1 2 3 4 5 6 7  8 9 ...                             ... 29 30 31
+```
+
+So **offset 29** = DB0, bit 2. **Offset 0** = DB3, bit 7.
+
+### Field Types
+
+| Type | Use Case | Example |
+|------|----------|---------|
+| `enum` | On/off, states, named values | Alarm (0=off, 1=on) |
+| `value` | Scaled numbers (temperature, humidity) | Temperature 0-40°C from raw 255-0 |
+| `command` | Multi-value commands | Operating mode selection |
+
+### Example 1: Binary Alarm Sensor (Kessel Staufix A5-30-03)
+
+The Kessel Staufix backwater valve sends a single alarm bit. Telegram data `0100000D` means alarm active.
+
+**Telegram Fields (JSON):**
+```json
+[
+  {
+    "shortcut": "AL",
+    "description": "Alarm",
+    "offset": 29,
+    "size": 1,
+    "type": "enum",
+    "values": [
+      {"value": "0", "description": "No alarm"},
+      {"value": "1", "description": "Alarm active"}
+    ]
+  }
+]
+```
+
+**HA Entity Mapping:**
+
+| Shortcut | Component | Name | Device Class | Icon |
+|----------|-----------|------|-------------|------|
+| AL | binary_sensor | Alarm | safety | mdi:water-alert |
+
+**Add Device:** Name `Staufix`, Address `0x05834FA4`, EEP `A5-30-03`
+
+Result: A binary sensor in HA that shows alarm status.
+
+### Example 2: Temperature & Humidity Sensor (A5-04-01)
+
+A sensor sending temperature (0-40°C) and humidity (0-100%) in 4 bytes.
+
+**Telegram Fields (JSON):**
+```json
+[
+  {
+    "shortcut": "HUM",
+    "description": "Humidity",
+    "offset": 8,
+    "size": 8,
+    "type": "value",
+    "unit": "%",
+    "min": 0, "max": 250,
+    "scale_min": 0, "scale_max": 100
+  },
+  {
+    "shortcut": "TMP",
+    "description": "Temperature",
+    "offset": 16,
+    "size": 8,
+    "type": "value",
+    "unit": "°C",
+    "min": 0, "max": 250,
+    "scale_min": 0, "scale_max": 40
+  }
+]
+```
+
+- `min`/`max` = raw value range from the telegram bits
+- `scale_min`/`scale_max` = real-world unit range
+
+**HA Entity Mapping:**
+
+| Shortcut | Component | Name | Device Class | Unit | Icon |
+|----------|-----------|------|-------------|------|------|
+| HUM | sensor | Humidity | humidity | % | mdi:water-percent |
+| TMP | sensor | Temperature | temperature | °C | mdi:thermometer |
+
+### Example 3: Rocker Switch with Multiple States (F6-02-01)
+
+A rocker switch sends button press events as enum values.
+
+**Telegram Fields (JSON):**
+```json
+[
+  {
+    "shortcut": "R1",
+    "description": "Rocker 1st action",
+    "offset": 0,
+    "size": 3,
+    "type": "enum",
+    "values": [
+      {"value": "0", "description": "Button AI"},
+      {"value": "1", "description": "Button A0"},
+      {"value": "2", "description": "Button BI"},
+      {"value": "3", "description": "Button B0"}
+    ]
+  },
+  {
+    "shortcut": "EB",
+    "description": "Energy Bow",
+    "offset": 4,
+    "size": 1,
+    "type": "enum",
+    "values": [
+      {"value": "0", "description": "Released"},
+      {"value": "1", "description": "Pressed"}
+    ]
+  }
+]
+```
+
+### Tips
+
+- **Find bit offsets**: Check the [EnOcean EEP Viewer](https://www.enocean-alliance.org/eep/) or the manufacturer documentation
+- **Test with Live Telegrams**: Use the Dashboard > Recent Telegrams view to see raw data bytes, then map bits to fields
+- **Enum values**: For binary fields (size=1), use values `"0"` and `"1"`
+- **HA Device Classes**: Common classes: `temperature`, `humidity`, `safety`, `problem`, `motion`, `door`, `window`, `battery`
+- **Override standard profiles**: Create a custom profile with the same RORG-FUNC-TYPE as a built-in profile to override it
+
 ## Usage Examples
 
-### Example 1: Adding a Kessel Staufix (A5-30-03)
-
-The Kessel Staufix backwater valve reports its alarm status via the A5-30-03 EEP profile. Since it uses a manufacturer-specific interpretation, you need a Custom EEP Profile:
-
-1. **Create Custom Profile** in "EEP Profiles" > "Create Custom Profile":
-   - RORG: `A5`, FUNC: `30`, TYPE: `03`
-   - Description: `Kessel Staufix Backwater Alarm`
-   - Add field: Shortcut `AL`, Offset `29`, Size `1` (Alarm bit at DB0.bit2)
-
-2. **Add HA Mapping** in the same profile:
-   - Shortcut: `AL`
-   - Component: `binary_sensor`
-   - Device Class: `problem`
-   - Name: `Alarm`
-
-3. **Add Device** > Manual Entry:
-   - Name: `Staufix`
-   - Address: your device address (e.g., `0x05834FA4`)
-   - EEP: `A5-30-03`
-
-4. The device appears in Home Assistant as a binary sensor showing alarm status.
-
-### Example 2: Backup & Restore
+### Backup & Restore
 
 **Export:**
 1. Go to "Settings" in the web UI
@@ -113,7 +228,7 @@ The Kessel Staufix backwater valve reports its alarm status via the A5-30-03 EEP
 2. Upload the ZIP file
 3. Devices and profiles are restored automatically
 
-### Example 3: Understanding MQTT Topics
+### MQTT Topics
 
 With the default prefix `enoceanmqtt`, each device publishes to:
 
