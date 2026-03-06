@@ -275,10 +275,14 @@ class MQTTHandler:
             logger.error(f"Failed to save states: {e}")
 
     async def load_persisted_states(self):
-        """Load and republish last known states after restart.
+        """Load last known states from file into memory.
 
         Important for sensors that send infrequently (like Kessel Staufix
         which only sends every 8-10 hours).
+
+        NOTE: This only loads into memory. Call republish_cached_states()
+        AFTER discovery configs are published to ensure HA evaluates states
+        with the correct entity configuration (e.g., payload_on/payload_off).
         """
         if not os.path.exists(self._states_file):
             logger.info("No persisted states to restore")
@@ -289,18 +293,28 @@ class MQTTHandler:
                 content = await f.read()
                 self._last_states = json.loads(content)
 
-            logger.info(f"Loaded {len(self._last_states)} persisted device states")
-
-            for device_name, state in self._last_states.items():
-                topic = f"{self.prefix}/{device_name}/state"
-                state["_restored"] = True
-                await self.publish(topic, state, retain=True)
-                logger.debug(f"Restored state for {device_name}")
-
-            logger.info(f"Republished {len(self._last_states)} device states")
+            logger.info(f"Loaded {len(self._last_states)} persisted device states into memory")
 
         except Exception as e:
             logger.error(f"Failed to load persisted states: {e}")
+
+    async def republish_cached_states(self):
+        """Publish all cached states to MQTT.
+
+        Must be called AFTER discovery configs are published, so that HA
+        evaluates the state values with the correct entity configuration
+        (e.g., binary_sensor payload_on/payload_off).
+        """
+        if not self._last_states:
+            return
+
+        for device_name, state in self._last_states.items():
+            topic = f"{self.prefix}/{device_name}/state"
+            state["_restored"] = True
+            await self.publish(topic, state, retain=True)
+            logger.debug(f"Restored state for {device_name}")
+
+        logger.info(f"Republished {len(self._last_states)} cached device states")
 
     def get_last_state(self, device_name: str) -> Optional[Dict[str, Any]]:
         """Get last known state for a device"""
