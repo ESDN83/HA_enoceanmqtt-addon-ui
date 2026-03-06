@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.10] - 2026-03-06
+
+### Fixed
+- **Binary sensors still "Unknown" after v2.1.9** — Root cause: cached states were published BEFORE discovery configs on startup. HA evaluated state values with default `payload_on="ON"` before the custom config (`payload_on="1"`) arrived.
+  - Refactored startup order: discoveries first, then cached states (with 2s delay)
+  - `load_persisted_states()` now only loads into memory; new `republish_cached_states()` publishes after discoveries
+  - Fix applies to all scenarios: startup, HA restart (birth message), MQTT reconnect
+
 ## [2.1.9] - 2026-03-06
 
 ### Fixed

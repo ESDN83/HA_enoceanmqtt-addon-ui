@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/data")
 ENOCEAN_PORT = os.getenv("ENOCEAN_PORT", "")
 CACHE_DEVICE_STATES = os.getenv("CACHE_DEVICE_STATES", "true").lower() == "true"
-VERSION = "2.1.9"
+VERSION = "2.1.10"
 
 # Global instances
 mqtt_handler: MQTTHandler = None
@@ -97,10 +97,10 @@ async def lifespan(app: FastAPI):
         await mqtt_handler.connect()
         logger.info(f"Connected to MQTT broker at {mqtt_host}:{mqtt_port}")
 
-        # Load and republish persisted states (important for infrequent sensors)
+        # Load persisted states into memory (published AFTER discoveries below)
         if CACHE_DEVICE_STATES:
             await mqtt_handler.load_persisted_states()
-            logger.info("Device state caching enabled - states will be persisted and restored")
+            logger.info("Device state caching enabled")
     else:
         logger.warning("MQTT not configured - running in UI-only mode")
 
@@ -153,9 +153,16 @@ async def lifespan(app: FastAPI):
 
 
 async def _publish_all_discoveries():
-    """Publish HA MQTT discovery and availability for all configured devices.
+    """Publish HA MQTT discovery and availability for all configured devices,
+    then re-publish cached states.
 
     Called on startup, on HA birth message (HA restart), and on MQTT reconnect.
+
+    IMPORTANT: States are published AFTER discoveries so that HA evaluates
+    state values with the correct entity configuration (e.g., binary_sensor
+    payload_on/payload_off). Publishing states before discoveries causes
+    binary_sensors to show 'Unknown' because HA evaluates them with default
+    payload_on="ON"/payload_off="OFF" before the custom config arrives.
     """
     global mqtt_handler, device_manager, mapping_manager
 
@@ -169,7 +176,7 @@ async def _publish_all_discoveries():
             # Build device info for HA
             device_info = mapping_manager.build_device_info(device)
 
-            # Generate discovery configs (model mapping takes priority over EEP)
+            # Generate discovery configs
             configs = mapping_manager.get_ha_discovery_configs(
                 device_name=device.name,
                 eep_id=device.eep_id,
@@ -196,6 +203,12 @@ async def _publish_all_discoveries():
             logger.error(f"Failed to publish discovery for {device.name}: {e}")
 
     logger.info(f"Published HA discovery for {device_manager.device_count} devices")
+
+    # Re-publish cached states AFTER all discoveries are sent
+    # Give HA time to process discovery configs before sending states
+    if mqtt_handler.cache_states:
+        await asyncio.sleep(2)
+        await mqtt_handler.republish_cached_states()
 
 
 # Create FastAPI app
