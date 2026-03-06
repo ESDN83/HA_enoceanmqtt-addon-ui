@@ -192,16 +192,12 @@ class DeviceManager:
 
     def get_device_by_address(self, address: str) -> Optional[Device]:
         """Get device by address"""
-        # Normalize address format
-        if not address.startswith("0x"):
-            address = f"0x{address}"
-        address = address.upper()
+        # Normalize: strip 0x/0X prefix and compare uppercase hex digits only
+        norm_addr = address.strip().upper().replace("0X", "")
 
         for device in self.devices.values():
-            dev_addr = device.address.upper()
-            if not dev_addr.startswith("0x"):
-                dev_addr = f"0x{dev_addr}"
-            if dev_addr == address:
+            dev_addr = device.address.strip().upper().replace("0X", "")
+            if dev_addr == norm_addr:
                 return device
         return None
 
