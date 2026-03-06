@@ -150,42 +150,72 @@ class EEPManager:
         """Parse data fields from a profile element"""
         fields = []
 
-        data_element = profile_element.find("data")
-        if data_element is None:
+        # Support multiple <data> elements (some profiles have data command="1", command="2", etc.)
+        data_elements = profile_element.findall("data")
+        if not data_elements:
             return fields
 
-        # Parse different field types
-        for field in data_element:
-            field_info = {
-                "shortcut": field.get("shortcut", ""),
-                "description": field.get("description", ""),
-                "offset": int(field.get("offset", 0)),
-                "size": int(field.get("size", 1)),
-                "type": field.tag  # enum, value, status, etc.
-            }
+        for data_element in data_elements:
+            # Track which command this data block belongs to
+            command_id = data_element.get("command", None)
 
-            # Parse enum values
-            if field.tag == "enum":
-                field_info["values"] = []
-                for item in field.findall("item"):
-                    field_info["values"].append({
-                        "value": item.get("value", ""),
-                        "description": item.get("description", "")
-                    })
+            # Parse different field types
+            for field in data_element:
+                field_info = {
+                    "shortcut": field.get("shortcut", ""),
+                    "description": field.get("description", ""),
+                    "offset": int(field.get("offset", 0)),
+                    "size": int(field.get("size", 1)),
+                    "type": field.tag  # enum, value, status, command, etc.
+                }
 
-            # Parse value ranges
-            elif field.tag == "value":
-                field_info["unit"] = field.get("unit", "")
-                range_elem = field.find("range")
-                if range_elem is not None:
-                    field_info["min"] = float(range_elem.get("min", 0))
-                    field_info["max"] = float(range_elem.get("max", 255))
-                scale_elem = field.find("scale")
-                if scale_elem is not None:
-                    field_info["scale_min"] = float(scale_elem.get("min", 0))
-                    field_info["scale_max"] = float(scale_elem.get("max", 255))
+                # Tag with command ID if from a multi-command profile
+                if command_id is not None:
+                    field_info["command"] = command_id
 
-            fields.append(field_info)
+                # Parse enum values
+                if field.tag == "enum":
+                    field_info["values"] = []
+                    for item in field.findall("item"):
+                        field_info["values"].append({
+                            "value": item.get("value", ""),
+                            "description": item.get("description", "")
+                        })
+                    # Also parse range items (e.g., "3-127: reserved")
+                    for rangeitem in field.findall("rangeitem"):
+                        field_info["values"].append({
+                            "start": rangeitem.get("start", ""),
+                            "end": rangeitem.get("end", ""),
+                            "description": rangeitem.get("description", ""),
+                            "type": "range"
+                        })
+
+                # Parse value ranges (child elements, not attributes!)
+                elif field.tag == "value":
+                    field_info["unit"] = field.get("unit", "")
+                    range_elem = field.find("range")
+                    if range_elem is not None:
+                        min_el = range_elem.find("min")
+                        max_el = range_elem.find("max")
+                        field_info["min"] = float(min_el.text) if min_el is not None and min_el.text else 0
+                        field_info["max"] = float(max_el.text) if max_el is not None and max_el.text else 255
+                    scale_elem = field.find("scale")
+                    if scale_elem is not None:
+                        min_el = scale_elem.find("min")
+                        max_el = scale_elem.find("max")
+                        field_info["scale_min"] = float(min_el.text) if min_el is not None and min_el.text else 0
+                        field_info["scale_max"] = float(max_el.text) if max_el is not None and max_el.text else 255
+
+                # Parse command fields (similar to enum)
+                elif field.tag == "command":
+                    field_info["values"] = []
+                    for item in field.findall("item"):
+                        field_info["values"].append({
+                            "value": item.get("value", ""),
+                            "description": item.get("description", "")
+                        })
+
+                fields.append(field_info)
 
         return fields
 

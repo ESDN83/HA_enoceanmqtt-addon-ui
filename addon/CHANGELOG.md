@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.2.0] - 2026-03-06
+
+### Fixed
+- **CRITICAL: Value sensor scaling was broken** — ALL temperature, humidity, voltage, and other value-type sensors had wrong scaling. The XML parser read `range`/`scale` as XML attributes (`.get("min")`) but the EEP.xml uses child elements (`<min>255</min>`). Every value field silently defaulted to 0-255 range instead of the correct profile values.
+- **VERSION mismatch in system API** — Dashboard showed stale "2.0.2" version. Now reads version from the FastAPI app instance (single source of truth from main.py).
+
+### Added
+- **96+ EEP profiles** — Replaced bundled EEP.xml with [ChristopheHD's enocean library](https://github.com/ChristopheHD/enocean) version (was 56 profiles). Now includes F6 (RPS), D5 (1BS), A5 (4BS), D2 (VLD), and D1 (MSC) RORGs.
+- **Multi-command profile support** — Parser now handles multiple `<data command="N">` elements per profile (used by VLD/D2 profiles).
+- **Range item parsing** — `rangeitem` elements inside `enum` fields are now parsed (e.g., "3-127: reserved").
+- **Command field type** — New `command` field type parsed from XML (similar to enum with item children).
+
+### Changed
+- **Device lookup O(1)** — `get_device_by_address()` now uses a hash map instead of linear search on every telegram. Significant performance improvement for setups with many devices.
+- **README completely rewritten** — Removed outdated beta warning, fixed MQTT prefix documentation, added usage examples (Kessel Staufix, Backup/Restore, MQTT topics), added ChristopheHD credit.
+
 ## [2.1.15] - 2026-03-06
 
 ### Fixed

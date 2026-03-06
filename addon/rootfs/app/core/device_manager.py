@@ -68,11 +68,20 @@ class DeviceManager:
         self.devices: Dict[str, Device] = {}
         self.devices_file = os.path.join(config_path, "devices.json")
         self.legacy_devices_file = os.path.join(config_path, "enoceanmqtt.devices")
+        self._address_map: Dict[str, str] = {}  # normalized_address -> device_name
 
     @property
     def device_count(self) -> int:
         """Returns number of configured devices"""
         return len(self.devices)
+
+    def _rebuild_address_map(self):
+        """Rebuild address lookup map from current devices"""
+        self._address_map = {}
+        for name, device in self.devices.items():
+            norm = device.address.strip().upper().replace("0X", "")
+            if norm:
+                self._address_map[norm] = name
 
     async def load_devices(self):
         """Load devices from configuration file"""
@@ -84,6 +93,7 @@ class DeviceManager:
             await self._load_ini_devices()
         else:
             logger.info("No device configuration found - starting fresh")
+        self._rebuild_address_map()
 
     async def _load_json_devices(self):
         """Load devices from JSON file"""
@@ -187,15 +197,10 @@ class DeviceManager:
         return self.devices.get(name)
 
     def get_device_by_address(self, address: str) -> Optional[Device]:
-        """Get device by address"""
-        # Normalize: strip 0x/0X prefix and compare uppercase hex digits only
+        """Get device by address (O(1) hash map lookup)"""
         norm_addr = address.strip().upper().replace("0X", "")
-
-        for device in self.devices.values():
-            dev_addr = device.address.strip().upper().replace("0X", "")
-            if dev_addr == norm_addr:
-                return device
-        return None
+        name = self._address_map.get(norm_addr)
+        return self.devices.get(name) if name else None
 
     async def add_device(self, device: Device) -> bool:
         """Add a new device"""
@@ -204,6 +209,7 @@ class DeviceManager:
             return False
 
         self.devices[device.name] = device
+        self._rebuild_address_map()
         await self.save_devices()
         logger.info(f"Added device: {device.name}")
         return True
@@ -218,6 +224,7 @@ class DeviceManager:
             if hasattr(device, key):
                 setattr(device, key, value)
 
+        self._rebuild_address_map()
         await self.save_devices()
         logger.info(f"Updated device: {name}")
         return True
@@ -228,6 +235,7 @@ class DeviceManager:
             return False
 
         del self.devices[name]
+        self._rebuild_address_map()
         await self.save_devices()
         logger.info(f"Deleted device: {name}")
         return True
