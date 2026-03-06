@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.1.9] - 2026-03-06
+
+### Fixed
+- **Binary sensors showed "Unknown" in HA** — MQTT binary_sensor expects "ON"/"OFF" but EEP values are 0/1. Added `payload_on: "1"` and `payload_off: "0"` to all binary_sensor discovery configs.
+
 ## [2.1.8] - 2026-03-06
 
 ### Removed

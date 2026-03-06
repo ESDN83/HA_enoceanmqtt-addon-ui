@@ -304,6 +304,11 @@ class MappingManager:
             if "icon" in field_config:
                 config["icon"] = field_config["icon"]
 
+            # Binary sensor: HA expects "ON"/"OFF" by default, but EEP values are 0/1
+            if component == "binary_sensor":
+                config["payload_on"] = "1"
+                config["payload_off"] = "0"
+
             # Add device info
             config["device"] = device_info
 
