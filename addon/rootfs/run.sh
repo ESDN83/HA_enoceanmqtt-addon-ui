@@ -21,11 +21,13 @@ fi
 # It survives addon updates (unlike /config/enocean which was wrong)
 CONFIG_PATH="/data"
 
-# Migrate from old config path if needed
+# Migrate from old config path if needed (one-time)
 if [ -d "/config/enocean" ] && [ ! -f "${CONFIG_PATH}/devices.json" ]; then
     bashio::log.info "Migrating configuration from /config/enocean to ${CONFIG_PATH}/"
     cp -a /config/enocean/* "${CONFIG_PATH}/" 2>/dev/null || true
-    bashio::log.info "Migration complete"
+    # Rename old directory to prevent re-migration on next install
+    mv /config/enocean /config/enocean.migrated 2>/dev/null || true
+    bashio::log.info "Migration complete (old path renamed to /config/enocean.migrated)"
 fi
 
 # Export environment variables
