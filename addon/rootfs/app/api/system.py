@@ -189,6 +189,44 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
                         await f.write(profile_data)
                     imported["custom_profiles"] += 1
 
+        # Reload EEP manager if custom profiles were imported
+        if imported["custom_profiles"] > 0:
+            eep_manager = request.app.state.eep_manager
+            if eep_manager:
+                await eep_manager._load_custom_profiles()
+
+        # Reload mapping manager if mappings were imported
+        if imported["mappings"]:
+            mapping_manager = request.app.state.mapping_manager
+            if mapping_manager:
+                await mapping_manager.initialize()
+
+        # Re-publish MQTT discovery for all devices after import
+        if imported["devices"] or imported["custom_profiles"]:
+            mqtt_handler = request.app.state.mqtt_handler
+            mapping_manager = request.app.state.mapping_manager
+            if mqtt_handler and device_manager and mapping_manager:
+                for device in device_manager.devices.values():
+                    try:
+                        device_info = mapping_manager.build_device_info(device)
+                        configs = mapping_manager.get_ha_discovery_configs(
+                            device_name=device.name,
+                            eep_id=device.eep_id,
+                            device_address=device.address,
+                            device_sender=device.sender_id,
+                            mqtt_prefix=mqtt_handler.prefix,
+                            device_info=device_info
+                        )
+                        for item in configs:
+                            await mqtt_handler.publish_discovery_config(
+                                component=item["component"],
+                                unique_id=item["unique_id"],
+                                config=item["config"]
+                            )
+                        await mqtt_handler.publish_device_availability(device.name, available=True)
+                    except Exception as e:
+                        logging.getLogger(__name__).error(f"Failed to publish discovery for {device.name}: {e}")
+
         return {"status": "imported", "details": imported}
 
     except zipfile.BadZipFile:
