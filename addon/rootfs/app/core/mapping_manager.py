@@ -301,7 +301,13 @@ class MappingManager:
                     "state_value_template": "{{ value_json.state }}",
                     "payload_on": "ON",
                     "payload_off": "OFF",
-                    "optimistic": True,
+                    # Brightness support for dimmers (A5-38-08)
+                    "brightness_command_topic": f"{mqtt_prefix}/{device_name}/set",
+                    "brightness_state_topic": f"{mqtt_prefix}/{device_name}/state",
+                    "brightness_value_template": "{{ value_json.brightness }}",
+                    "brightness_scale": 100,
+                    "on_command_type": "brightness",
+                    "optimistic": False,
                     "icon": "mdi:lightbulb",
                     "device": device_info,
                     "availability": avail_config
