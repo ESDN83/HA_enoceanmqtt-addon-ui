@@ -31,9 +31,15 @@ class TeachInResult(BaseModel):
     dbm: int
 
 
+class ActorTeachInRequest(BaseModel):
+    """Request to send teach-in to an actuator"""
+    destination: str  # Target actuator address (hex, e.g. "0x05834FA4")
+    sender_offset: int = 1  # Offset from base ID (1-127)
+
+
 @router.get("/info")
 async def get_gateway_info(request: Request) -> Dict[str, Any]:
-    """Get EnOcean gateway information"""
+    """Get EnOcean gateway information including base ID"""
     serial_handler = request.app.state.serial_handler
 
     if not serial_handler or not serial_handler.is_connected:
@@ -47,7 +53,61 @@ async def get_gateway_info(request: Request) -> Dict[str, Any]:
         "connected": True,
         "port": serial_handler.port,
         "is_tcp": serial_handler.is_tcp,
-        "base_id": None  # TODO: Implement base ID retrieval
+        "base_id": serial_handler.base_id
+    }
+
+
+@router.post("/read-base-id")
+async def read_base_id(request: Request) -> Dict[str, Any]:
+    """Read the base ID from the EnOcean USB transceiver"""
+    serial_handler = request.app.state.serial_handler
+
+    if not serial_handler or not serial_handler.is_connected:
+        raise HTTPException(status_code=503, detail="EnOcean gateway not connected")
+
+    base_id = await serial_handler.read_base_id()
+    if not base_id:
+        raise HTTPException(status_code=500, detail="Failed to read base ID from transceiver")
+
+    return {"base_id": base_id}
+
+
+@router.post("/teach-in-actuator")
+async def teach_in_actuator(req: ActorTeachInRequest, request: Request) -> Dict[str, Any]:
+    """Send F6 (RPS) teach-in telegram to an Eltako actuator.
+
+    The actuator must be in learn mode before calling this endpoint.
+    Sends a rocker switch press+release sequence to teach-in the sender ID.
+    """
+    serial_handler = request.app.state.serial_handler
+
+    if not serial_handler or not serial_handler.is_connected:
+        raise HTTPException(status_code=503, detail="EnOcean gateway not connected")
+
+    if not serial_handler.base_id:
+        raise HTTPException(status_code=400, detail="Base ID not available. Try reading it first via /read-base-id")
+
+    if not 1 <= req.sender_offset <= 127:
+        raise HTTPException(status_code=400, detail="sender_offset must be between 1 and 127")
+
+    # Parse destination address
+    try:
+        dest = int(req.destination.replace("0x", "").replace("0X", ""), 16)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid destination address: {req.destination}")
+
+    sender_id = serial_handler.get_sender_id(req.sender_offset)
+
+    success = await serial_handler.send_f6_teach_in(dest, req.sender_offset)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to send teach-in telegram")
+
+    return {
+        "status": "sent",
+        "destination": req.destination,
+        "sender_id": f"0x{sender_id:08X}",
+        "sender_offset": req.sender_offset,
+        "message": "Teach-in telegram sent. If actuator was in learn mode, it should now respond to this sender ID."
     }
 
 

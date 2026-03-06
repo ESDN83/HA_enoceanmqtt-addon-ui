@@ -365,19 +365,31 @@
                         <p class="text-muted">Choose how to add your device</p>
 
                         <div class="row mt-4">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <div class="card h-100">
                                     <div class="card-body text-center">
                                         <i class="bi bi-broadcast display-4 text-primary"></i>
                                         <h5 class="mt-3">Automatic (Teach-In)</h5>
-                                        <p>Press the teach-in button on your device</p>
+                                        <p>Press the teach-in button on your sensor</p>
                                         <button class="btn btn-primary" onclick="startTeachIn()">
                                             Start Teach-In
                                         </button>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="bi bi-lightning display-4 text-warning"></i>
+                                        <h5 class="mt-3">Actuator Teach-In</h5>
+                                        <p>Teach-in Eltako dimmers, switches, blinds</p>
+                                        <button class="btn btn-warning" onclick="showActuatorTeachIn()">
+                                            Teach-In Actuator
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
                                 <div class="card h-100">
                                     <div class="card-body text-center">
                                         <i class="bi bi-pencil-square display-4 text-secondary"></i>
@@ -387,6 +399,50 @@
                                             Enter Manually
                                         </button>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actuator Teach-In Panel -->
+                        <div id="actuator-teach-in-panel" class="mt-4" style="display: none;">
+                            <div class="card border-warning">
+                                <div class="card-header bg-warning text-dark">
+                                    <i class="bi bi-lightning"></i> Actuator Teach-In (Eltako FD62NPN, FSB61, FUD61, etc.)
+                                </div>
+                                <div class="card-body">
+                                    <div class="alert alert-info small">
+                                        <strong>How it works:</strong> The gateway sends its sender ID to the actuator.
+                                        Put the actuator in learn mode first (e.g., hold upper dial for 5s until LED blinks),
+                                        then click "Send Teach-In".
+                                    </div>
+                                    <div class="row mb-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Gateway Base ID</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="gateway-base-id" readonly placeholder="Click Read...">
+                                                <button class="btn btn-outline-primary" onclick="readBaseId()">Read</button>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Actuator Address</label>
+                                            <input type="text" class="form-control" id="actuator-address" placeholder="0x05834FA4">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Sender Offset</label>
+                                            <input type="number" class="form-control" id="sender-offset" value="1" min="1" max="127">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Sender ID</label>
+                                            <input type="text" class="form-control" id="derived-sender-id" readonly placeholder="Base + Offset">
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-warning" onclick="sendActuatorTeachIn()">
+                                            <i class="bi bi-lightning"></i> Send Teach-In
+                                        </button>
+                                        <button class="btn btn-outline-secondary" onclick="hideActuatorTeachIn()">Cancel</button>
+                                    </div>
+                                    <div id="actuator-teach-in-result" class="mt-3" style="display: none;"></div>
                                 </div>
                             </div>
                         </div>
@@ -1012,6 +1068,85 @@
                 new bootstrap.Modal(document.getElementById('customProfileModal')).show();
             } catch (error) {
                 showToast('Failed to load profile for editing', 'danger');
+            }
+        }
+
+        // ===== Actuator Teach-In Functions =====
+        function showActuatorTeachIn() {
+            document.getElementById('actuator-teach-in-panel').style.display = 'block';
+            document.getElementById('teach-in-status').style.display = 'none';
+            readBaseId();
+        }
+
+        function hideActuatorTeachIn() {
+            document.getElementById('actuator-teach-in-panel').style.display = 'none';
+        }
+
+        async function readBaseId() {
+            const input = document.getElementById('gateway-base-id');
+            input.value = 'Reading...';
+            try {
+                const resp = await fetch(getApiUrl('/api/gateway/read-base-id'), { method: 'POST' });
+                const data = await resp.json();
+                if (resp.ok && data.base_id) {
+                    input.value = data.base_id;
+                    updateDerivedSenderId();
+                } else {
+                    input.value = 'Error: ' + (data.detail || 'unknown');
+                }
+            } catch (e) {
+                input.value = 'Error: ' + e.message;
+            }
+        }
+
+        function updateDerivedSenderId() {
+            const baseId = document.getElementById('gateway-base-id').value;
+            const offset = parseInt(document.getElementById('sender-offset').value) || 1;
+            const output = document.getElementById('derived-sender-id');
+            if (baseId && baseId.startsWith('0x')) {
+                const base = parseInt(baseId, 16);
+                const sender = base + offset;
+                output.value = '0x' + sender.toString(16).toUpperCase().padStart(8, '0');
+            }
+        }
+
+        // Update derived sender ID when offset changes
+        document.getElementById('sender-offset')?.addEventListener('input', updateDerivedSenderId);
+
+        async function sendActuatorTeachIn() {
+            const address = document.getElementById('actuator-address').value.trim();
+            const offset = parseInt(document.getElementById('sender-offset').value) || 1;
+            const resultDiv = document.getElementById('actuator-teach-in-result');
+
+            if (!address) {
+                resultDiv.innerHTML = '<div class="alert alert-danger">Enter the actuator address</div>';
+                resultDiv.style.display = 'block';
+                return;
+            }
+
+            resultDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Sending teach-in...</div>';
+            resultDiv.style.display = 'block';
+
+            try {
+                const resp = await fetch(getApiUrl('/api/gateway/teach-in-actuator'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ destination: address, sender_offset: offset })
+                });
+                const data = await resp.json();
+
+                if (resp.ok) {
+                    resultDiv.innerHTML = `<div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> <strong>Teach-in sent!</strong><br>
+                        Sender ID: <code>${data.sender_id}</code> → Destination: <code>${data.destination}</code><br>
+                        <small class="text-muted">${data.message}</small><br><br>
+                        <strong>Next:</strong> Use "Manual Entry" to add this device with the sender ID <code>${data.sender_id}</code>
+                    </div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${data.detail || 'Unknown error'}</div>`;
+                }
+            } catch (e) {
+                resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${e.message}</div>`;
             }
         }
 
