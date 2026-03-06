@@ -169,14 +169,15 @@ async def _publish_all_discoveries():
             # Build device info for HA
             device_info = mapping_manager.build_device_info(device)
 
-            # Generate discovery configs
+            # Generate discovery configs (model mapping takes priority over EEP)
             configs = mapping_manager.get_ha_discovery_configs(
                 device_name=device.name,
                 eep_id=device.eep_id,
                 device_address=device.address,
                 device_sender=device.sender_id,
                 mqtt_prefix=mqtt_handler.prefix,
-                device_info=device_info
+                device_info=device_info,
+                device_model=device.model
             )
 
             # Publish each entity discovery config

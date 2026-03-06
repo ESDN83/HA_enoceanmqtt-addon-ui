@@ -136,6 +136,53 @@ DEFAULT_MAPPINGS = {
     }
 }
 
+# Model-based mappings for known commercial devices.
+# These override EEP mappings when a device has a "model" configured.
+# Model IDs follow ChristopheHD convention where possible.
+MODEL_MAPPINGS = {
+    # Kessel Staufix Control (backwater valve alarm)
+    # EEP: A5-30-03, but only DI0 is used as alarm
+    "MV-01-01": {
+        "DI0": {
+            "component": "binary_sensor",
+            "name": "Alarm",
+            "device_class": "problem",
+            "icon": "mdi:pipe-valve"
+        }
+    },
+    # Thermokon SR65 Temperature Sensor
+    "SR65": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "°C"
+        }
+    },
+    # Eltako FSB61NP-230V Blind Actuator
+    "FSB61NP": {
+        "POS": {
+            "component": "cover",
+            "name": "Position",
+            "device_class": "shutter"
+        }
+    },
+    # Eltako FUD61NPN Dimmer
+    "FUD61NPN": {
+        "CMD": {
+            "component": "light",
+            "name": "Light",
+            "icon": "mdi:lightbulb"
+        },
+        "DIM": {
+            "component": "sensor",
+            "name": "Dimmer Level",
+            "unit_of_measurement": "%",
+            "icon": "mdi:brightness-6"
+        }
+    }
+}
+
 
 def _normalize_address(address: str) -> str:
     """Normalize address to 8-char lowercase hex without 0x prefix.
@@ -197,14 +244,20 @@ class MappingManager:
         except Exception as e:
             logger.error(f"Failed to save mappings: {e}")
 
-    def get_mapping(self, eep_id: str) -> Dict[str, Any]:
-        """Get mapping for an EEP profile
+    def get_mapping(self, eep_id: str, model: str = "") -> Dict[str, Any]:
+        """Get mapping for a device
 
         Priority:
-        1. Custom mapping
-        2. Default mapping
-        3. Empty dict
+        1. Model-based mapping (if model is set)
+        2. Custom EEP mapping (from mapping.yaml)
+        3. Default EEP mapping
+        4. Empty dict
         """
+        # Model mapping takes highest priority
+        if model and model in MODEL_MAPPINGS:
+            logger.debug(f"Using model mapping for {model}")
+            return MODEL_MAPPINGS[model]
+
         eep_id = eep_id.upper()
 
         if eep_id in self.custom_mappings:
@@ -214,6 +267,15 @@ class MappingManager:
             return DEFAULT_MAPPINGS[eep_id]
 
         return {}
+
+    def get_available_models(self) -> Dict[str, str]:
+        """Get list of available model mappings for UI"""
+        return {
+            "MV-01-01": "Kessel Staufix Control",
+            "SR65": "Thermokon SR65 Temperature",
+            "FSB61NP": "Eltako FSB61NP Blind Actuator",
+            "FUD61NPN": "Eltako FUD61NPN Dimmer",
+        }
 
     async def set_mapping(self, eep_id: str, mapping: Dict[str, Any]):
         """Set custom mapping for an EEP profile"""
@@ -260,14 +322,16 @@ class MappingManager:
         device_address: str,
         device_sender: str,
         mqtt_prefix: str,
-        device_info: Dict[str, Any]
+        device_info: Dict[str, Any],
+        device_model: str = ""
     ) -> List[Dict[str, Any]]:
         """Generate Home Assistant MQTT discovery configurations.
 
         Returns a list of discovery configs for all entities defined in the mapping.
         Uses ChristopheHD-compatible UID format and per-device availability.
+        Model-based mappings take priority over EEP-based ones.
         """
-        mapping = self.get_mapping(eep_id)
+        mapping = self.get_mapping(eep_id, model=device_model)
         configs = []
 
         for field_name, field_config in mapping.items():
@@ -373,9 +437,14 @@ class MappingManager:
     def build_device_info(self, device) -> Dict[str, Any]:
         """Build HA device info from device object"""
         addr = _normalize_address(device.address)
+        # Show model name if available, otherwise EEP
+        model_display = device.eep_id
+        if device.model:
+            models = self.get_available_models()
+            model_display = models.get(device.model, device.model)
         return {
             "identifiers": [f"enocean_{addr}"],
             "name": device.description or device.name,
             "manufacturer": device.manufacturer or "EnOcean",
-            "model": device.eep_id,
+            "model": model_display,
         }
