@@ -2,15 +2,21 @@
 
 ## [2.2.0] - 2026-03-06
 
-### Fixed
-- **CRITICAL: Value sensor scaling was broken** — ALL temperature, humidity, voltage, and other value-type sensors had wrong scaling. The XML parser read `range`/`scale` as XML attributes (`.get("min")`) but the EEP.xml uses child elements (`<min>255</min>`). Every value field silently defaulted to 0-255 range instead of the correct profile values.
-- **VERSION mismatch in system API** — Dashboard showed stale "2.0.2" version. Now reads version from the FastAPI app instance (single source of truth from main.py).
-
 ### Added
+- **Actuator support** — Control Eltako dimmers (FD62NPN), switches (FSR61), and blinds (FSB61) directly from Home Assistant. Devices with `actuator_type` are published as HA `light`, `switch`, or `cover` entities with command topics.
+- **Actuator teach-in** — Send F6 (RPS) teach-in telegrams to Eltako actuators from the web UI. Configurable sender offset (1-127) per actuator. Step-by-step instructions for each Eltako device type.
+- **Actuator test buttons** — Test ON/OFF/Open/Close/Stop commands directly from the device detail view (bypasses MQTT, sends F6 telegrams via REST API).
+- **MQTT command handler** — Routes `{prefix}/{device_name}/set` commands to F6 rocker telegrams for actuator devices (ON→BI press+release, OFF→B0 press+release).
 - **96+ EEP profiles** — Replaced bundled EEP.xml with [ChristopheHD's enocean library](https://github.com/ChristopheHD/enocean) version (was 56 profiles). Now includes F6 (RPS), D5 (1BS), A5 (4BS), D2 (VLD), and D1 (MSC) RORGs.
 - **Multi-command profile support** — Parser now handles multiple `<data command="N">` elements per profile (used by VLD/D2 profiles).
 - **Range item parsing** — `rangeitem` elements inside `enum` fields are now parsed (e.g., "3-127: reserved").
 - **Command field type** — New `command` field type parsed from XML (similar to enum with item children).
+- **Custom EEP Profile guide** — In-app documentation with real-world examples (Kessel Staufix, temperature sensor, rocker switch) linked from the profile editor.
+
+### Fixed
+- **CRITICAL: Value sensor scaling was broken** — ALL temperature, humidity, voltage, and other value-type sensors had wrong scaling. The XML parser read `range`/`scale` as XML attributes (`.get("min")`) but the EEP.xml uses child elements (`<min>255</min>`). Every value field silently defaulted to 0-255 range instead of the correct profile values.
+- **VERSION mismatch in system API** — Dashboard showed stale "2.0.2" version. Now reads version from the FastAPI app instance (single source of truth from main.py).
+- **EEP profiles not reloaded after import** — Importing a ZIP with custom profiles now reloads the EEP manager and re-publishes MQTT discovery for all devices.
 
 ### Changed
 - **Device lookup O(1)** — `get_device_by_address()` now uses a hash map instead of linear search on every telegram. Significant performance improvement for setups with many devices.

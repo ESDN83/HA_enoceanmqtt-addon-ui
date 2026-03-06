@@ -16,6 +16,7 @@ Modern web-based EnOcean to MQTT bridge for Home Assistant with visual device co
 - **Unknown Device Detection** - Automatically detect and list unconfigured devices
 - **Configuration Export/Import** - Backup and restore your configuration as ZIP files
 - **Device State Caching** - Persist sensor states across restarts (essential for infrequent senders)
+- **Actuator Control** - Control Eltako dimmers, switches, and blinds via F6 rocker telegrams with teach-in support
 
 ## Installation
 
@@ -228,12 +229,24 @@ A rocker switch sends button press events as enum values.
 2. Upload the ZIP file
 3. Devices and profiles are restored automatically
 
+### Controlling Actuators (Eltako Dimmers/Switches/Blinds)
+
+1. **Read Base ID** — Go to Teach-In and click "Read" to get the gateway's base address
+2. **Put actuator in learn mode** — Short press the learn button on the Eltako device (LED blinks)
+3. **Send teach-in** — Enter actuator address, choose a unique sender offset (1-127), click "Send Teach-In"
+4. **Add the device** — Use "Manual Entry" with the sender ID, set Device Role to light/switch/cover
+5. **Test from UI** — Open device detail and use the Test ON/OFF buttons
+6. **Control from HA** — The device appears as a light/switch/cover entity in Home Assistant
+
+**Tip:** To clear all learned senders from an Eltako actuator, press the learn button 5 times quickly.
+
 ### MQTT Topics
 
 With the default prefix `enoceanmqtt`, each device publishes to:
 
 ```
-enoceanmqtt/<device_name>/<shortcut>    - sensor value
+enoceanmqtt/<device_name>/state         - device state (JSON, retained)
+enoceanmqtt/<device_name>/set           - commands (for actuators)
 enoceanmqtt/<device_name>/availability  - online/offline
 ```
 
@@ -288,6 +301,9 @@ The add-on provides a REST API for automation:
 | `/api/gateway/recent-telegrams` | GET | Get recent telegrams |
 | `/api/gateway/unknown-devices` | GET | List unknown devices |
 | `/api/gateway/teach-in` | WebSocket | Teach-in mode |
+| `/api/gateway/teach-in-actuator` | POST | Send teach-in to actuator |
+| `/api/gateway/test-actuator` | POST | Test actuator ON/OFF/Open/Close |
+| `/api/gateway/info` | GET | Gateway info (base ID, port) |
 | `/api/system/status` | GET | System status |
 | `/api/system/export` | POST | Export config (ZIP) |
 | `/api/system/import` | POST | Import config |
