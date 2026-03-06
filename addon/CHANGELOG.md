@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.1.3] - 2026-03-06
+
+### Fixed
+- **Kessel MV-01-01 model mapping** now exposes all 5 sensors: Alarm (AL), Valve Closed (DI0), Error (DI1), Maintenance Required (DI2), Battery Low (DI3)
+- Previously only DI0 was mapped, ignoring AL, DI1, DI2, DI3 from the custom EEP profile
+
 ## [2.1.2] - 2026-03-06
 
 ### Fixed
