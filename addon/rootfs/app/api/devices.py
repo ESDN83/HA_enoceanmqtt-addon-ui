@@ -20,6 +20,7 @@ class DeviceCreate(BaseModel):
     description: Optional[str] = ""
     room: Optional[str] = ""
     manufacturer: Optional[str] = ""
+    model: Optional[str] = ""
 
 
 class DeviceUpdate(BaseModel):
@@ -32,6 +33,7 @@ class DeviceUpdate(BaseModel):
     description: Optional[str] = None
     room: Optional[str] = None
     manufacturer: Optional[str] = None
+    model: Optional[str] = None
 
 
 @router.get("")
@@ -91,7 +93,8 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
         sender_id=device.sender_id or "",
         description=device.description or "",
         room=device.room or "",
-        manufacturer=device.manufacturer or ""
+        manufacturer=device.manufacturer or "",
+        model=device.model or ""
     )
 
     success = await device_manager.add_device(new_device)
@@ -100,12 +103,29 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
 
     # Publish MQTT discovery
     mqtt_handler = request.app.state.mqtt_handler
-    eep_manager = request.app.state.eep_manager
-    if mqtt_handler and eep_manager:
-        profile = eep_manager.get_profile(new_device.eep_id)
-        if profile:
-            # TODO: Load mapping and publish discovery
-            pass
+    mapping_manager = request.app.state.mapping_manager
+    if mqtt_handler and mapping_manager:
+        try:
+            device_info = mapping_manager.build_device_info(new_device)
+            configs = mapping_manager.get_ha_discovery_configs(
+                device_name=new_device.name,
+                eep_id=new_device.eep_id,
+                device_address=new_device.address,
+                device_sender=new_device.sender_id,
+                mqtt_prefix=mqtt_handler.prefix,
+                device_info=device_info,
+                device_model=new_device.model
+            )
+            for item in configs:
+                await mqtt_handler.publish_discovery_config(
+                    component=item["component"],
+                    unique_id=item["unique_id"],
+                    config=item["config"]
+                )
+            await mqtt_handler.publish_device_availability(new_device.name, available=True)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to publish discovery for {new_device.name}: {e}")
 
     return {"status": "created", "device": new_device.to_dict()}
 
@@ -139,12 +159,41 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
         update_data["room"] = update.room
     if update.manufacturer is not None:
         update_data["manufacturer"] = update.manufacturer
+    if update.model is not None:
+        update_data["model"] = update.model
 
     success = await device_manager.update_device(name, update_data)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update device")
 
-    return {"status": "updated", "device": device_manager.get_device(name).to_dict()}
+    # Re-publish MQTT discovery (important when model or EEP changes)
+    updated_device = device_manager.get_device(name)
+    mqtt_handler = request.app.state.mqtt_handler
+    mapping_manager = request.app.state.mapping_manager
+    if mqtt_handler and mapping_manager and updated_device:
+        try:
+            device_info = mapping_manager.build_device_info(updated_device)
+            configs = mapping_manager.get_ha_discovery_configs(
+                device_name=updated_device.name,
+                eep_id=updated_device.eep_id,
+                device_address=updated_device.address,
+                device_sender=updated_device.sender_id,
+                mqtt_prefix=mqtt_handler.prefix,
+                device_info=device_info,
+                device_model=updated_device.model
+            )
+            for item in configs:
+                await mqtt_handler.publish_discovery_config(
+                    component=item["component"],
+                    unique_id=item["unique_id"],
+                    config=item["config"]
+                )
+            await mqtt_handler.publish_device_availability(updated_device.name, available=True)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to re-publish discovery for {name}: {e}")
+
+    return {"status": "updated", "device": updated_device.to_dict()}
 
 
 @router.delete("/{name}")
