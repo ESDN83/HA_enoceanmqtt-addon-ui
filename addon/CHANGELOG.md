@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.5] - 2026-03-06
+
+### Fixed
+- **Custom EEP profiles not loaded** - bundled manufacturer profiles (e.g., Kessel Staufix) were stored in `/app/data/custom_eep/` but EEP manager only searched `/data/custom_eep/`
+  - New: Bundled custom profiles are now auto-seeded to persistent storage on startup
+  - Auto-update: If bundled profile has more fields than existing, it replaces the outdated one
+  - Result: Kessel Staufix A5-30-03 now correctly shows all 5 fields (AL, DI0-DI3) with correct bit offsets
+
 ## [2.1.4] - 2026-03-06
 
 ### Fixed
