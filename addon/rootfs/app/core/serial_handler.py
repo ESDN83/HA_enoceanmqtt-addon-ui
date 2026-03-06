@@ -22,6 +22,9 @@ PACKET_TYPE_RESPONSE = 0x02
 PACKET_TYPE_EVENT = 0x04
 PACKET_TYPE_COMMON_COMMAND = 0x05
 
+# Common commands
+CO_RD_IDBASE = 0x08
+
 # CRC8 lookup table
 CRC8_TABLE = [
     0x00, 0x07, 0x0e, 0x09, 0x1c, 0x1b, 0x12, 0x15, 0x38, 0x3f, 0x36, 0x31, 0x24, 0x23, 0x2a, 0x2d,
@@ -110,6 +113,7 @@ class SerialHandler:
         self._telegram_callbacks: List[Callable] = []
         self._teach_in_callback: Optional[Callable] = None
         self._base_id: Optional[int] = None
+        self._response_future: Optional[asyncio.Future] = None
 
     @property
     def is_connected(self) -> bool:
@@ -136,6 +140,14 @@ class SerialHandler:
             self._read_task = asyncio.create_task(self._read_loop())
 
             logger.info(f"Connected to EnOcean transceiver at {self.port}")
+
+            # Read base ID from transceiver (needed for sending teach-in)
+            await asyncio.sleep(0.5)  # Give read loop time to start
+            base = await self.read_base_id()
+            if base:
+                logger.info(f"Transceiver Base ID: {base}")
+            else:
+                logger.warning("Could not read transceiver base ID")
 
         except Exception as e:
             logger.error(f"Failed to connect to EnOcean transceiver: {e}")
@@ -266,6 +278,8 @@ class SerialHandler:
                     await self._process_radio_telegram(packet_data, optional_data)
                 elif packet_type == PACKET_TYPE_RESPONSE:
                     logger.debug(f"Response packet: {packet_data.hex()}")
+                    if self._response_future and not self._response_future.done():
+                        self._response_future.set_result(packet_data)
                 elif packet_type == PACKET_TYPE_EVENT:
                     logger.info(f"Event packet: {packet_data.hex()}")
 
@@ -486,6 +500,111 @@ class SerialHandler:
 
         return decoded
 
+    async def _send_command(self, command_code: int) -> Optional[bytes]:
+        """Send an ESP3 common command and wait for response"""
+        if not self._connected:
+            return None
+
+        packet_data = bytes([command_code])
+        header = bytes([0x00, len(packet_data), 0x00, PACKET_TYPE_COMMON_COMMAND])
+        header_crc = crc8(header)
+        data_crc = crc8(packet_data)
+        packet = bytes([SYNC_BYTE]) + header + bytes([header_crc]) + packet_data + bytes([data_crc])
+
+        # Set up response future
+        loop = asyncio.get_event_loop()
+        self._response_future = loop.create_future()
+
+        try:
+            if self._serial:
+                self._serial.write(packet)
+            elif self._socket:
+                self._socket.send(packet)
+
+            # Wait for response with timeout
+            return await asyncio.wait_for(self._response_future, timeout=3.0)
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout waiting for response to command 0x{command_code:02X}")
+            return None
+        finally:
+            self._response_future = None
+
+    async def read_base_id(self) -> Optional[str]:
+        """Read the base ID from the USB300 transceiver.
+
+        Returns base ID as hex string (e.g., '0xFFE30180') or None on error.
+        """
+        response = await self._send_command(CO_RD_IDBASE)
+        if not response or len(response) < 5:
+            logger.error(f"Invalid base ID response: {response}")
+            return None
+
+        return_code = response[0]
+        if return_code != 0x00:
+            logger.error(f"Base ID read failed with code: {return_code:#04x}")
+            return None
+
+        base_id = int.from_bytes(response[1:5], 'big')
+        self._base_id = base_id
+        logger.info(f"USB300 Base ID: 0x{base_id:08X}")
+        return f"0x{base_id:08X}"
+
+    @property
+    def base_id(self) -> Optional[str]:
+        """Return cached base ID as hex string"""
+        if self._base_id is None:
+            return None
+        return f"0x{self._base_id:08X}"
+
+    def get_sender_id(self, offset: int = 1) -> Optional[int]:
+        """Get a sender ID derived from base ID + offset (1-127)"""
+        if self._base_id is None:
+            return None
+        if not 1 <= offset <= 127:
+            return None
+        return self._base_id + offset
+
+    async def send_f6_teach_in(self, destination: int, sender_offset: int = 1) -> bool:
+        """Send F6 (RPS) teach-in sequence to an Eltako actuator.
+
+        Sends a rocker switch press + release to teach-in the sender ID.
+        The actuator must be in learn mode.
+
+        Args:
+            destination: Target actuator address (int)
+            sender_offset: Offset from base ID for sender (1-127)
+
+        Returns True if telegrams were sent successfully.
+        """
+        sender_id = self.get_sender_id(sender_offset)
+        if sender_id is None:
+            logger.error("Cannot send teach-in: base ID not read yet")
+            return False
+
+        logger.info(f"Sending F6 teach-in to 0x{destination:08X} with sender 0x{sender_id:08X}")
+
+        # Send button press (AI): data=0x50, status=0x30 (T21+NU)
+        success = await self.send_telegram(
+            sender_id=sender_id,
+            rorg=0xF6,
+            data=bytes([0x50]),
+            destination=destination
+        )
+        if not success:
+            return False
+
+        await asyncio.sleep(0.1)
+
+        # Send button release: data=0x00, status=0x20 (T21, no NU)
+        success = await self.send_telegram(
+            sender_id=sender_id,
+            rorg=0xF6,
+            data=bytes([0x00]),
+            destination=destination,
+            status=0x20
+        )
+        return success
+
     def register_telegram_callback(self, callback: Callable):
         """Register callback for received telegrams"""
         self._telegram_callbacks.append(callback)
@@ -494,7 +613,7 @@ class SerialHandler:
         """Set callback for teach-in events"""
         self._teach_in_callback = callback
 
-    async def send_telegram(self, sender_id: int, rorg: int, data: bytes, destination: int = 0xFFFFFFFF):
+    async def send_telegram(self, sender_id: int, rorg: int, data: bytes, destination: int = 0xFFFFFFFF, status: int = None):
         """Send an EnOcean telegram"""
         if not self._connected:
             logger.error("Cannot send - not connected")
@@ -503,7 +622,9 @@ class SerialHandler:
         # Build radio telegram
         # RORG + data + sender_id (4 bytes) + status (1 byte)
         sender_bytes = sender_id.to_bytes(4, 'big')
-        status = 0x00
+        if status is None:
+            # F6 (RPS) needs T21 flag (0x30 for pressed, 0x20 for released)
+            status = 0x30 if (rorg == 0xF6 and data and data[0] != 0x00) else 0x00
 
         packet_data = bytes([rorg]) + data + sender_bytes + bytes([status])
 
