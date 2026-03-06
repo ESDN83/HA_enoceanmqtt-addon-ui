@@ -679,6 +679,14 @@
             // Search handlers
             document.getElementById('device-search')?.addEventListener('input', filterDevices);
             document.getElementById('profile-search')?.addEventListener('input', filterProfiles);
+
+            // Reset custom profile modal when closed
+            document.getElementById('customProfileModal')?.addEventListener('hidden.bs.modal', function() {
+                const form = document.getElementById('custom-profile-form');
+                form.reset();
+                delete form.dataset.editEepId;
+                document.querySelector('#customProfileModal .modal-title').textContent = 'Create Custom EEP Profile';
+            });
         });
 
         function toggleSidebar() {
@@ -833,31 +841,99 @@
                 const container = document.getElementById('eep-tree');
                 container.innerHTML = '';
 
+                // Collect custom profiles for a separate section at the top
+                const customProfiles = [];
+
                 for (const [rorg, rorgData] of Object.entries(tree)) {
+                    // Check if this RORG has any custom profiles
+                    let hasCustom = false;
+                    for (const [func, funcData] of Object.entries(rorgData.funcs)) {
+                        for (const [type, typeData] of Object.entries(funcData.types)) {
+                            if (typeData.is_custom) {
+                                customProfiles.push(typeData);
+                                hasCustom = true;
+                            }
+                        }
+                    }
+                }
+
+                // Show custom profiles section first (always expanded)
+                if (customProfiles.length > 0) {
+                    const customSection = document.createElement('div');
+                    customSection.className = 'mb-3 border-start border-warning border-3 ps-2';
+                    customSection.innerHTML = `<strong class="text-warning"><i class="bi bi-star-fill"></i> Custom Profiles (${customProfiles.length})</strong>`;
+                    customProfiles.forEach(typeData => {
+                        const typeDiv = document.createElement('div');
+                        typeDiv.className = 'ms-3 eep-item custom';
+                        typeDiv.style.cursor = 'pointer';
+                        typeDiv.innerHTML = `<i class="bi bi-file-earmark-fill text-warning"></i> ${typeData.eep_id} - ${typeData.description}`;
+                        typeDiv.onclick = () => showProfileDetails(typeData.eep_id);
+                        customSection.appendChild(typeDiv);
+                    });
+                    container.appendChild(customSection);
+                }
+
+                // Standard profiles (collapsed by default)
+                for (const [rorg, rorgData] of Object.entries(tree)) {
+                    const rorgId = `rorg-${rorg}`;
                     const rorgDiv = document.createElement('div');
-                    rorgDiv.className = 'mb-2';
-                    rorgDiv.innerHTML = `<strong><i class="bi bi-folder"></i> ${rorg} - ${rorgData.description}</strong>`;
+                    rorgDiv.className = 'mb-1';
+
+                    const rorgHeader = document.createElement('div');
+                    rorgHeader.style.cursor = 'pointer';
+                    rorgHeader.innerHTML = `<strong><i class="bi bi-folder" id="icon-${rorgId}"></i> ${rorg} - ${rorgData.description}</strong>`;
+                    rorgHeader.onclick = () => toggleTreeNode(rorgId);
+                    rorgDiv.appendChild(rorgHeader);
+
+                    const rorgContent = document.createElement('div');
+                    rorgContent.id = rorgId;
+                    rorgContent.style.display = 'none'; // collapsed by default
 
                     for (const [func, funcData] of Object.entries(rorgData.funcs)) {
+                        const funcId = `func-${rorg}-${func}`;
                         const funcDiv = document.createElement('div');
                         funcDiv.className = 'ms-3';
-                        funcDiv.innerHTML = `<i class="bi bi-folder2"></i> FUNC ${func}`;
+
+                        const funcHeader = document.createElement('div');
+                        funcHeader.style.cursor = 'pointer';
+                        funcHeader.innerHTML = `<i class="bi bi-folder2" id="icon-${funcId}"></i> FUNC ${func}`;
+                        funcHeader.onclick = (e) => { e.stopPropagation(); toggleTreeNode(funcId); };
+                        funcDiv.appendChild(funcHeader);
+
+                        const funcContent = document.createElement('div');
+                        funcContent.id = funcId;
+                        funcContent.style.display = 'none'; // collapsed by default
 
                         for (const [type, typeData] of Object.entries(funcData.types)) {
                             const typeDiv = document.createElement('div');
                             typeDiv.className = `ms-4 eep-item ${typeData.is_custom ? 'custom' : ''}`;
+                            typeDiv.style.cursor = 'pointer';
                             typeDiv.innerHTML = `<i class="bi bi-file-earmark"></i> ${typeData.eep_id} - ${typeData.description}`;
-                            typeDiv.onclick = () => showProfileDetails(typeData.eep_id);
-                            funcDiv.appendChild(typeDiv);
+                            typeDiv.onclick = (e) => { e.stopPropagation(); showProfileDetails(typeData.eep_id); };
+                            funcContent.appendChild(typeDiv);
                         }
 
-                        rorgDiv.appendChild(funcDiv);
+                        funcDiv.appendChild(funcContent);
+                        rorgContent.appendChild(funcDiv);
                     }
 
+                    rorgDiv.appendChild(rorgContent);
                     container.appendChild(rorgDiv);
                 }
             } catch (error) {
                 showToast('Failed to load profiles', 'danger');
+            }
+        }
+
+        function toggleTreeNode(nodeId) {
+            const node = document.getElementById(nodeId);
+            const icon = document.getElementById('icon-' + nodeId);
+            if (node) {
+                const isHidden = node.style.display === 'none';
+                node.style.display = isHidden ? '' : 'none';
+                if (icon) {
+                    icon.className = isHidden ? 'bi bi-folder2-open' : 'bi bi-folder';
+                }
             }
         }
 
@@ -867,21 +943,85 @@
                 const profile = await response.json();
 
                 const container = document.getElementById('profile-details');
+                let actionsHtml = '';
+                if (profile.is_custom) {
+                    actionsHtml = `
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-outline-primary me-2" onclick="editCustomProfile('${profile.eep_id}')">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteCustomProfile('${profile.eep_id}')">
+                                <i class="bi bi-trash"></i> Delete
+                            </button>
+                        </div>`;
+                }
+
                 container.innerHTML = `
                     <h5>${profile.eep_id}</h5>
                     <p>${profile.description}</p>
-                    ${profile.is_custom ? '<span class="badge bg-warning">Custom Profile</span>' : ''}
+                    ${profile.is_custom ? '<span class="badge bg-warning">Custom Profile</span>' : '<span class="badge bg-secondary">Standard Profile</span>'}
+                    ${actionsHtml}
                     <hr>
                     <h6>Fields</h6>
                     ${profile.fields.length ? profile.fields.map(f => `
                         <div class="border rounded p-2 mb-2">
-                            <strong>${f.shortcut}</strong> - ${f.description}<br>
-                            <small>Offset: ${f.offset}, Size: ${f.size} bits, Type: ${f.type}</small>
+                            <strong>${f.shortcut || '?'}</strong> - ${f.description || 'No description'}<br>
+                            <small>Offset: ${f.offset ?? '-'}, Size: ${f.size ?? '-'} bits, Type: ${f.type || '-'}</small>
                         </div>
                     `).join('') : '<p class="text-muted">No field definitions</p>'}
                 `;
             } catch (error) {
                 showToast('Failed to load profile details', 'danger');
+            }
+        }
+
+        async function deleteCustomProfile(eepId) {
+            if (!confirm(`Delete custom profile ${eepId}? This cannot be undone.`)) return;
+
+            try {
+                const response = await fetch(getApiUrl(`/api/eep/custom/${eepId}`), {method: 'DELETE'});
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => null);
+                    throw new Error(errData?.detail || `Server error (${response.status})`);
+                }
+                document.getElementById('profile-details').innerHTML = '<p class="text-muted">Select a profile to view details</p>';
+                loadProfiles();
+                showToast(`Profile ${eepId} deleted`, 'success');
+            } catch (error) {
+                showToast(error.message, 'danger');
+            }
+        }
+
+        async function editCustomProfile(eepId) {
+            try {
+                const response = await fetch(getApiUrl(`/api/eep/${eepId}`));
+                const profile = await response.json();
+
+                if (!profile.is_custom) {
+                    showToast('Only custom profiles can be edited', 'danger');
+                    return;
+                }
+
+                // Populate the modal form with existing data
+                const form = document.getElementById('custom-profile-form');
+                form.querySelector('[name="rorg"]').value = profile.rorg;
+                form.querySelector('[name="func"]').value = profile.func;
+                form.querySelector('[name="type"]').value = profile.type;
+                form.querySelector('[name="description"]').value = profile.description;
+                form.querySelector('[name="fields"]').value = profile.fields.length
+                    ? JSON.stringify(profile.fields, null, 2)
+                    : '';
+
+                // Mark as editing (store original eep_id)
+                form.dataset.editEepId = eepId;
+
+                // Update modal title
+                document.querySelector('#customProfileModal .modal-title').textContent = `Edit Custom Profile: ${eepId}`;
+
+                // Show modal
+                new bootstrap.Modal(document.getElementById('customProfileModal')).show();
+            } catch (error) {
+                showToast('Failed to load profile for editing', 'danger');
             }
         }
 
@@ -1332,27 +1472,64 @@ Use Restore to roll back to previous versions.`);
             const form = document.getElementById('custom-profile-form');
             const formData = new FormData(form);
 
-            try {
-                const fields = formData.get('fields') ? JSON.parse(formData.get('fields')) : [];
+            // Validate required fields (HTML 'required' doesn't work with onclick)
+            const rorg = (formData.get('rorg') || '').trim();
+            const func = (formData.get('func') || '').trim();
+            const type = (formData.get('type') || '').trim();
+            const description = (formData.get('description') || '').trim();
 
-                const response = await fetch(getApiUrl('/api/eep/custom'), {
-                    method: 'POST',
+            if (!rorg || !func || !type) {
+                showToast('RORG, FUNC, and TYPE are required', 'danger');
+                return;
+            }
+            if (!description) {
+                showToast('Description is required', 'danger');
+                return;
+            }
+
+            try {
+                let fields = [];
+                const fieldsText = (formData.get('fields') || '').trim();
+                if (fieldsText) {
+                    fields = JSON.parse(fieldsText);
+                    if (!Array.isArray(fields)) {
+                        showToast('Fields must be a JSON array', 'danger');
+                        return;
+                    }
+                }
+
+                // Check if we're editing or creating
+                const editEepId = form.dataset.editEepId;
+                const url = editEepId
+                    ? getApiUrl(`/api/eep/custom/${editEepId}`)
+                    : getApiUrl('/api/eep/custom');
+                const method = editEepId ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        rorg: formData.get('rorg'),
-                        func: formData.get('func'),
-                        type: formData.get('type'),
-                        description: formData.get('description'),
+                        rorg: rorg,
+                        func: func,
+                        type: type,
+                        description: description,
                         fields: fields
                     })
                 });
 
-                if (!response.ok) throw new Error('Failed to save profile');
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => null);
+                    const detail = errData?.detail || `Server error (${response.status})`;
+                    throw new Error(detail);
+                }
 
                 bootstrap.Modal.getInstance(document.getElementById('customProfileModal')).hide();
                 form.reset();
+                delete form.dataset.editEepId;
+                document.querySelector('#customProfileModal .modal-title').textContent = 'Create Custom EEP Profile';
                 loadProfiles();
-                showToast('Custom profile created', 'success');
+                showToast(editEepId ? 'Custom profile updated' : 'Custom profile created', 'success');
+                if (editEepId) showProfileDetails(editEepId);
             } catch (error) {
                 showToast(error.message, 'danger');
             }

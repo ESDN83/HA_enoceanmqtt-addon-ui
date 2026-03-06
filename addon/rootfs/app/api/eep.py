@@ -105,17 +105,28 @@ async def create_custom_profile(profile: CustomProfileCreate, request: Request) 
     if not eep_manager:
         raise HTTPException(status_code=500, detail="EEP manager not initialized")
 
+    # Validate required fields are not empty
+    if not profile.rorg.strip() or not profile.func.strip() or not profile.type.strip():
+        raise HTTPException(status_code=400, detail="RORG, FUNC, and TYPE are required")
+    if not profile.description.strip():
+        raise HTTPException(status_code=400, detail="Description is required")
+
     profile_data = {
-        "rorg": profile.rorg.upper().replace("0X", ""),
-        "func": profile.func.upper().replace("0X", "").zfill(2),
-        "type": profile.type.upper().replace("0X", "").zfill(2),
-        "description": profile.description,
+        "rorg": profile.rorg.strip().upper().replace("0X", ""),
+        "func": profile.func.strip().upper().replace("0X", "").zfill(2),
+        "type": profile.type.strip().upper().replace("0X", "").zfill(2),
+        "description": profile.description.strip(),
         "fields": profile.fields
     }
 
-    success = await eep_manager.save_custom_profile(profile_data)
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to create custom profile")
+    try:
+        success = await eep_manager.save_custom_profile(profile_data)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to write custom profile to disk")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create custom profile: {str(e)}")
 
     eep_id = f"{profile_data['rorg']}-{profile_data['func']}-{profile_data['type']}"
     new_profile = eep_manager.get_profile(eep_id)
