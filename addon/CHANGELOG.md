@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.11] - 2026-03-06
+
+### Fixed
+- **Kessel Staufix alarm not detected** — All bit offsets in the custom EEP profile were wrong. AL was at offset 0 (DB3.bit7) but should be at offset 29 (DB0.bit2), matching the MV-01-01 profile from ChristopheHD's addon. DI0-DI3 offsets also corrected to standard A5-30-03 positions (23, 22, 21, 20).
+  - With data `0100000D`: old offset 0 decoded AL=0 (wrong), correct offset 29 decodes AL=1 (alarm active)
+  - DI3 at old offset 7 was reading the condition byte (DB3=0x01), not actual battery status
+
 ## [2.1.10] - 2026-03-06
 
 ### Fixed

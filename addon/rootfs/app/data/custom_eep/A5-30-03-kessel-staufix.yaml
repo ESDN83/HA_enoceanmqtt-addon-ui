@@ -1,6 +1,15 @@
 # Kessel Staufix EnOcean Profile
 # Based on A5-30-03 (Digital Input, 4 Channels)
 # Custom mapping for Kessel Staufix backwater valve
+#
+# Bit offsets verified against ChristopheHD/HA_enoceanmqtt-addon MV-01-01 profile
+# and EnOcean A5-30-03 standard specification.
+#
+# 4BS data layout (32 bits, big-endian):
+#   DB3 (offset 0-7)   = Condition byte (0x01 for Staufix)
+#   DB2 (offset 8-15)  = Temperature (not used by Staufix)
+#   DB1 (offset 16-23) = Digital inputs (DI0-DI3, WA)
+#   DB0 (offset 24-31) = LRN bit (28) + AL alarm (29) + flags
 
 profile:
   rorg: "A5"
@@ -11,7 +20,7 @@ profile:
   fields:
     - shortcut: "AL"
       description: "Alarm Status"
-      offset: 0
+      offset: 29
       size: 1
       type: "enum"
       values:
@@ -21,7 +30,7 @@ profile:
           description: "Alarm Active"
     - shortcut: "DI0"
       description: "Digital Input 0 - Valve Closed"
-      offset: 4
+      offset: 23
       size: 1
       type: "enum"
       values:
@@ -31,7 +40,7 @@ profile:
           description: "Closed"
     - shortcut: "DI1"
       description: "Digital Input 1 - Error"
-      offset: 5
+      offset: 22
       size: 1
       type: "enum"
       values:
@@ -41,7 +50,7 @@ profile:
           description: "Error"
     - shortcut: "DI2"
       description: "Digital Input 2 - Maintenance Required"
-      offset: 6
+      offset: 21
       size: 1
       type: "enum"
       values:
@@ -51,7 +60,7 @@ profile:
           description: "Maintenance Required"
     - shortcut: "DI3"
       description: "Digital Input 3 - Battery Low"
-      offset: 7
+      offset: 20
       size: 1
       type: "enum"
       values:
