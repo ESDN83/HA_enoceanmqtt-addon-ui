@@ -610,6 +610,73 @@ class SerialHandler:
         )
         return success
 
+    async def send_a5_teach_in(self, destination: int, sender_offset: int = 1) -> bool:
+        """Send A5 (4BS) teach-in telegram for Eltako dimmers (A5-38-08).
+
+        Uses the proven teach-in message from openHAB: E0400D80
+        (Manufacturer=Eltako, LRN bit=0 → teach-in mode).
+        The actuator must be in learn mode.
+
+        Args:
+            destination: Target actuator address (int, used for logging only)
+            sender_offset: Offset from base ID for sender (1-127)
+
+        Returns True if telegram was sent successfully.
+        """
+        sender_id = self.get_sender_id(sender_offset)
+        if sender_id is None:
+            logger.error("Cannot send A5 teach-in: base ID not read yet")
+            return False
+
+        logger.info(f"Sending A5-38-08 teach-in to 0x{destination:08X} with sender 0x{sender_id:08X} (broadcast)")
+
+        # A5 teach-in data bytes (from openHAB EEP A5_38_08):
+        # DB3=0xE0, DB2=0x40, DB1=0x0D, DB0=0x80
+        # DB0 bit 3 = 0 → teach-in telegram
+        # DB0 bit 4 = 1 → with EEP and manufacturer info
+        teach_in_data = bytes([0xE0, 0x40, 0x0D, 0x80])
+
+        success = await self.send_telegram(
+            sender_id=sender_id,
+            rorg=0xA5,
+            data=teach_in_data,
+            destination=0xFFFFFFFF  # broadcast
+        )
+        return success
+
+    async def send_a5_dimmer_command(self, sender_id: int, command: str,
+                                     dim_value: int = 255, ramp_time: int = 1) -> bool:
+        """Send A5-38-08 Central Command Dimming telegram.
+
+        Args:
+            sender_id: Sender ID (already resolved integer)
+            command: "ON", "OFF", or "DIM"
+            dim_value: Brightness 0-255 (for ON/DIM)
+            ramp_time: Ramp time in seconds (0=default, 1-255)
+
+        Returns True if telegram was sent successfully.
+        """
+        # A5-38-08 Command 2 (Dimming):
+        # DB3 = 0x02 (command ID = dimming)
+        # DB2 = dim value (0x00-0xFF)
+        # DB1 = ramp time (seconds)
+        # DB0 = flags: bit3=LRN(1=data), bit0=switching(1=ON/0=OFF)
+        if command == "OFF":
+            data = bytes([0x02, 0x00, ramp_time & 0xFF, 0x08])
+        else:  # ON or DIM
+            val = max(0, min(255, dim_value))
+            data = bytes([0x02, val, ramp_time & 0xFF, 0x09])
+
+        logger.info(f"Sending A5-38-08 dimmer {command} (value={dim_value}, ramp={ramp_time}s) sender=0x{sender_id:08X}")
+
+        success = await self.send_telegram(
+            sender_id=sender_id,
+            rorg=0xA5,
+            data=data,
+            destination=0xFFFFFFFF  # broadcast
+        )
+        return success
+
     def register_telegram_callback(self, callback: Callable):
         """Register callback for received telegrams"""
         self._telegram_callbacks.append(callback)

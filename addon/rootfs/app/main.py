@@ -259,7 +259,27 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
     # Eltako actuators match by sender ID, not by destination address.
     broadcast = 0xFFFFFFFF
 
-    if device.actuator_type in ("light", "switch"):
+    if device.actuator_type == "light":
+        # Dimmers use A5-38-08 Central Command Dimming
+        if command == "ON":
+            await serial_handler.send_a5_dimmer_command(sender_id, "ON", dim_value=255)
+            logger.info(f"Sent ON (A5-38-08 dim=255) to {device_name}")
+        elif command == "OFF":
+            await serial_handler.send_a5_dimmer_command(sender_id, "OFF")
+            logger.info(f"Sent OFF (A5-38-08) to {device_name}")
+        else:
+            # Try to parse as dim value (0-255 or 0-100%)
+            try:
+                val = int(command)
+                if 0 <= val <= 100:
+                    val = int(val * 255 / 100)
+                val = max(0, min(255, val))
+                await serial_handler.send_a5_dimmer_command(sender_id, "DIM", dim_value=val)
+                logger.info(f"Sent DIM (A5-38-08 dim={val}) to {device_name}")
+            except ValueError:
+                logger.warning(f"Unknown command '{command}' for dimmer {device_name}")
+
+    elif device.actuator_type == "switch":
         if command == "ON":
             # F6 Rocker B top (BI) pressed: data=0x50, status=0x30 (T21+NU)
             await serial_handler.send_telegram(

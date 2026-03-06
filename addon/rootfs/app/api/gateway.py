@@ -35,6 +35,7 @@ class ActorTeachInRequest(BaseModel):
     """Request to send teach-in to an actuator"""
     destination: str  # Target actuator address (hex, e.g. "0x05834FA4")
     sender_offset: int = 1  # Offset from base ID (1-127)
+    actuator_type: str = "switch"  # "switch"→F6, "light"→A5-38-08, "cover"→F6
 
 
 class TestActuatorRequest(BaseModel):
@@ -80,10 +81,11 @@ async def read_base_id(request: Request) -> Dict[str, Any]:
 
 @router.post("/teach-in-actuator")
 async def teach_in_actuator(req: ActorTeachInRequest, request: Request) -> Dict[str, Any]:
-    """Send F6 (RPS) teach-in telegram to an Eltako actuator.
+    """Send teach-in telegram to an Eltako actuator.
 
     The actuator must be in learn mode before calling this endpoint.
-    Sends a rocker switch press+release sequence to teach-in the sender ID.
+    - Dimmers (actuator_type="light"): sends A5-38-08 (4BS Central Command) teach-in
+    - Switches/covers: sends F6 (RPS) rocker press+release teach-in
     """
     serial_handler = request.app.state.serial_handler
 
@@ -104,7 +106,14 @@ async def teach_in_actuator(req: ActorTeachInRequest, request: Request) -> Dict[
 
     sender_id = serial_handler.get_sender_id(req.sender_offset)
 
-    success = await serial_handler.send_f6_teach_in(dest, req.sender_offset)
+    # Dimmers use A5-38-08 (4BS Central Command) teach-in
+    if req.actuator_type == "light":
+        success = await serial_handler.send_a5_teach_in(dest, req.sender_offset)
+        teach_type = "A5-38-08 (Central Command Dimming)"
+    else:
+        success = await serial_handler.send_f6_teach_in(dest, req.sender_offset)
+        teach_type = "F6 (RPS Rocker)"
+
     if not success:
         raise HTTPException(status_code=500, detail="Failed to send teach-in telegram")
 
@@ -113,15 +122,17 @@ async def teach_in_actuator(req: ActorTeachInRequest, request: Request) -> Dict[
         "destination": req.destination,
         "sender_id": f"0x{sender_id:08X}",
         "sender_offset": req.sender_offset,
-        "message": "Teach-in telegram sent. If actuator was in learn mode, it should now respond to this sender ID."
+        "teach_type": teach_type,
+        "message": f"Teach-in telegram sent ({teach_type}). If actuator was in learn mode, it should now respond to this sender ID."
     }
 
 
 @router.post("/test-actuator")
 async def test_actuator(req: TestActuatorRequest, request: Request) -> Dict[str, Any]:
-    """Send F6 rocker command to test an actuator (light/switch/cover).
+    """Send command to test an actuator (light/switch/cover).
 
-    Uses the same F6 press+release sequence as the MQTT command handler.
+    - Dimmers (actuator_type="light"): uses A5-38-08 Central Command Dimming
+    - Switches/covers: uses F6 (RPS) rocker press+release sequence
     This endpoint allows testing directly from the UI without MQTT.
     """
     serial_handler = request.app.state.serial_handler
@@ -151,11 +162,28 @@ async def test_actuator(req: TestActuatorRequest, request: Request) -> Dict[str,
 
     command = req.command.strip().upper()
 
-    # F6 rocker commands use BROADCAST like real EnOcean pushbuttons.
-    # Eltako actuators match by sender ID, not by destination address.
+    # Dimmers use A5-38-08 Central Command Dimming
+    if device.actuator_type == "light":
+        if command == "ON":
+            await serial_handler.send_a5_dimmer_command(sender_id, "ON", dim_value=255)
+        elif command == "OFF":
+            await serial_handler.send_a5_dimmer_command(sender_id, "OFF")
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown command for dimmer: {command}. Use ON or OFF.")
+
+        logger.info(f"Test actuator (A5-38-08): {req.device_name} = {command}")
+        return {
+            "status": "sent",
+            "device": req.device_name,
+            "command": command,
+            "protocol": "A5-38-08",
+            "sender_id": device.sender_id,
+            "destination": device.address
+        }
+
+    # Switches and covers use F6 rocker commands (broadcast)
     broadcast = 0xFFFFFFFF
 
-    # F6 rocker commands for Eltako actuators
     if command in ("ON", "OPEN"):
         # Rocker B top (BI) pressed + release
         await serial_handler.send_telegram(
@@ -187,11 +215,12 @@ async def test_actuator(req: TestActuatorRequest, request: Request) -> Dict[str,
     else:
         raise HTTPException(status_code=400, detail=f"Unknown command: {command}. Use ON, OFF, OPEN, CLOSE, or STOP.")
 
-    logger.info(f"Test actuator: {req.device_name} ({device.actuator_type}) = {command}")
+    logger.info(f"Test actuator (F6): {req.device_name} ({device.actuator_type}) = {command}")
     return {
         "status": "sent",
         "device": req.device_name,
         "command": command,
+        "protocol": "F6",
         "sender_id": device.sender_id,
         "destination": device.address
     }
