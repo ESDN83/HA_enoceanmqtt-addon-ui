@@ -7,6 +7,9 @@
   - With data `0100000D`: old offset 0 decoded AL=0 (wrong), correct offset 29 decodes AL=1 (alarm active)
   - DI3 at old offset 7 was reading the condition byte (DB3=0x01), not actual battery status
 
+### Removed
+- **Entity Mappings sidebar page** — HA entity mapping is built into Custom EEP Profiles since v2.1.6. The standalone Mappings page with YAML editor, templates, and version restore is no longer needed.
+
 ## [2.1.10] - 2026-03-06
 
 ### Fixed
