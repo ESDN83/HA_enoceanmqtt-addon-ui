@@ -245,17 +245,25 @@ class EEPManager:
                 should_copy = False
 
                 if os.path.exists(target_file):
-                    # Check if bundled profile has more fields (updated version)
+                    # Check if bundled profile has improvements over existing
                     async with aiofiles.open(target_file, 'r') as f:
                         existing_content = await f.read()
                         existing_data = yaml.safe_load(existing_content)
 
                     existing_fields = len(existing_data.get("profile", {}).get("fields", []))
+                    existing_has_mapping = bool(existing_data.get("ha_mapping"))
+                    bundled_has_mapping = bool(bundled_data.get("ha_mapping"))
 
                     if bundled_fields > existing_fields:
                         logger.info(
                             f"Updating custom profile {rorg}-{func}-{type_}: "
                             f"bundled has {bundled_fields} fields vs existing {existing_fields}"
+                        )
+                        should_copy = True
+                    elif bundled_has_mapping and not existing_has_mapping:
+                        logger.info(
+                            f"Updating custom profile {rorg}-{func}-{type_}: "
+                            f"bundled has ha_mapping, existing does not"
                         )
                         should_copy = True
                 else:

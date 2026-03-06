@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.1.7] - 2026-03-06
+
+### Fixed
+- **Bundled ha_mapping not seeded** - existing custom profiles created before ha_mapping support weren't updated because seeding only compared field counts. Now also seeds when bundled profile has ha_mapping that the existing one lacks.
+
 ## [2.1.6] - 2026-03-06
 
 ### Added - HA Entity Mapping in Custom EEP Profiles
