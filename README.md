@@ -232,7 +232,7 @@ A rocker switch sends button press events as enum values.
 ### Controlling Actuators (Eltako Dimmers/Switches/Blinds)
 
 1. **Read Base ID** — Go to Teach-In and click "Read" to get the gateway's base address
-2. **Put actuator in learn mode** — Short press the learn button on the Eltako device (LED blinks)
+2. **Put actuator in learn mode** — Short press the learn button on the Eltako device (LED blinks). For FD62NPN dimmers: press rotary knob 4× short + 1× long (>2s) — lamp flickers to confirm
 3. **Send teach-in** — Enter actuator address, choose a unique sender offset (1-127), click "Send Teach-In"
 4. **Add the device** — Use "Manual Entry" with the sender ID, set Device Role to light/switch/cover
 5. **Test from UI** — Open device detail and use the Test ON/OFF buttons
