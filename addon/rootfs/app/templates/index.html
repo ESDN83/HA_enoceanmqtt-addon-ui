@@ -597,7 +597,7 @@
 
     <!-- Custom Profile Modal -->
     <div class="modal fade" id="customProfileModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Create Custom EEP Profile</h5>
@@ -605,6 +605,7 @@
                 </div>
                 <div class="modal-body">
                     <form id="custom-profile-form">
+                        <!-- EEP Identity -->
                         <div class="row">
                             <div class="col-md-4 mb-3">
                                 <label class="form-label">RORG</label>
@@ -623,9 +624,34 @@
                             <label class="form-label">Description</label>
                             <input type="text" class="form-control" name="description" required placeholder="e.g., Kessel Staufix Control">
                         </div>
+
+                        <!-- Telegram Fields (bit decoding) -->
                         <div class="mb-3">
-                            <label class="form-label">Fields (JSON)</label>
-                            <textarea class="form-control font-monospace" name="fields" rows="10" placeholder='[{"shortcut": "AL", "description": "Alarm", "offset": 29, "size": 1, "type": "enum"}]'></textarea>
+                            <label class="form-label">Telegram Fields (JSON) <small class="text-muted">- how to decode the telegram bits</small></label>
+                            <textarea class="form-control font-monospace" name="fields" rows="8" placeholder='[{"shortcut": "AL", "description": "Alarm", "offset": 0, "size": 1, "type": "enum"}]'></textarea>
+                        </div>
+
+                        <!-- HA Mapping (entity creation) -->
+                        <div class="card border-primary mb-3">
+                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-house-gear"></i> HA Entity Mapping</span>
+                                <button type="button" class="btn btn-sm btn-light" onclick="addHaMappingRow()">
+                                    <i class="bi bi-plus-circle"></i> Add Mapping
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted small mb-2">
+                                    Define how each decoded field becomes a Home Assistant entity.
+                                    The <strong>Shortcut</strong> must match a field shortcut above (e.g., AL, DI0).
+                                </p>
+                                <div id="ha-mapping-rows">
+                                    <!-- Dynamic mapping rows will be added here -->
+                                </div>
+                                <div id="ha-mapping-empty" class="text-muted text-center py-3">
+                                    <i class="bi bi-info-circle"></i> No HA mappings defined. Click "Add Mapping" to create one.
+                                    <br><small>Without mappings, default EEP mappings will be used.</small>
+                                </div>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -702,6 +728,9 @@
                 form.reset();
                 delete form.dataset.editEepId;
                 document.querySelector('#customProfileModal .modal-title').textContent = 'Create Custom EEP Profile';
+                // Clear HA mapping builder
+                document.getElementById('ha-mapping-rows').innerHTML = '';
+                document.getElementById('ha-mapping-empty').style.display = '';
             });
         });
 
@@ -995,19 +1024,49 @@
                         </div>`;
                 }
 
+                // Build HA mapping display
+                let haMappingHtml = '';
+                if (profile.ha_mapping && Object.keys(profile.ha_mapping).length > 0) {
+                    haMappingHtml = `
+                        <hr>
+                        <h6><i class="bi bi-house-gear"></i> HA Entity Mapping</h6>
+                        ${Object.entries(profile.ha_mapping).map(([shortcut, config]) => `
+                            <div class="border rounded p-2 mb-2 bg-light">
+                                <div class="d-flex justify-content-between">
+                                    <strong>${shortcut}</strong>
+                                    <span class="badge bg-primary">${config.component || 'sensor'}</span>
+                                </div>
+                                <small>
+                                    ${config.name ? `Name: ${config.name}` : ''}
+                                    ${config.device_class ? ` | Class: ${config.device_class}` : ''}
+                                    ${config.icon ? ` | Icon: ${config.icon}` : ''}
+                                    ${config.unit_of_measurement ? ` | Unit: ${config.unit_of_measurement}` : ''}
+                                </small>
+                            </div>
+                        `).join('')}
+                    `;
+                } else if (profile.is_custom) {
+                    haMappingHtml = `
+                        <hr>
+                        <h6><i class="bi bi-house-gear"></i> HA Entity Mapping</h6>
+                        <p class="text-muted small"><i class="bi bi-info-circle"></i> No custom HA mapping defined. Default EEP mapping will be used. Click "Edit" to add one.</p>
+                    `;
+                }
+
                 container.innerHTML = `
                     <h5>${profile.eep_id}</h5>
                     <p>${profile.description}</p>
                     ${profile.is_custom ? '<span class="badge bg-warning">Custom Profile</span>' : '<span class="badge bg-secondary">Standard Profile</span>'}
                     ${actionsHtml}
                     <hr>
-                    <h6>Fields</h6>
+                    <h6>Telegram Fields</h6>
                     ${profile.fields.length ? profile.fields.map(f => `
                         <div class="border rounded p-2 mb-2">
                             <strong>${f.shortcut || '?'}</strong> - ${f.description || 'No description'}<br>
                             <small>Offset: ${f.offset ?? '-'}, Size: ${f.size ?? '-'} bits, Type: ${f.type || '-'}</small>
                         </div>
                     `).join('') : '<p class="text-muted">No field definitions</p>'}
+                    ${haMappingHtml}
                 `;
             } catch (error) {
                 showToast('Failed to load profile details', 'danger');
@@ -1050,6 +1109,9 @@
                 form.querySelector('[name="fields"]').value = profile.fields.length
                     ? JSON.stringify(profile.fields, null, 2)
                     : '';
+
+                // Populate HA mapping builder
+                populateHaMapping(profile.ha_mapping || {});
 
                 // Mark as editing (store original eep_id)
                 form.dataset.editEepId = eepId;
@@ -1558,6 +1620,159 @@ Use Restore to roll back to previous versions.`);
             }
         }
 
+        // ===== HA Mapping Builder =====
+
+        function addHaMappingRow(shortcut = '', component = 'binary_sensor', name = '', deviceClass = '', icon = '', unit = '') {
+            const container = document.getElementById('ha-mapping-rows');
+            const emptyMsg = document.getElementById('ha-mapping-empty');
+            if (emptyMsg) emptyMsg.style.display = 'none';
+
+            const row = document.createElement('div');
+            row.className = 'ha-mapping-row border rounded p-2 mb-2';
+            row.innerHTML = `
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-2">
+                        <label class="form-label small">Shortcut</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="AL" value="${shortcut}"
+                               data-field="shortcut">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Component</label>
+                        <select class="form-select form-select-sm" data-field="component" onchange="onComponentChange(this)">
+                            <option value="binary_sensor" ${component === 'binary_sensor' ? 'selected' : ''}>binary_sensor</option>
+                            <option value="sensor" ${component === 'sensor' ? 'selected' : ''}>sensor</option>
+                            <option value="switch" ${component === 'switch' ? 'selected' : ''}>switch</option>
+                            <option value="light" ${component === 'light' ? 'selected' : ''}>light</option>
+                            <option value="cover" ${component === 'cover' ? 'selected' : ''}>cover</option>
+                            <option value="climate" ${component === 'climate' ? 'selected' : ''}>climate</option>
+                            <option value="fan" ${component === 'fan' ? 'selected' : ''}>fan</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Name</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="Alarm" value="${name}"
+                               data-field="name">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Device Class</label>
+                        <select class="form-select form-select-sm" data-field="device_class">
+                            ${getDeviceClassOptions(component, deviceClass)}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Icon</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="mdi:alert" value="${icon}"
+                               data-field="icon">
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label small">Unit</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="" value="${unit}"
+                               data-field="unit_of_measurement">
+                    </div>
+                    <div class="col-md-1">
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeHaMappingRow(this)" title="Remove">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            container.appendChild(row);
+        }
+
+        function removeHaMappingRow(btn) {
+            const row = btn.closest('.ha-mapping-row');
+            row.remove();
+            const container = document.getElementById('ha-mapping-rows');
+            if (container.children.length === 0) {
+                document.getElementById('ha-mapping-empty').style.display = '';
+            }
+        }
+
+        function onComponentChange(select) {
+            const row = select.closest('.ha-mapping-row');
+            const dcSelect = row.querySelector('[data-field="device_class"]');
+            const component = select.value;
+            dcSelect.innerHTML = getDeviceClassOptions(component, '');
+        }
+
+        function getDeviceClassOptions(component, selected) {
+            const classes = {
+                'binary_sensor': ['', 'battery', 'cold', 'door', 'garage_door', 'gas', 'heat', 'moisture', 'motion', 'moving', 'occupancy', 'opening', 'plug', 'power', 'problem', 'safety', 'smoke', 'sound', 'vibration', 'window'],
+                'sensor': ['', 'battery', 'current', 'energy', 'humidity', 'illuminance', 'power', 'pressure', 'signal_strength', 'temperature', 'timestamp', 'voltage'],
+                'cover': ['', 'awning', 'blind', 'curtain', 'garage', 'gate', 'shade', 'shutter', 'window'],
+                'switch': ['', 'outlet', 'switch'],
+                'light': [''],
+                'climate': [''],
+                'fan': ['']
+            };
+            const options = classes[component] || [''];
+            return options.map(c =>
+                `<option value="${c}" ${c === selected ? 'selected' : ''}>${c || '(none)'}</option>`
+            ).join('');
+        }
+
+        function collectHaMapping() {
+            const rows = document.querySelectorAll('.ha-mapping-row');
+            if (rows.length === 0) return null;
+
+            const mapping = {};
+            let valid = true;
+
+            rows.forEach(row => {
+                const shortcut = (row.querySelector('[data-field="shortcut"]').value || '').trim();
+                if (!shortcut) {
+                    valid = false;
+                    return;
+                }
+
+                const entry = {
+                    component: row.querySelector('[data-field="component"]').value
+                };
+
+                const name = row.querySelector('[data-field="name"]').value.trim();
+                if (name) entry.name = name;
+
+                const dc = row.querySelector('[data-field="device_class"]').value;
+                if (dc) entry.device_class = dc;
+
+                const icon = row.querySelector('[data-field="icon"]').value.trim();
+                if (icon) entry.icon = icon;
+
+                const unit = row.querySelector('[data-field="unit_of_measurement"]').value.trim();
+                if (unit) entry.unit_of_measurement = unit;
+
+                mapping[shortcut] = entry;
+            });
+
+            if (!valid) return undefined; // signal validation error
+            return Object.keys(mapping).length > 0 ? mapping : null;
+        }
+
+        function populateHaMapping(haMapping) {
+            const container = document.getElementById('ha-mapping-rows');
+            container.innerHTML = '';
+
+            if (!haMapping || Object.keys(haMapping).length === 0) {
+                document.getElementById('ha-mapping-empty').style.display = '';
+                return;
+            }
+
+            document.getElementById('ha-mapping-empty').style.display = 'none';
+
+            for (const [shortcut, config] of Object.entries(haMapping)) {
+                addHaMappingRow(
+                    shortcut,
+                    config.component || 'binary_sensor',
+                    config.name || '',
+                    config.device_class || '',
+                    config.icon || '',
+                    config.unit_of_measurement || ''
+                );
+            }
+        }
+
+        // ===== Save/Edit Custom Profile =====
+
         async function saveCustomProfile() {
             const form = document.getElementById('custom-profile-form');
             const formData = new FormData(form);
@@ -1588,6 +1803,13 @@ Use Restore to roll back to previous versions.`);
                     }
                 }
 
+                // Collect HA mapping from builder
+                const haMapping = collectHaMapping();
+                if (haMapping === undefined) {
+                    showToast('HA Mapping: All rows need a Shortcut', 'danger');
+                    return;
+                }
+
                 // Check if we're editing or creating
                 const editEepId = form.dataset.editEepId;
                 const url = editEepId
@@ -1595,16 +1817,21 @@ Use Restore to roll back to previous versions.`);
                     : getApiUrl('/api/eep/custom');
                 const method = editEepId ? 'PUT' : 'POST';
 
+                const payload = {
+                    rorg: rorg,
+                    func: func,
+                    type: type,
+                    description: description,
+                    fields: fields
+                };
+                if (haMapping) {
+                    payload.ha_mapping = haMapping;
+                }
+
                 const response = await fetch(url, {
                     method: method,
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        rorg: rorg,
-                        func: func,
-                        type: type,
-                        description: description,
-                        fields: fields
-                    })
+                    body: JSON.stringify(payload)
                 });
 
                 if (!response.ok) {
@@ -1617,6 +1844,9 @@ Use Restore to roll back to previous versions.`);
                 form.reset();
                 delete form.dataset.editEepId;
                 document.querySelector('#customProfileModal .modal-title').textContent = 'Create Custom EEP Profile';
+                // Clear HA mapping rows
+                document.getElementById('ha-mapping-rows').innerHTML = '';
+                document.getElementById('ha-mapping-empty').style.display = '';
                 loadProfiles();
                 showToast(editEepId ? 'Custom profile updated' : 'Custom profile created', 'success');
                 if (editEepId) showProfileDetails(editEepId);

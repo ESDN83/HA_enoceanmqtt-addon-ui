@@ -25,6 +25,7 @@ class EEPProfile:
         self.type = type_
         self.description = description
         self.fields: List[Dict[str, Any]] = []
+        self.ha_mapping: Dict[str, Dict[str, Any]] = {}  # EEP field → HA entity mapping
         self.is_custom = False
 
     @property
@@ -41,6 +42,7 @@ class EEPProfile:
             "eep_id": self.eep_id,
             "description": self.description,
             "fields": self.fields,
+            "ha_mapping": self.ha_mapping,
             "is_custom": self.is_custom
         }
 
@@ -292,8 +294,15 @@ class EEPManager:
                             profile.fields = profile_data.get("fields", [])
                             profile.is_custom = True
 
+                            # Load HA mapping if present (either in profile or top-level)
+                            ha_mapping = data.get("ha_mapping", {})
+                            if not ha_mapping:
+                                ha_mapping = profile_data.get("ha_mapping", {})
+                            profile.ha_mapping = ha_mapping
+
                             self.profiles[profile.eep_id] = profile
-                            logger.info(f"Loaded custom profile: {profile.eep_id}")
+                            logger.info(f"Loaded custom profile: {profile.eep_id}"
+                                        f"{' with ha_mapping' if ha_mapping else ''}")
 
                 except Exception as e:
                     logger.error(f"Failed to load custom profile {filename}: {e}")
@@ -325,8 +334,9 @@ class EEPManager:
         rorg = rorg.upper()
         return [p for p in self.profiles.values() if p.rorg == rorg]
 
-    async def save_custom_profile(self, profile_data: Dict[str, Any]) -> bool:
-        """Save a custom profile"""
+    async def save_custom_profile(self, profile_data: Dict[str, Any],
+                                   ha_mapping: Optional[Dict[str, Dict[str, Any]]] = None) -> bool:
+        """Save a custom profile with optional HA mapping"""
         try:
             rorg = profile_data.get("rorg", "").upper()
             func = profile_data.get("func", "").upper().zfill(2)
@@ -337,16 +347,23 @@ class EEPManager:
 
             os.makedirs(self.custom_eep_path, exist_ok=True)
 
+            # Build YAML structure
+            save_data = {"profile": profile_data}
+            if ha_mapping:
+                save_data["ha_mapping"] = ha_mapping
+
             async with aiofiles.open(filepath, 'w') as f:
-                await f.write(yaml.dump({"profile": profile_data}, default_flow_style=False))
+                await f.write(yaml.dump(save_data, default_flow_style=False, allow_unicode=True))
 
             # Reload the profile
             profile = EEPProfile(rorg, func, type_, profile_data.get("description", ""))
             profile.fields = profile_data.get("fields", [])
+            profile.ha_mapping = ha_mapping or {}
             profile.is_custom = True
             self.profiles[profile.eep_id] = profile
 
-            logger.info(f"Saved custom profile: {profile.eep_id}")
+            logger.info(f"Saved custom profile: {profile.eep_id}"
+                        f"{' with ha_mapping' if ha_mapping else ''}")
             return True
 
         except Exception as e:
