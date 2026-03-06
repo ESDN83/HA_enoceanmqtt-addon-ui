@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.14] - 2026-03-06
+
+### Fixed
+- **Config Import/Restore broken** — ZIP files with nested folder structure (e.g., `enocean_config_20260306/devices.json`) were silently ignored because import expected flat paths. Now strips folder prefix for robust matching.
+
+### Removed
+- **Bundled Kessel Staufix profile** — The auto-seeded `A5-30-03-kessel-staufix.yaml` kept re-appearing after delete. Manufacturer-specific profiles should be user-created via the Custom EEP Profile editor, not force-installed.
+
 ## [2.1.13] - 2026-03-06
 
 ### Fixed

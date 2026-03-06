@@ -152,10 +152,16 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
         }
 
         with zipfile.ZipFile(zip_buffer, 'r') as zf:
-            for filename in zf.namelist():
-                if filename == "devices.json":
+            for zip_entry in zf.namelist():
+                # Strip any folder prefix (e.g., "enocean_config_20260306_172102/devices.json" -> "devices.json")
+                # This makes import work with both flat and nested zip structures
+                basename = os.path.basename(zip_entry)
+                # For custom_eep paths, check if "custom_eep/" appears anywhere in the path
+                is_custom_eep = "custom_eep/" in zip_entry and zip_entry.endswith(".yaml")
+
+                if basename == "devices.json":
                     # Import devices
-                    devices_data = json.loads(zf.read(filename))
+                    devices_data = json.loads(zf.read(zip_entry))
                     devices_file = os.path.join(config_path, "devices.json")
                     os.makedirs(config_path, exist_ok=True)
                     async with aiofiles.open(devices_file, 'w') as f:
@@ -166,19 +172,19 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
                     if device_manager:
                         await device_manager.load_devices()
 
-                elif filename == "mapping.yaml":
+                elif basename == "mapping.yaml":
                     # Import mappings
-                    mappings_data = zf.read(filename)
+                    mappings_data = zf.read(zip_entry)
                     mappings_file = os.path.join(config_path, "mapping.yaml")
                     os.makedirs(config_path, exist_ok=True)
                     async with aiofiles.open(mappings_file, 'wb') as f:
                         await f.write(mappings_data)
                     imported["mappings"] = True
 
-                elif filename.startswith("custom_eep/") and filename.endswith(".yaml"):
+                elif is_custom_eep:
                     # Import custom profiles
-                    profile_data = zf.read(filename)
-                    profile_name = os.path.basename(filename)
+                    profile_data = zf.read(zip_entry)
+                    profile_name = basename
                     custom_path = os.path.join(config_path, "custom_eep")
                     os.makedirs(custom_path, exist_ok=True)
                     async with aiofiles.open(os.path.join(custom_path, profile_name), 'wb') as f:
