@@ -1,6 +1,8 @@
 """
 EnOcean MQTT - All-in-One Home Assistant Add-on
 Main application entry point
+
+Compatible with ChristopheHD/HA_enoceanmqtt-addon MQTT patterns.
 """
 
 import os
@@ -33,10 +35,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-CONFIG_PATH = os.getenv("CONFIG_PATH", "/config/enocean")
+# /data/ is the correct persistent storage for HA addons (survives updates)
+CONFIG_PATH = os.getenv("CONFIG_PATH", "/data")
 ENOCEAN_PORT = os.getenv("ENOCEAN_PORT", "")
 CACHE_DEVICE_STATES = os.getenv("CACHE_DEVICE_STATES", "true").lower() == "true"
-VERSION = "2.0.3"
+VERSION = "2.1.0"
 
 # Global instances
 mqtt_handler: MQTTHandler = None
@@ -76,7 +79,7 @@ async def lifespan(app: FastAPI):
     mqtt_port = int(os.getenv("MQTT_PORT", "1883"))
     mqtt_user = os.getenv("MQTT_USER", "")
     mqtt_password = os.getenv("MQTT_PASSWORD", "")
-    mqtt_prefix = os.getenv("MQTT_PREFIX", "enocean")
+    mqtt_prefix = os.getenv("MQTT_PREFIX", "enoceanmqtt")
     mqtt_discovery_prefix = os.getenv("MQTT_DISCOVERY_PREFIX", "homeassistant")
 
     if mqtt_host:
@@ -94,7 +97,7 @@ async def lifespan(app: FastAPI):
         await mqtt_handler.connect()
         logger.info(f"Connected to MQTT broker at {mqtt_host}:{mqtt_port}")
 
-        # Load and republish persisted states (important for infrequent sensors like Kessel Staufix)
+        # Load and republish persisted states (important for infrequent sensors)
         if CACHE_DEVICE_STATES:
             await mqtt_handler.load_persisted_states()
             logger.info("Device state caching enabled - states will be persisted and restored")
@@ -119,6 +122,10 @@ async def lifespan(app: FastAPI):
     if mqtt_handler and device_manager and mapping_manager:
         await _publish_all_discoveries()
 
+        # Set birth message callback - re-publishes discoveries when HA restarts
+        # or when MQTT broker reconnects
+        mqtt_handler.set_ha_birth_callback(_publish_all_discoveries)
+
     # Store instances in app state for access in routes
     app.state.mqtt_handler = mqtt_handler
     app.state.serial_handler = serial_handler
@@ -139,37 +146,49 @@ async def lifespan(app: FastAPI):
         await serial_handler.disconnect()
 
     if mqtt_handler:
+        # disconnect() publishes offline status for all devices and gateway
         await mqtt_handler.disconnect()
 
     logger.info("EnOcean MQTT Add-on stopped")
 
 
 async def _publish_all_discoveries():
-    """Publish HA MQTT discovery for all configured devices"""
+    """Publish HA MQTT discovery and availability for all configured devices.
+
+    Called on startup, on HA birth message (HA restart), and on MQTT reconnect.
+    """
     global mqtt_handler, device_manager, mapping_manager
 
     if not mqtt_handler or not device_manager or not mapping_manager:
         return
 
-    # Publish gateway availability
-    await mqtt_handler.publish("enocean/status", "online", retain=True)
+    logger.info("Publishing HA discovery for all devices...")
 
     for device in device_manager.devices.values():
         try:
+            # Build device info for HA
             device_info = mapping_manager.build_device_info(device)
+
+            # Generate discovery configs
             configs = mapping_manager.get_ha_discovery_configs(
-                device.name,
-                device.eep_id,
-                device_info
+                device_name=device.name,
+                eep_id=device.eep_id,
+                device_address=device.address,
+                device_sender=device.sender_id,
+                mqtt_prefix=mqtt_handler.prefix,
+                device_info=device_info
             )
 
+            # Publish each entity discovery config
             for item in configs:
-                component = item["component"]
-                config = item["config"]
-                unique_id = config["unique_id"]
+                await mqtt_handler.publish_discovery_config(
+                    component=item["component"],
+                    unique_id=item["unique_id"],
+                    config=item["config"]
+                )
 
-                discovery_topic = f"{mqtt_handler.discovery_prefix}/{component}/{unique_id}/config"
-                await mqtt_handler.publish(discovery_topic, config, retain=True)
+            # Publish device availability (online)
+            await mqtt_handler.publish_device_availability(device.name, available=True)
 
             logger.debug(f"Published discovery for {device.name}")
 

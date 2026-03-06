@@ -1,7 +1,15 @@
 """
 MQTT Handler - Manages MQTT communication and Home Assistant discovery
 
-Includes state persistence for devices that send infrequent updates (like Kessel Staufix).
+Compatible with ChristopheHD/HA_enoceanmqtt-addon MQTT topic patterns.
+Includes state persistence for devices that send infrequent updates.
+
+MQTT Topic Structure:
+    {prefix}/{device_name}/state        - Device state (JSON, retained)
+    {prefix}/{device_name}/set          - Device commands
+    {prefix}/{device_name}/availability - Per-device availability (retained)
+    {prefix}/__system/status            - Gateway status with LWT (retained)
+    {discovery_prefix}/{component}/enocean/{uid}/config - HA discovery (retained)
 """
 
 import os
@@ -25,11 +33,11 @@ class MQTTHandler:
         port: int = 1883,
         username: str = "",
         password: str = "",
-        prefix: str = "enocean",
+        prefix: str = "enoceanmqtt",
         discovery_prefix: str = "homeassistant",
         device_manager=None,
         client_id: str = "enocean_gateway",
-        config_path: str = "/config/enocean",
+        config_path: str = "/data",
         cache_states: bool = True
     ):
         self.host = host
@@ -48,23 +56,43 @@ class MQTTHandler:
         self._message_callbacks: Dict[str, Callable] = {}
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
+        # Callback for HA birth message / reconnect (re-publish all discoveries)
+        self._on_ha_birth: Optional[Callable] = None
+
         # State persistence for infrequent sensors (like Kessel Staufix)
         self._last_states: Dict[str, Dict[str, Any]] = {}
         self._states_file = os.path.join(config_path, "last_states.json")
 
     @property
     def is_connected(self) -> bool:
-        """Returns connection status"""
         return self._connected
 
+    @property
+    def gateway_status_topic(self) -> str:
+        return f"{self.prefix}/__system/status"
+
+    def set_ha_birth_callback(self, callback: Callable):
+        """Set callback for when HA sends birth message or MQTT reconnects.
+        The callback should re-publish all discoveries and availability.
+        """
+        self._on_ha_birth = callback
+
     async def connect(self):
-        """Connect to MQTT broker"""
+        """Connect to MQTT broker with LWT (Last Will and Testament)"""
         self._loop = asyncio.get_event_loop()
 
         self._client = mqtt.Client(client_id=self.client_id)
 
         if self.username:
             self._client.username_pw_set(self.username, self.password)
+
+        # Set Last Will - published automatically on unexpected disconnect
+        self._client.will_set(
+            self.gateway_status_topic,
+            payload="offline",
+            qos=1,
+            retain=True
+        )
 
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
@@ -88,23 +116,47 @@ class MQTTHandler:
             raise
 
     async def disconnect(self):
-        """Disconnect from MQTT broker"""
-        if self._client:
+        """Disconnect gracefully - publish offline status for all devices first"""
+        if self._client and self._connected:
+            # Publish offline for all configured devices
+            if self.device_manager:
+                for device_name in self.device_manager.devices:
+                    avail_topic = f"{self.prefix}/{device_name}/availability"
+                    self._client.publish(avail_topic, "offline", qos=1, retain=True)
+
+            # Publish gateway offline
+            self._client.publish(self.gateway_status_topic, "offline", qos=1, retain=True)
+
+            # Small delay to ensure messages are sent before disconnect
+            await asyncio.sleep(0.5)
+
             self._client.loop_stop()
             self._client.disconnect()
             self._connected = False
-            logger.info("Disconnected from MQTT broker")
+            logger.info("Disconnected from MQTT broker (published offline status)")
 
     def _on_connect(self, client, userdata, flags, rc):
-        """MQTT connect callback"""
+        """MQTT connect callback - called on initial connect and reconnects"""
         if rc == 0:
             self._connected = True
             logger.info(f"Connected to MQTT broker at {self.host}:{self.port}")
 
+            # Publish gateway online status
+            client.publish(self.gateway_status_topic, "online", qos=1, retain=True)
+
             # Subscribe to command topics
-            command_topic = f"{self.prefix}/+/set"
-            client.subscribe(command_topic)
-            logger.debug(f"Subscribed to {command_topic}")
+            client.subscribe(f"{self.prefix}/+/set", qos=1)
+            client.subscribe(f"{self.prefix}/+/set/#", qos=1)
+            logger.debug(f"Subscribed to {self.prefix}/+/set[/#]")
+
+            # Subscribe to HA birth message for re-publishing discoveries
+            ha_status_topic = f"{self.discovery_prefix}/status"
+            client.subscribe(ha_status_topic, qos=1)
+            logger.info(f"Subscribed to HA birth message: {ha_status_topic}")
+
+            # On reconnect, re-publish all discoveries
+            if self._on_ha_birth and self._loop:
+                asyncio.run_coroutine_threadsafe(self._on_ha_birth(), self._loop)
 
         else:
             logger.error(f"MQTT connection failed with code {rc}")
@@ -123,16 +175,25 @@ class MQTTHandler:
 
             logger.info(f"MQTT RX [{topic}] = {payload}")
 
-            # Handle command messages
-            if topic.endswith("/set"):
-                # Extract device name from topic
-                parts = topic.split("/")
-                if len(parts) >= 2:
-                    device_name = parts[-2]
-                    self._handle_command(device_name, payload)
+            # Handle HA birth message - re-publish all discoveries
+            if topic == f"{self.discovery_prefix}/status" and payload == "online":
+                logger.info("HA birth message received - re-publishing all discoveries")
+                if self._on_ha_birth and self._loop:
+                    asyncio.run_coroutine_threadsafe(self._on_ha_birth(), self._loop)
+                return
+
+            # Handle command messages: {prefix}/{device_name}/set[/{entity}]
+            prefix_with_slash = f"{self.prefix}/"
+            if topic.startswith(prefix_with_slash) and "/set" in topic:
+                remainder = topic[len(prefix_with_slash):]
+                parts = remainder.split("/")
+                if len(parts) >= 2 and parts[1] == "set":
+                    device_name = parts[0]
+                    entity = parts[2] if len(parts) > 2 else None
+                    self._handle_command(device_name, payload, entity)
 
             # Call registered callbacks
-            for pattern, callback in self._message_callbacks.items():
+            for pattern, callback in list(self._message_callbacks.items()):
                 if self._topic_matches(pattern, topic):
                     if self._loop:
                         asyncio.run_coroutine_threadsafe(
@@ -144,45 +205,51 @@ class MQTTHandler:
             logger.error(f"Error processing MQTT message: {e}")
 
     def _topic_matches(self, pattern: str, topic: str) -> bool:
-        """Check if topic matches pattern with wildcards"""
+        """Check if topic matches pattern with MQTT wildcards (+ and #)"""
         pattern_parts = pattern.split("/")
         topic_parts = topic.split("/")
 
-        if len(pattern_parts) != len(topic_parts):
-            return False
-
-        for p, t in zip(pattern_parts, topic_parts):
-            if p == "+":
-                continue
+        for i, p in enumerate(pattern_parts):
             if p == "#":
-                return True
-            if p != t:
+                return True  # # matches everything from here
+            if i >= len(topic_parts):
+                return False
+            if p == "+":
+                continue  # + matches single level
+            if p != topic_parts[i]:
                 return False
 
-        return True
+        return len(pattern_parts) == len(topic_parts)
 
-    def _handle_command(self, device_name: str, payload: str):
+    def _handle_command(self, device_name: str, payload: str, entity: str = None):
         """Handle command for a device"""
-        logger.info(f"Command for device {device_name}: {payload}")
-        # This will be implemented to send EnOcean telegrams
+        target = f"{device_name}/{entity}" if entity else device_name
+        logger.info(f"Command for {target}: {payload}")
+        # TODO: Send EnOcean telegram based on command
 
     def subscribe(self, topic_pattern: str, callback: Callable):
         """Subscribe to a topic pattern with callback"""
         self._message_callbacks[topic_pattern] = callback
         if self._client and self._connected:
-            self._client.subscribe(topic_pattern)
+            self._client.subscribe(topic_pattern, qos=1)
 
-    async def publish(self, topic: str, payload: Any, retain: bool = False):
+    async def publish(self, topic: str, payload: Any, retain: bool = False, qos: int = 1):
         """Publish a message"""
         if not self._client or not self._connected:
-            logger.warning("MQTT not connected, message not sent")
+            logger.warning(f"MQTT not connected, message not sent: {topic}")
             return
 
         if isinstance(payload, dict):
             payload = json.dumps(payload)
 
-        self._client.publish(topic, payload, retain=retain)
-        logger.info(f"MQTT TX [{topic}] retain={retain}")
+        self._client.publish(topic, payload, qos=qos, retain=retain)
+        logger.debug(f"MQTT TX [{topic}] retain={retain} qos={qos}")
+
+    async def publish_device_availability(self, device_name: str, available: bool = True):
+        """Publish per-device availability"""
+        topic = f"{self.prefix}/{device_name}/availability"
+        payload = "online" if available else "offline"
+        await self.publish(topic, payload, retain=True, qos=1)
 
     async def publish_state(self, device_name: str, state: Dict[str, Any]):
         """Publish device state and persist for recovery after restart"""
@@ -208,11 +275,10 @@ class MQTTHandler:
             logger.error(f"Failed to save states: {e}")
 
     async def load_persisted_states(self):
-        """Load and republish last known states after restart
+        """Load and republish last known states after restart.
 
-        This is important for sensors that send infrequently (like Kessel Staufix
-        which only sends every 8-10 hours). Without this, the state would be
-        unknown until the next telegram.
+        Important for sensors that send infrequently (like Kessel Staufix
+        which only sends every 8-10 hours).
         """
         if not os.path.exists(self._states_file):
             logger.info("No persisted states to restore")
@@ -225,10 +291,8 @@ class MQTTHandler:
 
             logger.info(f"Loaded {len(self._last_states)} persisted device states")
 
-            # Republish all states with retain flag
             for device_name, state in self._last_states.items():
                 topic = f"{self.prefix}/{device_name}/state"
-                # Mark as restored state
                 state["_restored"] = True
                 await self.publish(topic, state, retain=True)
                 logger.debug(f"Restored state for {device_name}")
@@ -242,65 +306,14 @@ class MQTTHandler:
         """Get last known state for a device"""
         return self._last_states.get(device_name)
 
-    async def publish_discovery(self, device_name: str, component: str, config: Dict[str, Any]):
-        """Publish Home Assistant MQTT discovery config"""
-        # Build discovery topic
-        unique_id = f"enocean_{device_name}_{config.get('object_id', component)}"
-        discovery_topic = f"{self.discovery_prefix}/{component}/{unique_id}/config"
-
-        # Add required fields
-        config["unique_id"] = unique_id
-        config["state_topic"] = f"{self.prefix}/{device_name}/state"
-
-        # Add device info
-        if self.device_manager:
-            device = self.device_manager.get_device(device_name)
-            if device:
-                config["device"] = {
-                    "identifiers": [f"enocean_{device.address}"],
-                    "name": device.description or device.name,
-                    "manufacturer": device.manufacturer or "EnOcean",
-                    "model": device.eep_id,
-                    "via_device": "enocean_gateway"
-                }
-
+    async def publish_discovery_config(self, component: str, unique_id: str, config: Dict[str, Any]):
+        """Publish a single HA MQTT discovery config"""
+        discovery_topic = f"{self.discovery_prefix}/{component}/enocean/{unique_id}/config"
         await self.publish(discovery_topic, config, retain=True)
-        logger.info(f"Published discovery for {device_name}/{component}")
+        logger.debug(f"Published discovery: {discovery_topic}")
 
-    async def remove_discovery(self, device_name: str, component: str, object_id: str = ""):
-        """Remove Home Assistant MQTT discovery config"""
-        unique_id = f"enocean_{device_name}_{object_id or component}"
-        discovery_topic = f"{self.discovery_prefix}/{component}/{unique_id}/config"
-
-        # Publish empty payload to remove
+    async def remove_discovery_config(self, component: str, unique_id: str):
+        """Remove HA discovery config by publishing empty payload"""
+        discovery_topic = f"{self.discovery_prefix}/{component}/enocean/{unique_id}/config"
         await self.publish(discovery_topic, "", retain=True)
-        logger.info(f"Removed discovery for {device_name}/{component}")
-
-    async def publish_device_discovery(self, device_name: str, eep_profile, mapping: Dict[str, Any]):
-        """Publish discovery for all entities of a device based on EEP and mapping"""
-        if not eep_profile:
-            return
-
-        device = self.device_manager.get_device(device_name) if self.device_manager else None
-
-        for field_name, field_config in mapping.items():
-            component = field_config.get("component", "sensor")
-            config = {
-                "name": field_config.get("name", field_name),
-                "object_id": field_name,
-                "value_template": f"{{{{ value_json.{field_name} }}}}"
-            }
-
-            # Add optional fields
-            if "device_class" in field_config:
-                config["device_class"] = field_config["device_class"]
-            if "unit_of_measurement" in field_config:
-                config["unit_of_measurement"] = field_config["unit_of_measurement"]
-            if "icon" in field_config:
-                config["icon"] = field_config["icon"]
-
-            # Add command topic for controllable entities
-            if component in ["switch", "light", "cover", "climate"]:
-                config["command_topic"] = f"{self.prefix}/{device_name}/set"
-
-            await self.publish_discovery(device_name, component, config)
+        logger.info(f"Removed discovery: {discovery_topic}")

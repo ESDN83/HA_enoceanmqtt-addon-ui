@@ -17,6 +17,17 @@ else
     ENOCEAN_PORT=""
 fi
 
+# Data path: /data/ is the correct persistent storage for HA addons
+# It survives addon updates (unlike /config/enocean which was wrong)
+CONFIG_PATH="/data"
+
+# Migrate from old config path if needed
+if [ -d "/config/enocean" ] && [ ! -f "${CONFIG_PATH}/devices.json" ]; then
+    bashio::log.info "Migrating configuration from /config/enocean to ${CONFIG_PATH}/"
+    cp -a /config/enocean/* "${CONFIG_PATH}/" 2>/dev/null || true
+    bashio::log.info "Migration complete"
+fi
+
 # Export environment variables
 export ENOCEAN_PORT="${ENOCEAN_PORT}"
 export LOG_LEVEL="${LOG_LEVEL}"
@@ -28,9 +39,9 @@ export MQTT_PASSWORD=$(bashio::services mqtt "password")
 export MQTT_DISCOVERY_PREFIX="${MQTT_DISCOVERY_PREFIX}"
 export MQTT_PREFIX="${MQTT_PREFIX}"
 export MQTT_CLIENT_ID="${MQTT_CLIENT_ID}"
-export CONFIG_PATH="/config/enocean"
+export CONFIG_PATH="${CONFIG_PATH}"
 
-# Create config directory if it doesn't exist
+# Create data directories if they don't exist
 mkdir -p "${CONFIG_PATH}"
 mkdir -p "${CONFIG_PATH}/custom_eep"
 
