@@ -138,20 +138,21 @@ DEFAULT_MAPPINGS = {
 
 
 def _normalize_address(address: str) -> str:
-    """Normalize address to 8-char uppercase hex without 0x prefix.
-    e.g., '0x05834FA4' -> '05834FA4'
+    """Normalize address to 8-char lowercase hex without 0x prefix.
+    e.g., '0x05834FA4' -> '05834fa4'
+    Lowercase to match ChristopheHD/Slim addon identifier format.
     """
-    addr = address.strip().upper()
-    if addr.startswith("0X"):
+    addr = address.strip().lower()
+    if addr.startswith("0x"):
         addr = addr[2:]
     return addr.zfill(8)
 
 
 def _normalize_eep(eep_id: str) -> str:
-    """Normalize EEP to 6-char format without dashes.
-    e.g., 'A5-30-03' -> 'A53003'
+    """Normalize EEP to 6-char lowercase format without dashes.
+    e.g., 'A5-30-03' -> 'a53003'
     """
-    return eep_id.upper().replace("-", "")
+    return eep_id.lower().replace("-", "")
 
 
 class MappingManager:
@@ -319,6 +320,53 @@ class MappingManager:
                 "unique_id": unique_id,
                 "config": config
             })
+
+        # Auto-add diagnostic entities for every device: RSSI + Last Seen
+        state_topic = f"{mqtt_prefix}/{device_name}/state"
+        avail_config = {
+            "topic": f"{mqtt_prefix}/{device_name}/availability",
+            "payload_available": "online",
+            "payload_not_available": "offline"
+        }
+
+        # RSSI sensor
+        rssi_uid = self.build_unique_id(eep_id, device_address, device_sender, "rssi")
+        configs.append({
+            "component": "sensor",
+            "unique_id": rssi_uid,
+            "config": {
+                "name": "RSSI",
+                "unique_id": rssi_uid,
+                "object_id": f"{device_name}_rssi".lower().replace(" ", "_"),
+                "state_topic": state_topic,
+                "value_template": "{{ value_json.rssi }}",
+                "device_class": "signal_strength",
+                "unit_of_measurement": "dBm",
+                "icon": "mdi:wifi",
+                "entity_category": "diagnostic",
+                "device": device_info,
+                "availability": avail_config
+            }
+        })
+
+        # Last Seen sensor
+        last_seen_uid = self.build_unique_id(eep_id, device_address, device_sender, "last_seen")
+        configs.append({
+            "component": "sensor",
+            "unique_id": last_seen_uid,
+            "config": {
+                "name": "Last Seen",
+                "unique_id": last_seen_uid,
+                "object_id": f"{device_name}_last_seen".lower().replace(" ", "_"),
+                "state_topic": state_topic,
+                "value_template": "{{ value_json.last_seen }}",
+                "device_class": "timestamp",
+                "icon": "mdi:clock-outline",
+                "entity_category": "diagnostic",
+                "device": device_info,
+                "availability": avail_config
+            }
+        })
 
         return configs
 

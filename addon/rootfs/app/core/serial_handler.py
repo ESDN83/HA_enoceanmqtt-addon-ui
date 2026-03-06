@@ -428,9 +428,12 @@ class SerialHandler:
 
     def _decode_telegram(self, telegram: RadioTelegram, profile) -> Dict[str, Any]:
         """Decode telegram data using EEP profile"""
+        from datetime import datetime, timezone
+
         decoded = {
             "sender_id": telegram.sender_hex,
-            "rssi": telegram.dbm
+            "rssi": telegram.dbm,
+            "last_seen": datetime.now(timezone.utc).isoformat()
         }
 
         if not profile.fields:
