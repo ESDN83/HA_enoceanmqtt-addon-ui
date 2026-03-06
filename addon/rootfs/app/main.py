@@ -261,21 +261,27 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
 
     if device.actuator_type == "light":
         # Dimmers use A5-38-08 Central Command Dimming
+        # With on_command_type=brightness, HA sends brightness (0-100) for ON,
+        # "OFF" for off. "ON" text only from manual MQTT publish.
         if command == "ON":
-            await serial_handler.send_a5_dimmer_command(sender_id, "ON", dim_value=255)
-            logger.info(f"Sent ON (A5-38-08 dim=255) to {device_name}")
+            # Turn on at stored brightness (dim_mode=0)
+            await serial_handler.send_a5_dimmer_command(sender_id, "ON")
+            logger.info(f"Sent ON (A5-38-08 stored brightness) to {device_name}")
         elif command == "OFF":
             await serial_handler.send_a5_dimmer_command(sender_id, "OFF")
             logger.info(f"Sent OFF (A5-38-08) to {device_name}")
         else:
-            # Try to parse as dim value (0-255 or 0-100%)
+            # Brightness value from HA (0-100) — convert to 0-255 for dimmer
             try:
                 val = int(command)
-                if 0 <= val <= 100:
-                    val = int(val * 255 / 100)
-                val = max(0, min(255, val))
-                await serial_handler.send_a5_dimmer_command(sender_id, "DIM", dim_value=val)
-                logger.info(f"Sent DIM (A5-38-08 dim={val}) to {device_name}")
+                dim = max(0, min(255, int(val * 255 / 100))) if 0 <= val <= 100 else max(0, min(255, val))
+                if dim == 0:
+                    await serial_handler.send_a5_dimmer_command(sender_id, "OFF")
+                    logger.info(f"Sent OFF (A5-38-08 brightness=0) to {device_name}")
+                else:
+                    # DIM mode: dim_mode=1 (use DB2 value) — actually sets brightness
+                    await serial_handler.send_a5_dimmer_command(sender_id, "DIM", dim_value=dim)
+                    logger.info(f"Sent DIM (A5-38-08 dim={dim}, {val}%) to {device_name}")
             except ValueError:
                 logger.warning(f"Unknown command '{command}' for dimmer {device_name}")
 

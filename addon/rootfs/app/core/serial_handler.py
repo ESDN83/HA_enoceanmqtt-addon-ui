@@ -428,8 +428,26 @@ class SerialHandler:
             logger.warning(f"Unknown EEP profile: {device.eep_id}")
             return device.name, device.eep_id, None
 
+        # Check RORG matches the EEP profile — FD62NPN sends F6+A5+D1 but
+        # only A5 matches A5-38-08. Decoding F6/D1 with A5 profile = garbage.
+        try:
+            expected_rorg = int(profile.rorg, 16)
+            if telegram.rorg != expected_rorg:
+                logger.debug(f"RX [{telegram.sender_hex}] RORG mismatch: got 0x{telegram.rorg:02X}, expected 0x{expected_rorg:02X} for {device.eep_id} — skipping decode")
+                return device.name, device.eep_id, None
+        except (ValueError, AttributeError):
+            pass  # If RORG can't be parsed, proceed with decode anyway
+
         # Decode telegram using EEP profile
         decoded = self._decode_telegram(telegram, profile)
+
+        # For light actuators, add HA-compatible state and brightness fields
+        if device.actuator_type == "light":
+            sw = decoded.get("SW", 0)
+            edim = decoded.get("EDIM", 0)
+            decoded["state"] = "ON" if sw else "OFF"
+            # EDIM is raw 0-255, convert to 0-100 for HA (brightness_scale: 100)
+            decoded["brightness"] = round(float(edim) * 100 / 255) if edim else 0
 
         logger.info(f"RX [{telegram.sender_hex}] Device={device.name} EEP={device.eep_id} Decoded={decoded}")
 
@@ -684,12 +702,17 @@ class SerialHandler:
         # DB3 = 0x02 (command ID = dimming)
         # DB2 = dim value (0x00-0xFF)
         # DB1 = ramp time (seconds)
-        # DB0 = flags: bit3=LRN(1=data), bit0=switching(1=ON/0=OFF)
+        # DB0 = flags: bit3=LRN(1=data), bit2=store, bit1=dim_mode(0=stored,1=use DB2), bit0=SW(on/off)
         if command == "OFF":
+            # 0x08: LRN=1, store=0, dim_mode=0, SW=0 (off)
             data = bytes([0x02, 0x00, ramp_time & 0xFF, 0x08])
-        else:  # ON or DIM
+        elif command == "ON":
+            # 0x09: LRN=1, store=0, dim_mode=0 (use stored brightness), SW=1 (on)
+            data = bytes([0x02, 0x00, ramp_time & 0xFF, 0x09])
+        else:  # DIM - set specific brightness
+            # 0x0B: LRN=1, store=0, dim_mode=1 (use DB2 value), SW=1 (on)
             val = max(0, min(255, dim_value))
-            data = bytes([0x02, val, ramp_time & 0xFF, 0x09])
+            data = bytes([0x02, val, ramp_time & 0xFF, 0x0B])
 
         logger.info(f"Sending A5-38-08 dimmer {command} (value={dim_value}, ramp={ramp_time}s) sender=0x{sender_id:08X}")
 
