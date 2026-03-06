@@ -26,7 +26,6 @@ class Device:
     description: str = ""
     room: str = ""
     manufacturer: str = ""
-    model: str = ""  # Device model (e.g., MV-01-01 for Kessel Staufix) - overrides EEP mapping
 
     @property
     def eep_id(self) -> str:
@@ -56,8 +55,7 @@ class Device:
             sender_id=data.get("sender_id", ""),
             description=data.get("description", ""),
             room=data.get("room", ""),
-            manufacturer=data.get("manufacturer", ""),
-            model=data.get("model", "")
+            manufacturer=data.get("manufacturer", "")
         )
 
 
@@ -176,8 +174,6 @@ class DeviceManager:
                 lines.append(f"type = 0x{device.type}")
                 if device.sender_id:
                     lines.append(f"sender = {device.sender_id}")
-                if device.model:
-                    lines.append(f"model = {device.model}")
                 lines.append("")
 
             async with aiofiles.open(self.legacy_devices_file, 'w') as f:

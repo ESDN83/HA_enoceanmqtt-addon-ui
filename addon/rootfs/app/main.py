@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/data")
 ENOCEAN_PORT = os.getenv("ENOCEAN_PORT", "")
 CACHE_DEVICE_STATES = os.getenv("CACHE_DEVICE_STATES", "true").lower() == "true"
-VERSION = "2.1.7"
+VERSION = "2.1.8"
 
 # Global instances
 mqtt_handler: MQTTHandler = None
@@ -176,8 +176,7 @@ async def _publish_all_discoveries():
                 device_address=device.address,
                 device_sender=device.sender_id,
                 mqtt_prefix=mqtt_handler.prefix,
-                device_info=device_info,
-                device_model=device.model
+                device_info=device_info
             )
 
             # Publish each entity discovery config

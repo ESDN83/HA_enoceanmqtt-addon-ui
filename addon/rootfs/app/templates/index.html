@@ -521,18 +521,9 @@
                                 <label class="form-label">Sender ID (for bidirectional devices)</label>
                                 <input type="text" class="form-control" name="sender_id" placeholder="0xFFBD7480">
                             </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Device Model (optional)</label>
-                                    <select class="form-select" name="model" id="device-model-select">
-                                        <option value="">-- No model (use EEP mapping) --</option>
-                                    </select>
-                                    <small class="form-text text-muted">Overrides EEP mapping with device-specific HA entities</small>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Manufacturer</label>
-                                    <input type="text" class="form-control" name="manufacturer" placeholder="e.g., Eltako, Thermokon, Kessel">
-                                </div>
+                            <div class="mb-3">
+                                <label class="form-label">Manufacturer</label>
+                                <input type="text" class="form-control" name="manufacturer" placeholder="e.g., Eltako, Thermokon, Kessel">
                             </div>
 
                             <div id="profile-suggestion" class="alert alert-info" style="display: none;">
@@ -712,9 +703,6 @@
             setInterval(loadRecentTelegrams, 5000); // Refresh telegrams every 5 seconds
             setInterval(loadUnknownDevices, 15000); // Refresh unknown devices every 15 seconds
 
-            // Load available device models for dropdown
-            loadModels();
-
             // Device form
             document.getElementById('device-form').addEventListener('submit', saveDevice);
 
@@ -766,28 +754,6 @@
             if (page === 'devices') loadDevices();
             if (page === 'profiles') loadProfiles();
             if (page === 'mappings') loadMappings();
-        }
-
-        // Cache for available models (loaded once)
-        let availableModels = {};
-
-        async function loadModels() {
-            try {
-                const response = await fetch(getApiUrl('/api/mappings/models'));
-                availableModels = await response.json();
-                const select = document.getElementById('device-model-select');
-                if (!select) return;
-                // Clear existing options except the first one
-                select.innerHTML = '<option value="">-- No model (use EEP mapping) --</option>';
-                for (const [modelId, description] of Object.entries(availableModels)) {
-                    const opt = document.createElement('option');
-                    opt.value = modelId;
-                    opt.textContent = `${modelId} - ${description}`;
-                    select.appendChild(opt);
-                }
-            } catch (error) {
-                console.error('Failed to load models:', error);
-            }
         }
 
         async function loadStatus() {
@@ -881,7 +847,6 @@
                                 </p>
                                 <p class="card-text mb-1">
                                     <span class="badge bg-primary">${device.rorg}-${device.func}-${device.type}</span>
-                                    ${device.model ? `<span class="badge bg-info ms-1">${device.model}</span>` : ''}
                                     ${device.room ? `<span class="badge bg-secondary ms-1">${device.room}</span>` : ''}
                                 </p>
                                 ${device.description ? `<p class="card-text mb-0"><small class="text-muted">${device.description}</small></p>` : ''}
@@ -1445,12 +1410,6 @@ Use Restore to roll back to previous versions.`);
                 document.querySelector('[name="sender_id"]').value = device.sender_id || '';
                 document.querySelector('[name="manufacturer"]').value = device.manufacturer || '';
 
-                // Set model dropdown value
-                const modelSelect = document.getElementById('device-model-select');
-                if (modelSelect) {
-                    modelSelect.value = device.model || '';
-                }
-
                 // Mark as edit mode
                 const form = document.getElementById('device-form');
                 form.dataset.editMode = name;
@@ -1511,7 +1470,6 @@ Use Restore to roll back to previous versions.`);
                                             ${device.room ? `<tr><th>Room</th><td>${device.room}</td></tr>` : ''}
                                             ${device.sender_id ? `<tr><th>Sender ID</th><td><code>${device.sender_id}</code></td></tr>` : ''}
                                             ${device.manufacturer ? `<tr><th>Manufacturer</th><td>${device.manufacturer}</td></tr>` : ''}
-                                            ${device.model ? `<tr><th>Model</th><td><span class="badge bg-info">${device.model}</span> ${availableModels[device.model] || ''}</td></tr>` : ''}
                                         </table>
                                     </div>
                                     <div class="col-md-6">
