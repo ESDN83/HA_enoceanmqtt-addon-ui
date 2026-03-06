@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.1.0] - 2025-03-06
+
+### Changed - ChristopheHD Compatibility
+- **MQTT prefix** default changed from `enocean` to `enoceanmqtt` (matches ChristopheHD addon)
+- **Discovery UID format** now uses `enocean_{EEP}_{ADDR}_{SHORTCUT}` (address-based, stable)
+- **Discovery topic** uses `enocean` node ID: `homeassistant/{component}/enocean/{uid}/config`
+- **INI export** uses `sender` field name (was `sender_id`) for ChristopheHD compatibility
+- **INI import** reads both `sender` and `sender_id` for backward compatibility
+- **Data path** changed from `/config/enocean` to `/data/` (correct HA addon practice)
+- Auto-migration of existing config from `/config/enocean` to `/data/` on first startup
+
+### Added - MQTT Architecture
+- **LWT (Last Will and Testament)** - gateway publishes offline on unexpected disconnect
+- **HA birth message** subscription (`homeassistant/status`) - re-publishes all discoveries when HA restarts
+- **Per-device availability** topics (`{prefix}/{device_name}/availability`)
+- **Graceful shutdown** publishes offline for all devices before disconnecting
+- **MQTT reconnect** automatically re-publishes all discoveries
+- QoS 1 for all critical MQTT messages (discovery, availability, commands)
+
+### Fixed
+- Discovery configs now use per-device availability instead of global gateway status
+- MQTT topic wildcard matching for `#` multi-level wildcard
+- Device identifiers use normalized address format (consistent across restarts)
+
 ## [2.0.3] - 2025-02-05
 
 ### Fixed

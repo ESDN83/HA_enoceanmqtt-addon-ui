@@ -110,12 +110,17 @@ class DeviceManager:
                 if section == "CONFIG":
                     continue
 
+                # Read sender (ChristopheHD uses "sender", we also support "sender_id" for backward compat)
+                sender = config.get(section, "sender", fallback="")
+                if not sender:
+                    sender = config.get(section, "sender_id", fallback="")
+
                 device_data = {
                     "address": config.get(section, "address", fallback=""),
                     "rorg": self._format_hex(config.get(section, "rorg", fallback="")),
                     "func": self._format_hex(config.get(section, "func", fallback="")),
                     "type": self._format_hex(config.get(section, "type", fallback="")),
-                    "sender_id": config.get(section, "sender_id", fallback=""),
+                    "sender_id": sender,
                 }
 
                 self.devices[section] = Device.from_dict(section, device_data)
@@ -168,7 +173,7 @@ class DeviceManager:
                 lines.append(f"func = 0x{device.func}")
                 lines.append(f"type = 0x{device.type}")
                 if device.sender_id:
-                    lines.append(f"sender_id = {device.sender_id}")
+                    lines.append(f"sender = {device.sender_id}")
                 lines.append("")
 
             async with aiofiles.open(self.legacy_devices_file, 'w') as f:

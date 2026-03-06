@@ -1,5 +1,13 @@
 """
 Mapping Manager - Handles EEP to MQTT/HA entity mappings
+
+Generates Home Assistant MQTT discovery configurations compatible with
+ChristopheHD/HA_enoceanmqtt-addon discovery format.
+
+Discovery UID format: enocean_{EEP}_{ADDR}_{SHORTCUT}
+  e.g., enocean_A53003_05834FA4_DI0
+With sender: enocean_{EEP}_{ADDR}_{SENDER}_{SHORTCUT}
+  e.g., enocean_A53003_05834FA4_AABBCCDD_DI0
 """
 
 import os
@@ -129,6 +137,23 @@ DEFAULT_MAPPINGS = {
 }
 
 
+def _normalize_address(address: str) -> str:
+    """Normalize address to 8-char uppercase hex without 0x prefix.
+    e.g., '0x05834FA4' -> '05834FA4'
+    """
+    addr = address.strip().upper()
+    if addr.startswith("0X"):
+        addr = addr[2:]
+    return addr.zfill(8)
+
+
+def _normalize_eep(eep_id: str) -> str:
+    """Normalize EEP to 6-char format without dashes.
+    e.g., 'A5-30-03' -> 'A53003'
+    """
+    return eep_id.upper().replace("-", "")
+
+
 class MappingManager:
     """Manages EEP to MQTT/HA entity mappings"""
 
@@ -181,11 +206,9 @@ class MappingManager:
         """
         eep_id = eep_id.upper()
 
-        # Check custom mappings first
         if eep_id in self.custom_mappings:
             return self.custom_mappings[eep_id]
 
-        # Fall back to default mappings
         if eep_id in DEFAULT_MAPPINGS:
             return DEFAULT_MAPPINGS[eep_id]
 
@@ -214,15 +237,34 @@ class MappingManager:
         result.update(self.custom_mappings)
         return result
 
+    def build_unique_id(self, eep_id: str, address: str, sender: str, shortcut: str) -> str:
+        """Build ChristopheHD-compatible unique ID for HA discovery.
+
+        Format: enocean_{EEP6}_{ADDR8}_{SHORTCUT}
+        With sender: enocean_{EEP6}_{ADDR8}_{SENDER8}_{SHORTCUT}
+        """
+        eep = _normalize_eep(eep_id)
+        addr = _normalize_address(address)
+
+        if sender:
+            sndr = _normalize_address(sender)
+            return f"enocean_{eep}_{addr}_{sndr}_{shortcut}"
+        else:
+            return f"enocean_{eep}_{addr}_{shortcut}"
+
     def get_ha_discovery_configs(
         self,
         device_name: str,
         eep_id: str,
+        device_address: str,
+        device_sender: str,
+        mqtt_prefix: str,
         device_info: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """Generate Home Assistant MQTT discovery configurations
+        """Generate Home Assistant MQTT discovery configurations.
 
-        Returns a list of discovery configs for all entities defined in the mapping
+        Returns a list of discovery configs for all entities defined in the mapping.
+        Uses ChristopheHD-compatible UID format and per-device availability.
         """
         mapping = self.get_mapping(eep_id)
         configs = []
@@ -230,15 +272,15 @@ class MappingManager:
         for field_name, field_config in mapping.items():
             component = field_config.get("component", "sensor")
 
-            # Build unique ID
-            unique_id = f"enocean_{device_name}_{field_name}".lower().replace(" ", "_")
+            # Build unique ID (ChristopheHD compatible)
+            unique_id = self.build_unique_id(eep_id, device_address, device_sender, field_name)
 
             # Build discovery config
             config = {
                 "name": field_config.get("name", field_name),
                 "unique_id": unique_id,
                 "object_id": f"{device_name}_{field_name}".lower().replace(" ", "_"),
-                "state_topic": f"enocean/{device_name}/state",
+                "state_topic": f"{mqtt_prefix}/{device_name}/state",
                 "value_template": field_config.get(
                     "value_template",
                     f"{{{{ value_json.{field_name} }}}}"
@@ -258,29 +300,23 @@ class MappingManager:
 
             # Add command topic for controllable entities
             if component in ["switch", "light", "cover", "climate", "fan"]:
-                config["command_topic"] = f"enocean/{device_name}/set"
-
-                # Add component-specific fields
-                if component == "light" and field_config.get("brightness"):
-                    config["brightness_state_topic"] = f"enocean/{device_name}/state"
-                    config["brightness_value_template"] = f"{{{{ value_json.{field_name} }}}}"
-                    config["brightness_command_topic"] = f"enocean/{device_name}/brightness/set"
-                    config["brightness_scale"] = 100
+                config["command_topic"] = f"{mqtt_prefix}/{device_name}/set"
 
                 if component == "cover":
-                    config["position_topic"] = f"enocean/{device_name}/state"
+                    config["position_topic"] = f"{mqtt_prefix}/{device_name}/state"
                     config["position_template"] = f"{{{{ value_json.{field_name} }}}}"
-                    config["set_position_topic"] = f"enocean/{device_name}/position/set"
+                    config["set_position_topic"] = f"{mqtt_prefix}/{device_name}/position/set"
 
-            # Add availability
+            # Per-device availability (not global gateway status)
             config["availability"] = {
-                "topic": "enocean/status",
+                "topic": f"{mqtt_prefix}/{device_name}/availability",
                 "payload_available": "online",
                 "payload_not_available": "offline"
             }
 
             configs.append({
                 "component": component,
+                "unique_id": unique_id,
                 "config": config
             })
 
@@ -288,10 +324,10 @@ class MappingManager:
 
     def build_device_info(self, device) -> Dict[str, Any]:
         """Build HA device info from device object"""
+        addr = _normalize_address(device.address)
         return {
-            "identifiers": [f"enocean_{device.address}"],
+            "identifiers": [f"enocean_{addr}"],
             "name": device.description or device.name,
             "manufacturer": device.manufacturer or "EnOcean",
             "model": device.eep_id,
-            "via_device": "enocean_gateway"
         }
