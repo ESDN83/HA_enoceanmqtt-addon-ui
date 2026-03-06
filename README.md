@@ -120,6 +120,9 @@ The Kessel Staufix backwater valve sends a single alarm bit. Telegram data `0100
   }
 ]
 ```
+<img width="1705" height="1702" alt="grafik" src="https://github.com/user-attachments/assets/8df696e5-04d0-4207-929e-6f19142b9a55" />
+
+
 
 **HA Entity Mapping:**
 
