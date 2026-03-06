@@ -207,11 +207,32 @@ async def delete_device(name: str, request: Request) -> Dict[str, str]:
     if not device:
         raise HTTPException(status_code=404, detail=f"Device '{name}' not found")
 
-    # Remove MQTT discovery
+    # Remove MQTT discovery entities and set device offline
     mqtt_handler = request.app.state.mqtt_handler
-    if mqtt_handler:
-        # TODO: Remove discovery entities
-        pass
+    mapping_manager = request.app.state.mapping_manager
+    if mqtt_handler and mapping_manager:
+        try:
+            device_info = mapping_manager.build_device_info(device)
+            configs = mapping_manager.get_ha_discovery_configs(
+                device_name=device.name,
+                eep_id=device.eep_id,
+                device_address=device.address,
+                device_sender=device.sender_id,
+                mqtt_prefix=mqtt_handler.prefix,
+                device_info=device_info,
+                device_model=device.model
+            )
+            # Remove each discovery config (publish empty payload)
+            for item in configs:
+                await mqtt_handler.remove_discovery_config(
+                    component=item["component"],
+                    unique_id=item["unique_id"]
+                )
+            # Set device offline
+            await mqtt_handler.publish_device_availability(device.name, available=False)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to remove discovery for {name}: {e}")
 
     success = await device_manager.delete_device(name)
     if not success:
