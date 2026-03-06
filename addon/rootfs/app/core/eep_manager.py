@@ -64,7 +64,11 @@ class EEPManager:
         # Load base EEP.xml
         await self._load_base_eep()
 
-        # Load custom overrides
+        # Seed bundled custom profiles to persistent storage
+        # (copies manufacturer profiles shipped with addon, updates if bundled has more fields)
+        await self._seed_bundled_profiles()
+
+        # Load custom overrides from persistent storage
         await self._load_custom_profiles()
 
         logger.info(f"EEP Manager initialized with {self.profile_count} profiles")
@@ -201,8 +205,70 @@ class EEPManager:
             profile = EEPProfile(rorg, func, type_, desc)
             self.profiles[profile.eep_id] = profile
 
+    async def _seed_bundled_profiles(self):
+        """Seed bundled custom profiles to persistent storage.
+
+        Copies manufacturer profiles shipped with the addon (e.g., Kessel Staufix)
+        to /data/custom_eep/. Updates existing profiles if the bundled version
+        has more fields (e.g., after addon update adds new sensor fields).
+        """
+        bundled_path = os.path.join(os.path.dirname(__file__), "..", "data", "custom_eep")
+        if not os.path.exists(bundled_path):
+            return
+
+        os.makedirs(self.custom_eep_path, exist_ok=True)
+
+        for filename in os.listdir(bundled_path):
+            if not (filename.endswith(".yaml") or filename.endswith(".yml")):
+                continue
+
+            bundled_file = os.path.join(bundled_path, filename)
+            try:
+                async with aiofiles.open(bundled_file, 'r') as f:
+                    bundled_content = await f.read()
+                    bundled_data = yaml.safe_load(bundled_content)
+
+                if not bundled_data or "profile" not in bundled_data:
+                    continue
+
+                profile_data = bundled_data["profile"]
+                rorg = profile_data.get("rorg", "").upper()
+                func = profile_data.get("func", "").upper().zfill(2)
+                type_ = profile_data.get("type", "").upper().zfill(2)
+                bundled_fields = len(profile_data.get("fields", []))
+
+                # Target filename in persistent storage (canonical name)
+                target_file = os.path.join(self.custom_eep_path, f"{rorg}-{func}-{type_}.yaml")
+
+                should_copy = False
+
+                if os.path.exists(target_file):
+                    # Check if bundled profile has more fields (updated version)
+                    async with aiofiles.open(target_file, 'r') as f:
+                        existing_content = await f.read()
+                        existing_data = yaml.safe_load(existing_content)
+
+                    existing_fields = len(existing_data.get("profile", {}).get("fields", []))
+
+                    if bundled_fields > existing_fields:
+                        logger.info(
+                            f"Updating custom profile {rorg}-{func}-{type_}: "
+                            f"bundled has {bundled_fields} fields vs existing {existing_fields}"
+                        )
+                        should_copy = True
+                else:
+                    logger.info(f"Seeding bundled custom profile: {rorg}-{func}-{type_}")
+                    should_copy = True
+
+                if should_copy:
+                    async with aiofiles.open(target_file, 'w') as f:
+                        await f.write(bundled_content)
+
+            except Exception as e:
+                logger.error(f"Failed to seed bundled profile {filename}: {e}")
+
     async def _load_custom_profiles(self):
-        """Load custom EEP profile overrides"""
+        """Load custom EEP profile overrides from persistent storage"""
         if not os.path.exists(self.custom_eep_path):
             os.makedirs(self.custom_eep_path, exist_ok=True)
             return
