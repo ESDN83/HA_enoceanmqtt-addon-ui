@@ -140,14 +140,38 @@ DEFAULT_MAPPINGS = {
 # These override EEP mappings when a device has a "model" configured.
 # Model IDs follow ChristopheHD convention where possible.
 MODEL_MAPPINGS = {
-    # Kessel Staufix Control (backwater valve alarm)
-    # EEP: A5-30-03, but only DI0 is used as alarm
+    # Kessel Staufix Control (backwater valve)
+    # EEP: A5-30-03 with Kessel-specific field meanings
     "MV-01-01": {
-        "DI0": {
+        "AL": {
             "component": "binary_sensor",
             "name": "Alarm",
             "device_class": "problem",
+            "icon": "mdi:alert"
+        },
+        "DI0": {
+            "component": "binary_sensor",
+            "name": "Valve Closed",
+            "device_class": "opening",
             "icon": "mdi:pipe-valve"
+        },
+        "DI1": {
+            "component": "binary_sensor",
+            "name": "Error",
+            "device_class": "problem",
+            "icon": "mdi:alert-circle"
+        },
+        "DI2": {
+            "component": "binary_sensor",
+            "name": "Maintenance Required",
+            "device_class": "problem",
+            "icon": "mdi:wrench"
+        },
+        "DI3": {
+            "component": "binary_sensor",
+            "name": "Battery Low",
+            "device_class": "battery",
+            "icon": "mdi:battery-alert"
         }
     },
     # Thermokon SR65 Temperature Sensor
