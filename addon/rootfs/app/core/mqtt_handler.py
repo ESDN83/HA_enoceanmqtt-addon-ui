@@ -59,6 +59,9 @@ class MQTTHandler:
         # Callback for HA birth message / reconnect (re-publish all discoveries)
         self._on_ha_birth: Optional[Callable] = None
 
+        # Callback for device commands (MQTT → EnOcean telegram)
+        self._on_device_command: Optional[Callable] = None
+
         # State persistence for infrequent sensors (like Kessel Staufix)
         self._last_states: Dict[str, Dict[str, Any]] = {}
         self._states_file = os.path.join(config_path, "last_states.json")
@@ -76,6 +79,12 @@ class MQTTHandler:
         The callback should re-publish all discoveries and availability.
         """
         self._on_ha_birth = callback
+
+    def set_device_command_callback(self, callback: Callable):
+        """Set callback for device commands received via MQTT.
+        Callback signature: async def handler(device_name, payload, entity)
+        """
+        self._on_device_command = callback
 
     async def connect(self):
         """Connect to MQTT broker with LWT (Last Will and Testament)"""
@@ -222,10 +231,15 @@ class MQTTHandler:
         return len(pattern_parts) == len(topic_parts)
 
     def _handle_command(self, device_name: str, payload: str, entity: str = None):
-        """Handle command for a device"""
+        """Handle command for a device — dispatch to serial handler for actuators"""
         target = f"{device_name}/{entity}" if entity else device_name
         logger.info(f"Command for {target}: {payload}")
-        # TODO: Send EnOcean telegram based on command
+
+        if self._on_device_command and self._loop:
+            asyncio.run_coroutine_threadsafe(
+                self._on_device_command(device_name, payload, entity),
+                self._loop
+            )
 
     def subscribe(self, topic_pattern: str, callback: Callable):
         """Subscribe to a topic pattern with callback"""

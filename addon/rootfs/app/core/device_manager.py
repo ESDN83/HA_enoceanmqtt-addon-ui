@@ -26,6 +26,7 @@ class Device:
     description: str = ""
     room: str = ""
     manufacturer: str = ""
+    actuator_type: str = ""  # "light", "switch", "cover", or "" for sensor-only
 
     @property
     def eep_id(self) -> str:
@@ -55,7 +56,8 @@ class Device:
             sender_id=data.get("sender_id", ""),
             description=data.get("description", ""),
             room=data.get("room", ""),
-            manufacturer=data.get("manufacturer", "")
+            manufacturer=data.get("manufacturer", ""),
+            actuator_type=data.get("actuator_type", "")
         )
 
 
