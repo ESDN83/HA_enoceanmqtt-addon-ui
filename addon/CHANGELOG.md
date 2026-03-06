@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.1.2] - 2026-03-06
+
+### Fixed
+- **Edit Device** now correctly opens the form instead of "Device Added Successfully!" screen
+- Edit form shows "Save Device" button and "Edit Device" heading (instead of "Add Device")
+- Device name field is read-only during edit (prevents accidental rename)
+- Wizard state properly resets when navigating away from edit form
+- **Config Export** button now works (was using GET instead of POST)
+- **Delete Device** now removes MQTT discovery entities and sets device offline in HA
+
 ## [2.1.1] - 2026-03-06
 
 ### Added - Device Model Selection

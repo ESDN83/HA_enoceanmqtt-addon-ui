@@ -1290,7 +1290,14 @@ Use Restore to roll back to previous versions.`);
             document.querySelectorAll('.wizard-step').forEach((step, index) => {
                 step.classList.toggle('active', index === 0);
             });
-            document.getElementById('device-form').reset();
+            const form = document.getElementById('device-form');
+            form.reset();
+            delete form.dataset.editMode;
+            document.querySelector('[name="name"]').readOnly = false;
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.textContent = 'Add Device';
+            const heading = document.querySelector('#step-2 h4');
+            if (heading) heading.textContent = 'Step 2: Configure Device';
         }
 
         async function saveDevice(e) {
@@ -1329,8 +1336,13 @@ Use Restore to roll back to previous versions.`);
                     throw new Error(errorMsg);
                 }
 
-                // Clear edit mode
+                // Clear edit mode and reset form state
                 delete form.dataset.editMode;
+                document.querySelector('[name="name"]').readOnly = false;
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) submitBtn.textContent = 'Add Device';
+                const heading = document.querySelector('#step-2 h4');
+                if (heading) heading.textContent = 'Step 2: Configure Device';
 
                 if (editMode) {
                     // After editing, go back to devices page
@@ -1352,10 +1364,15 @@ Use Restore to roll back to previous versions.`);
                 const response = await fetch(getApiUrl(`/api/devices/${name}`));
                 const device = await response.json();
 
-                // Navigate to teach-in page and pre-fill form
+                // Navigate to teach-in page
                 navigateTo('teach-in');
-                showManualEntry();
 
+                // Go directly to step-2 (form) regardless of current wizard state
+                document.querySelectorAll('.wizard-step').forEach((step, index) => {
+                    step.classList.toggle('active', index === 1);
+                });
+
+                // Fill in form fields
                 document.querySelector('[name="name"]').value = device.name;
                 document.querySelector('[name="address"]').value = device.address;
                 document.querySelector('[name="rorg"]').value = device.rorg;
@@ -1373,7 +1390,17 @@ Use Restore to roll back to previous versions.`);
                 }
 
                 // Mark as edit mode
-                document.getElementById('device-form').dataset.editMode = name;
+                const form = document.getElementById('device-form');
+                form.dataset.editMode = name;
+
+                // Change button text and disable name field
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) submitBtn.textContent = 'Save Device';
+                document.querySelector('[name="name"]').readOnly = true;
+
+                // Update heading
+                const heading = document.querySelector('#step-2 h4');
+                if (heading) heading.textContent = 'Edit Device';
 
             } catch (error) {
                 showToast('Failed to load device', 'danger');
@@ -1481,7 +1508,23 @@ Use Restore to roll back to previous versions.`);
         }
 
         async function exportConfig() {
-            window.open(getApiUrl('/api/system/export'), '_blank');
+            try {
+                const response = await fetch(getApiUrl('/api/system/export'), {method: 'POST'});
+                if (!response.ok) throw new Error('Export failed');
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const disposition = response.headers.get('Content-Disposition');
+                a.download = disposition ? disposition.split('filename=')[1] : 'enocean_config.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('Config exported successfully', 'success');
+            } catch (error) {
+                showToast('Export failed: ' + error.message, 'danger');
+            }
         }
 
         async function importConfig(input) {
