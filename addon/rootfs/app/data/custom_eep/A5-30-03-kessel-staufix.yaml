@@ -1,15 +1,21 @@
 # Kessel Staufix EnOcean Profile
 # Based on A5-30-03 (Digital Input, 4 Channels)
-# Custom mapping for Kessel Staufix backwater valve
+# Custom mapping for Kessel Staufix backwater valve (MV-01-01)
 #
-# Bit offsets verified against ChristopheHD/HA_enoceanmqtt-addon MV-01-01 profile
+# The Staufix device only sends the Alarm (AL) bit.
+# DI0-DI3 from the standard A5-30-03 are NOT used by this device.
+#
+# Bit offset verified against ChristopheHD/HA_enoceanmqtt-addon MV-01-01 profile
 # and EnOcean A5-30-03 standard specification.
 #
 # 4BS data layout (32 bits, big-endian):
 #   DB3 (offset 0-7)   = Condition byte (0x01 for Staufix)
-#   DB2 (offset 8-15)  = Temperature (not used by Staufix)
-#   DB1 (offset 16-23) = Digital inputs (DI0-DI3, WA)
-#   DB0 (offset 24-31) = LRN bit (28) + AL alarm (29) + flags
+#   DB2 (offset 8-15)  = Not used
+#   DB1 (offset 16-23) = Not used
+#   DB0 (offset 24-31) = LRN bit (28) + AL alarm (29)
+#
+# With data 0x0100000D:
+#   AL at offset 29: shift = 32-29-1 = 2, (0x0100000D >> 2) & 1 = 1 (Alarm Active)
 
 profile:
   rorg: "A5"
@@ -28,46 +34,6 @@ profile:
           description: "No Alarm"
         - value: 1
           description: "Alarm Active"
-    - shortcut: "DI0"
-      description: "Digital Input 0 - Valve Closed"
-      offset: 23
-      size: 1
-      type: "enum"
-      values:
-        - value: 0
-          description: "Open"
-        - value: 1
-          description: "Closed"
-    - shortcut: "DI1"
-      description: "Digital Input 1 - Error"
-      offset: 22
-      size: 1
-      type: "enum"
-      values:
-        - value: 0
-          description: "OK"
-        - value: 1
-          description: "Error"
-    - shortcut: "DI2"
-      description: "Digital Input 2 - Maintenance Required"
-      offset: 21
-      size: 1
-      type: "enum"
-      values:
-        - value: 0
-          description: "OK"
-        - value: 1
-          description: "Maintenance Required"
-    - shortcut: "DI3"
-      description: "Digital Input 3 - Battery Low"
-      offset: 20
-      size: 1
-      type: "enum"
-      values:
-        - value: 0
-          description: "OK"
-        - value: 1
-          description: "Battery Low"
 
 # Mapping for Home Assistant
 ha_mapping:
@@ -76,23 +42,3 @@ ha_mapping:
     name: "Alarm"
     device_class: "problem"
     icon: "mdi:alert"
-  DI0:
-    component: "binary_sensor"
-    name: "Valve Closed"
-    device_class: "opening"
-    icon: "mdi:pipe-valve"
-  DI1:
-    component: "binary_sensor"
-    name: "Error"
-    device_class: "problem"
-    icon: "mdi:alert-circle"
-  DI2:
-    component: "binary_sensor"
-    name: "Maintenance Required"
-    device_class: "problem"
-    icon: "mdi:wrench"
-  DI3:
-    component: "binary_sensor"
-    name: "Battery Low"
-    device_class: "battery"
-    icon: "mdi:battery-alert"

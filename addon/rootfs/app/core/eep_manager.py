@@ -207,12 +207,26 @@ class EEPManager:
             profile = EEPProfile(rorg, func, type_, desc)
             self.profiles[profile.eep_id] = profile
 
+    @staticmethod
+    def _profile_content_hash(data: dict) -> str:
+        """Create a comparable string from profile fields and ha_mapping.
+
+        Used to detect when bundled profiles have changed content
+        (e.g., corrected bit offsets) even if field count is the same.
+        """
+        import json
+        profile = data.get("profile", {})
+        fields = profile.get("fields", [])
+        ha_mapping = data.get("ha_mapping", {})
+        # Sort keys for deterministic comparison
+        return json.dumps({"fields": fields, "ha_mapping": ha_mapping}, sort_keys=True)
+
     async def _seed_bundled_profiles(self):
         """Seed bundled custom profiles to persistent storage.
 
         Copies manufacturer profiles shipped with the addon (e.g., Kessel Staufix)
         to /data/custom_eep/. Updates existing profiles if the bundled version
-        has more fields (e.g., after addon update adds new sensor fields).
+        has different content (fields, offsets, ha_mapping).
         """
         bundled_path = os.path.join(os.path.dirname(__file__), "..", "data", "custom_eep")
         if not os.path.exists(bundled_path):
@@ -237,7 +251,6 @@ class EEPManager:
                 rorg = profile_data.get("rorg", "").upper()
                 func = profile_data.get("func", "").upper().zfill(2)
                 type_ = profile_data.get("type", "").upper().zfill(2)
-                bundled_fields = len(profile_data.get("fields", []))
 
                 # Target filename in persistent storage (canonical name)
                 target_file = os.path.join(self.custom_eep_path, f"{rorg}-{func}-{type_}.yaml")
@@ -245,27 +258,22 @@ class EEPManager:
                 should_copy = False
 
                 if os.path.exists(target_file):
-                    # Check if bundled profile has improvements over existing
+                    # Check if bundled profile differs from existing
                     async with aiofiles.open(target_file, 'r') as f:
                         existing_content = await f.read()
                         existing_data = yaml.safe_load(existing_content)
 
-                    existing_fields = len(existing_data.get("profile", {}).get("fields", []))
-                    existing_has_mapping = bool(existing_data.get("ha_mapping"))
-                    bundled_has_mapping = bool(bundled_data.get("ha_mapping"))
+                    bundled_hash = self._profile_content_hash(bundled_data)
+                    existing_hash = self._profile_content_hash(existing_data)
 
-                    if bundled_fields > existing_fields:
+                    if bundled_hash != existing_hash:
                         logger.info(
                             f"Updating custom profile {rorg}-{func}-{type_}: "
-                            f"bundled has {bundled_fields} fields vs existing {existing_fields}"
+                            f"bundled content differs from existing (fields/offsets/mapping changed)"
                         )
                         should_copy = True
-                    elif bundled_has_mapping and not existing_has_mapping:
-                        logger.info(
-                            f"Updating custom profile {rorg}-{func}-{type_}: "
-                            f"bundled has ha_mapping, existing does not"
-                        )
-                        should_copy = True
+                    else:
+                        logger.debug(f"Bundled profile {rorg}-{func}-{type_} unchanged, skipping")
                 else:
                     logger.info(f"Seeding bundled custom profile: {rorg}-{func}-{type_}")
                     should_copy = True
