@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.1.1] - 2026-03-06
+
+### Added - Device Model Selection
+- **Model dropdown** in device form to select device-specific HA mappings (MV-01-01, SR65, FSB61NP, FUD61NPN)
+- **Manufacturer field** in device form
+- **Model badge** on device cards and detail view
+- **GET /api/mappings/models** endpoint for available model list
+- MQTT discovery auto-published on device create and update
+
+### Changed - EEP Profile UI
+- Profile tree collapsed by default, custom profiles always expanded at top
+- Added Edit and Delete buttons for custom EEP profiles
+- Added JavaScript validation for custom profile form (RORG, FUNC, TYPE required)
+- Better error messages showing actual server errors
+
+### Fixed
+- Custom profile save validation (HTML required attribute doesn't work with onclick buttons)
+
 ## [2.1.0] - 2025-03-06
 
 ### Changed - ChristopheHD Compatibility
