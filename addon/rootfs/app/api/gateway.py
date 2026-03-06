@@ -38,6 +38,15 @@ class ActorTeachInRequest(BaseModel):
     actuator_type: str = "switch"  # "switch"→F6, "light"→A5-38-08, "cover"→F6
 
 
+class RepeatTeachInRequest(BaseModel):
+    """Request to send teach-in repeatedly for 30 seconds"""
+    destination: str  # Target actuator address (hex)
+    sender_offset: int = 1
+    actuator_type: str = "switch"
+    duration_seconds: int = 30
+    interval_seconds: float = 5.0
+
+
 class TestActuatorRequest(BaseModel):
     """Request to test an actuator with F6 rocker command"""
     device_name: str
@@ -124,6 +133,64 @@ async def teach_in_actuator(req: ActorTeachInRequest, request: Request) -> Dict[
         "sender_offset": req.sender_offset,
         "teach_type": teach_type,
         "message": f"Teach-in telegram sent ({teach_type}). If actuator was in learn mode, it should now respond to this sender ID."
+    }
+
+
+@router.post("/teach-in-repeat")
+async def teach_in_repeat(req: RepeatTeachInRequest, request: Request) -> Dict[str, Any]:
+    """Send teach-in telegram repeatedly for a duration.
+
+    Useful when the actuator needs to be close to the USB300 and the user
+    needs time to put it into learn mode while telegrams are being sent.
+    Sends teach-in every interval_seconds for duration_seconds.
+    """
+    serial_handler = request.app.state.serial_handler
+
+    if not serial_handler or not serial_handler.is_connected:
+        raise HTTPException(status_code=503, detail="EnOcean gateway not connected")
+
+    if not serial_handler.base_id:
+        raise HTTPException(status_code=400, detail="Base ID not available. Try reading it first via /read-base-id")
+
+    if not 1 <= req.sender_offset <= 127:
+        raise HTTPException(status_code=400, detail="sender_offset must be between 1 and 127")
+
+    try:
+        dest = int(req.destination.replace("0x", "").replace("0X", ""), 16)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid destination address: {req.destination}")
+
+    sender_id = serial_handler.get_sender_id(req.sender_offset)
+    duration = min(req.duration_seconds, 60)  # Max 60 seconds
+    interval = max(req.interval_seconds, 2.0)  # Min 2 seconds between sends
+
+    rounds = int(duration / interval)
+    sent_count = 0
+
+    logger.info(f"=== REPEAT TEACH-IN START === {rounds} rounds, every {interval}s")
+
+    for i in range(rounds):
+        if req.actuator_type == "light":
+            await serial_handler.send_a5_teach_in(dest, req.sender_offset)
+        else:
+            await serial_handler.send_f6_teach_in(dest, req.sender_offset)
+        sent_count += 1
+        logger.info(f"  Repeat teach-in round {i+1}/{rounds} sent")
+
+        if i < rounds - 1:
+            await asyncio.sleep(interval)
+
+    teach_type = "A5-38-08 (Dimmer)" if req.actuator_type == "light" else "F6 (Switch/Cover)"
+    logger.info(f"=== REPEAT TEACH-IN COMPLETE === {sent_count} rounds sent")
+
+    return {
+        "status": "sent",
+        "rounds_sent": sent_count,
+        "duration_seconds": duration,
+        "destination": req.destination,
+        "sender_id": f"0x{sender_id:08X}",
+        "teach_type": teach_type,
+        "message": f"Sent {sent_count} teach-in rounds over {duration}s. Check if actuator confirmed (lamp blinks)."
     }
 
 

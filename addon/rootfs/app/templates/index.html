@@ -432,11 +432,21 @@
                                         <li><strong>Add the device</strong> with the sender ID shown below using "Manual Entry"</li>
                                     </ol>
 
+                                    <div class="alert alert-danger small mb-3">
+                                        <i class="bi bi-broadcast"></i>
+                                        <strong>Range important!</strong> Place the actuator <strong>directly next to the USB300</strong> during teach-in.
+                                        Some devices (e.g. FD62NPN) have weak radio and won't receive at 2m distance.
+                                        After successful teach-in, the actuator's <strong>receiver</strong> typically works at normal range.
+                                    </div>
+
                                     <div class="alert alert-info small mb-3">
                                         <i class="bi bi-info-circle"></i>
-                                        <strong>Teach-in didn't work?</strong> Clear all learned senders first:
-                                        Press the learn button <strong>5× quickly</strong> (LED flashes rapidly = all cleared).
-                                        Then try again from step 4.
+                                        <strong>Teach-in didn't work?</strong>
+                                        <ul class="mb-0 mt-1">
+                                            <li>Make sure you use a <strong>momentary pushbutton (Taster)</strong>, not a toggle switch (Schalter)</li>
+                                            <li>Clear all learned senders: press the learn button <strong>5× quickly</strong> (LED flashes = cleared)</li>
+                                            <li>Try "Repeat Teach-In" — it sends continuously for 30s while you activate learn mode</li>
+                                        </ul>
                                     </div>
 
                                     <div class="row mb-3">
@@ -470,9 +480,12 @@
                                             </select>
                                         </div>
                                     </div>
-                                    <div class="d-flex gap-2">
+                                    <div class="d-flex gap-2 flex-wrap">
                                         <button class="btn btn-warning" onclick="sendActuatorTeachIn()">
                                             <i class="bi bi-lightning"></i> Send Teach-In
+                                        </button>
+                                        <button class="btn btn-warning" id="btn-repeat-teach-in" onclick="sendRepeatTeachIn()">
+                                            <i class="bi bi-arrow-repeat"></i> Repeat Teach-In (30s)
                                         </button>
                                         <button class="btn btn-outline-secondary" onclick="hideActuatorTeachIn()">Cancel</button>
                                     </div>
@@ -1197,6 +1210,57 @@
                 }
             } catch (e) {
                 resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${e.message}</div>`;
+            }
+        }
+
+        async function sendRepeatTeachIn() {
+            const address = document.getElementById('actuator-address').value.trim();
+            const offset = parseInt(document.getElementById('sender-offset').value) || 1;
+            const actuatorType = document.getElementById('actuator-type-teach-in').value;
+            const resultDiv = document.getElementById('actuator-teach-in-result');
+            const btn = document.getElementById('btn-repeat-teach-in');
+
+            if (!address) {
+                resultDiv.innerHTML = '<div class="alert alert-danger">Enter the actuator address</div>';
+                resultDiv.style.display = 'block';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Sending... (30s)';
+            const proto = actuatorType === 'light' ? 'A5-38-08' : 'F6 Rocker';
+            resultDiv.innerHTML = `<div class="alert alert-warning">
+                <i class="bi bi-broadcast"></i> <strong>Sending ${proto} teach-in repeatedly for 30 seconds...</strong><br>
+                Put the actuator in learn mode NOW! (Place it next to the USB300)
+            </div>`;
+            resultDiv.style.display = 'block';
+
+            try {
+                const resp = await fetch(getApiUrl('/api/gateway/teach-in-repeat'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        destination: address, sender_offset: offset,
+                        actuator_type: actuatorType,
+                        duration_seconds: 30, interval_seconds: 5
+                    })
+                });
+                const data = await resp.json();
+
+                if (resp.ok) {
+                    resultDiv.innerHTML = `<div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> <strong>${data.rounds_sent} teach-in rounds sent!</strong> (${data.teach_type})<br>
+                        Sender ID: <code>${data.sender_id}</code><br>
+                        <small>${data.message}</small>
+                    </div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${data.detail || 'Error'}</div>`;
+                }
+            } catch (e) {
+                resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${e.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Repeat Teach-In (30s)';
             }
         }
 

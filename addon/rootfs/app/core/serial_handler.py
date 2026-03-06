@@ -611,14 +611,14 @@ class SerialHandler:
         return success
 
     async def send_a5_teach_in(self, destination: int, sender_offset: int = 1) -> bool:
-        """Send comprehensive teach-in for Eltako dimmers (FD62NPN, FUD61).
+        """Send A5-38-08 teach-in for Eltako dimmers (FD62NPN, FUD61).
 
-        Tries ALL known teach-in formats:
-        1. F6 AI (Rocker A top) press+release — what real Eltako pushbuttons send
-        2. A5 Command-2 with LRN=0 — central command teach-in
-        3. A5 EEP teach-in (A5-38-08 Eltako encoding)
-        4. F6 BI (Rocker B top) press+release — fallback
+        Uses the proven two-step sequence from kipe/enocean #130:
+        1. Pre-teach data telegram (wakes up the actuator)
+        2. Wait 3 seconds
+        3. Actual teach-in telegram (LRN bit = 0)
 
+        Then also sends F6 rocker press as fallback.
         The actuator must be in learn mode (30s window).
         """
         sender_id = self.get_sender_id(sender_offset)
@@ -627,70 +627,45 @@ class SerialHandler:
             return False
 
         broadcast = 0xFFFFFFFF
-        logger.info(f"=== DIMMER TEACH-IN START === sender=0x{sender_id:08X}, dest=0x{destination:08X}")
+        logger.info(f"=== DIMMER TEACH-IN === sender=0x{sender_id:08X}, dest=0x{destination:08X}")
 
-        # Attempt 1: F6 Rocker AI (channel A top) — this is what real FT55 pushbuttons send
-        # AI pressed: data=0x10, status=0x30 (T21+NU)
-        logger.info("  [1/5] F6 Rocker AI press (0x10) broadcast")
-        await self.send_telegram(
-            sender_id=sender_id, rorg=0xF6,
-            data=bytes([0x10]), destination=broadcast, status=0x30
-        )
-        await asyncio.sleep(0.3)
-        # AI released: data=0x00, status=0x20
-        logger.info("  [1/5] F6 Rocker AI release (0x00) broadcast")
-        await self.send_telegram(
-            sender_id=sender_id, rorg=0xF6,
-            data=bytes([0x00]), destination=broadcast, status=0x20
-        )
-
-        await asyncio.sleep(0.5)
-
-        # Attempt 2: A5 Command-2 teach-in (broadcast)
-        # DB3=0x02 (cmd=dimming), DB0=0x00 (LRN bit3=0 → teach-in)
-        cmd2_teach = bytes([0x02, 0x00, 0x00, 0x00])
-        logger.info("  [2/5] A5 Command-2 teach-in broadcast: 02000000")
+        # Step 1: Pre-teach data telegram (proven kipe/enocean #130 sequence)
+        # DB0=0x28: bit3=1 (data, not teach-in), bit5=1 — "wakes up" the actuator
+        pre_teach = bytes([0x00, 0x00, 0x00, 0x28])
+        logger.info("  [1/3] A5 pre-teach telegram: 00000028 (broadcast)")
         await self.send_telegram(
             sender_id=sender_id, rorg=0xA5,
-            data=cmd2_teach, destination=broadcast
+            data=pre_teach, destination=broadcast, status=0x30
         )
 
-        await asyncio.sleep(0.5)
+        # Wait 3 seconds (important: actuator needs time to process)
+        await asyncio.sleep(3.0)
 
-        # Attempt 3: A5 EEP teach-in for A5-38-08 Eltako (broadcast)
-        # FUNC=0x38, TYPE=0x08, ManufID=0x00D (Eltako)
-        eep_teach = bytes([0x70, 0x20, 0x06, 0x90])
-        logger.info("  [3/5] A5 EEP A5-38-08 teach-in broadcast: 70200690")
+        # Step 2: A5 teach-in telegram (LRN bit = 0)
+        # E0400D80: standard 4BS teach-in with LRN type=0 (sender-only)
+        teach_in = bytes([0xE0, 0x40, 0x0D, 0x80])
+        logger.info("  [2/3] A5 teach-in telegram: E0400D80 (broadcast)")
         await self.send_telegram(
             sender_id=sender_id, rorg=0xA5,
-            data=eep_teach, destination=broadcast
+            data=teach_in, destination=broadcast, status=0x30
         )
 
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(1.0)
 
-        # Attempt 4: F6 Rocker BI (channel B top) press+release — alternative channel
-        logger.info("  [4/5] F6 Rocker BI press (0x50) broadcast")
+        # Step 3: F6 rocker press as fallback (what real pushbuttons send)
+        # Some Eltako dimmers prefer F6 over A5 for teach-in
+        logger.info("  [3/3] F6 Rocker BI press+release (broadcast)")
         await self.send_telegram(
             sender_id=sender_id, rorg=0xF6,
             data=bytes([0x50]), destination=broadcast, status=0x30
         )
         await asyncio.sleep(0.3)
-        logger.info("  [4/5] F6 Rocker BI release (0x00) broadcast")
         await self.send_telegram(
             sender_id=sender_id, rorg=0xF6,
             data=bytes([0x00]), destination=broadcast, status=0x20
         )
 
-        await asyncio.sleep(0.5)
-
-        # Attempt 5: A5 Command-2 teach-in directed to actuator
-        logger.info(f"  [5/5] A5 Command-2 teach-in directed to 0x{destination:08X}")
-        await self.send_telegram(
-            sender_id=sender_id, rorg=0xA5,
-            data=cmd2_teach, destination=destination
-        )
-
-        logger.info("=== DIMMER TEACH-IN COMPLETE === (5 attempts, 8 telegrams sent)")
+        logger.info("=== DIMMER TEACH-IN COMPLETE === (3 steps, 4 telegrams)")
         return True
 
     async def send_a5_dimmer_command(self, sender_id: int, command: str,
