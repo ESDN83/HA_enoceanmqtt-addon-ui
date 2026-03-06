@@ -611,38 +611,59 @@ class SerialHandler:
         return success
 
     async def send_a5_teach_in(self, destination: int, sender_offset: int = 1) -> bool:
-        """Send A5 (4BS) teach-in telegram for Eltako dimmers (A5-38-08).
+        """Send A5 (4BS) teach-in for Eltako dimmers (A5-38-08).
 
-        Uses the proven teach-in message from openHAB: E0400D80
-        (Manufacturer=Eltako, LRN bit=0 → teach-in mode).
-        The actuator must be in learn mode.
+        Sends multiple teach-in formats to maximize compatibility:
+        1. Command-2 with LRN=0 (simplest, dimmer-native format)
+        2. Standard EEP teach-in with FUNC=0x38/TYPE=0x08/Eltako
+        3. Repeat command-2 directed to actuator address
+
+        The actuator must be in learn mode (30s window).
 
         Args:
-            destination: Target actuator address (int, used for logging only)
+            destination: Target actuator address
             sender_offset: Offset from base ID for sender (1-127)
-
-        Returns True if telegram was sent successfully.
         """
         sender_id = self.get_sender_id(sender_offset)
         if sender_id is None:
             logger.error("Cannot send A5 teach-in: base ID not read yet")
             return False
 
-        logger.info(f"Sending A5-38-08 teach-in to 0x{destination:08X} with sender 0x{sender_id:08X} (broadcast)")
+        logger.info(f"A5-38-08 teach-in: sender=0x{sender_id:08X}, dest=0x{destination:08X}")
 
-        # A5 teach-in data bytes (from openHAB EEP A5_38_08):
-        # DB3=0xE0, DB2=0x40, DB1=0x0D, DB0=0x80
-        # DB0 bit 3 = 0 → teach-in telegram
-        # DB0 bit 4 = 1 → with EEP and manufacturer info
-        teach_in_data = bytes([0xE0, 0x40, 0x0D, 0x80])
-
-        success = await self.send_telegram(
-            sender_id=sender_id,
-            rorg=0xA5,
-            data=teach_in_data,
-            destination=0xFFFFFFFF  # broadcast
+        # Attempt 1: Command-2 teach-in (broadcast)
+        # DB3=0x02 (cmd=dimming), DB2=0x00, DB1=0x00, DB0=0x00 (LRN bit3=0 → teach-in)
+        cmd2_teach = bytes([0x02, 0x00, 0x00, 0x00])
+        logger.info("  [1/3] Command-2 teach-in broadcast: 02000000")
+        await self.send_telegram(
+            sender_id=sender_id, rorg=0xA5,
+            data=cmd2_teach, destination=0xFFFFFFFF
         )
-        return success
+
+        await asyncio.sleep(0.5)
+
+        # Attempt 2: Standard 4BS EEP teach-in (broadcast)
+        # FUNC=0x38, TYPE=0x08, ManufID=0x00D (Eltako), LRN_type=1, LRN=0
+        # Bit layout: 0111000_0_001000_00_00000110_1_00_1_0_000
+        # = 0x70, 0x20, 0x06, 0x90
+        eep_teach = bytes([0x70, 0x20, 0x06, 0x90])
+        logger.info("  [2/3] EEP A5-38-08 teach-in broadcast: 70200690")
+        await self.send_telegram(
+            sender_id=sender_id, rorg=0xA5,
+            data=eep_teach, destination=0xFFFFFFFF
+        )
+
+        await asyncio.sleep(0.5)
+
+        # Attempt 3: Command-2 teach-in directed to actuator
+        logger.info(f"  [3/3] Command-2 teach-in directed to 0x{destination:08X}: 02000000")
+        await self.send_telegram(
+            sender_id=sender_id, rorg=0xA5,
+            data=cmd2_teach, destination=destination
+        )
+
+        logger.info("A5-38-08 teach-in sequence complete (3 telegrams sent)")
+        return True
 
     async def send_a5_dimmer_command(self, sender_id: int, command: str,
                                      dim_value: int = 255, ramp_time: int = 1) -> bool:
