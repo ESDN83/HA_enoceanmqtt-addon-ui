@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.15] - 2026-03-06
+
+### Fixed
+- **Stale data after fresh install** — The `/config/enocean` → `/data/` migration ran on EVERY fresh install because `/config/enocean/` (shared HA config directory) survives addon uninstall. Old devices (e.g., Staufix_2) and mapping.yaml kept reappearing even after "delete local data" uninstall.
+  - Now uses a marker file (`/config/.enocean_migrated`) to ensure migration only runs once
+  - Marker file is stored in `/config/` (survives addon uninstall) so re-migration never happens
+  - Clean installs now start truly blank without stale data
+
 ## [2.1.14] - 2026-03-06
 
 ### Fixed
