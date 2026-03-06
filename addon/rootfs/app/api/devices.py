@@ -20,7 +20,6 @@ class DeviceCreate(BaseModel):
     description: Optional[str] = ""
     room: Optional[str] = ""
     manufacturer: Optional[str] = ""
-    model: Optional[str] = ""
 
 
 class DeviceUpdate(BaseModel):
@@ -33,7 +32,6 @@ class DeviceUpdate(BaseModel):
     description: Optional[str] = None
     room: Optional[str] = None
     manufacturer: Optional[str] = None
-    model: Optional[str] = None
 
 
 @router.get("")
@@ -93,8 +91,7 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
         sender_id=device.sender_id or "",
         description=device.description or "",
         room=device.room or "",
-        manufacturer=device.manufacturer or "",
-        model=device.model or ""
+        manufacturer=device.manufacturer or ""
     )
 
     success = await device_manager.add_device(new_device)
@@ -113,8 +110,7 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
                 device_address=new_device.address,
                 device_sender=new_device.sender_id,
                 mqtt_prefix=mqtt_handler.prefix,
-                device_info=device_info,
-                device_model=new_device.model
+                device_info=device_info
             )
             for item in configs:
                 await mqtt_handler.publish_discovery_config(
@@ -159,14 +155,12 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
         update_data["room"] = update.room
     if update.manufacturer is not None:
         update_data["manufacturer"] = update.manufacturer
-    if update.model is not None:
-        update_data["model"] = update.model
 
     success = await device_manager.update_device(name, update_data)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update device")
 
-    # Re-publish MQTT discovery (important when model or EEP changes)
+    # Re-publish MQTT discovery (important when EEP changes)
     updated_device = device_manager.get_device(name)
     mqtt_handler = request.app.state.mqtt_handler
     mapping_manager = request.app.state.mapping_manager
@@ -179,8 +173,7 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
                 device_address=updated_device.address,
                 device_sender=updated_device.sender_id,
                 mqtt_prefix=mqtt_handler.prefix,
-                device_info=device_info,
-                device_model=updated_device.model
+                device_info=device_info
             )
             for item in configs:
                 await mqtt_handler.publish_discovery_config(
@@ -219,8 +212,7 @@ async def delete_device(name: str, request: Request) -> Dict[str, str]:
                 device_address=device.address,
                 device_sender=device.sender_id,
                 mqtt_prefix=mqtt_handler.prefix,
-                device_info=device_info,
-                device_model=device.model
+                device_info=device_info
             )
             # Remove each discovery config (publish empty payload)
             for item in configs:

@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.8] - 2026-03-06
+
+### Removed
+- **Device Model dropdown** removed from device form — hardcoded MODEL_MAPPINGS (MV-01-01, SR65, FSB61NP, FUD61NPN) replaced by Custom EEP Profile ha_mapping system
+- `/api/mappings/models` endpoint removed
+- Model badge removed from device cards and detail view
+- **Mapping priority chain** simplified: Custom EEP ha_mapping → Custom mapping.yaml → Default EEP → Empty
+
 ## [2.1.7] - 2026-03-06
 
 ### Fixed

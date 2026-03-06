@@ -84,20 +84,6 @@ async def get_all_mappings(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Failed to read mappings: {e}")
 
 
-@router.get("/models")
-async def get_available_models(request: Request) -> Dict[str, Any]:
-    """Get available device models for model-based HA mappings.
-
-    Returns model IDs and their descriptions. When a device has a model set,
-    the model mapping takes priority over the EEP-based mapping for HA discovery.
-    """
-    mapping_manager = request.app.state.mapping_manager
-    if not mapping_manager:
-        raise HTTPException(status_code=500, detail="Mapping manager not initialized")
-
-    return mapping_manager.get_available_models()
-
-
 @router.get("/{eep_id}")
 async def get_mapping(eep_id: str, request: Request) -> Dict[str, Any]:
     """Get mapping for a specific EEP"""
