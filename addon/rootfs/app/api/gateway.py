@@ -37,6 +37,12 @@ class ActorTeachInRequest(BaseModel):
     sender_offset: int = 1  # Offset from base ID (1-127)
 
 
+class TestActuatorRequest(BaseModel):
+    """Request to test an actuator with F6 rocker command"""
+    device_name: str
+    command: str  # "ON", "OFF", "OPEN", "CLOSE", "STOP"
+
+
 @router.get("/info")
 async def get_gateway_info(request: Request) -> Dict[str, Any]:
     """Get EnOcean gateway information including base ID"""
@@ -108,6 +114,82 @@ async def teach_in_actuator(req: ActorTeachInRequest, request: Request) -> Dict[
         "sender_id": f"0x{sender_id:08X}",
         "sender_offset": req.sender_offset,
         "message": "Teach-in telegram sent. If actuator was in learn mode, it should now respond to this sender ID."
+    }
+
+
+@router.post("/test-actuator")
+async def test_actuator(req: TestActuatorRequest, request: Request) -> Dict[str, Any]:
+    """Send F6 rocker command to test an actuator (light/switch/cover).
+
+    Uses the same F6 press+release sequence as the MQTT command handler.
+    This endpoint allows testing directly from the UI without MQTT.
+    """
+    serial_handler = request.app.state.serial_handler
+    device_manager = request.app.state.device_manager
+
+    if not serial_handler or not serial_handler.is_connected:
+        raise HTTPException(status_code=503, detail="EnOcean gateway not connected")
+
+    if not device_manager:
+        raise HTTPException(status_code=500, detail="Device manager not initialized")
+
+    device = device_manager.get_device(req.device_name)
+    if not device:
+        raise HTTPException(status_code=404, detail=f"Device '{req.device_name}' not found")
+
+    if not device.actuator_type:
+        raise HTTPException(status_code=400, detail="Device is not configured as an actuator")
+
+    if not device.sender_id:
+        raise HTTPException(status_code=400, detail="Device has no sender_id configured")
+
+    try:
+        sender_id = int(device.sender_id.replace("0x", "").replace("0X", ""), 16)
+        destination = int(device.address.replace("0x", "").replace("0X", ""), 16)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid address: {e}")
+
+    command = req.command.strip().upper()
+
+    # F6 rocker commands for Eltako actuators
+    if command in ("ON", "OPEN"):
+        # Rocker B top (BI) pressed + release
+        await serial_handler.send_telegram(
+            sender_id=sender_id, rorg=0xF6,
+            data=bytes([0x50]), destination=destination, status=0x30
+        )
+        await asyncio.sleep(0.05)
+        await serial_handler.send_telegram(
+            sender_id=sender_id, rorg=0xF6,
+            data=bytes([0x00]), destination=destination, status=0x20
+        )
+    elif command in ("OFF", "CLOSE"):
+        # Rocker B bottom (B0) pressed + release
+        await serial_handler.send_telegram(
+            sender_id=sender_id, rorg=0xF6,
+            data=bytes([0x70]), destination=destination, status=0x30
+        )
+        await asyncio.sleep(0.05)
+        await serial_handler.send_telegram(
+            sender_id=sender_id, rorg=0xF6,
+            data=bytes([0x00]), destination=destination, status=0x20
+        )
+    elif command == "STOP":
+        # Release without prior press = stop
+        await serial_handler.send_telegram(
+            sender_id=sender_id, rorg=0xF6,
+            data=bytes([0x00]), destination=destination, status=0x20
+        )
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown command: {command}. Use ON, OFF, OPEN, CLOSE, or STOP.")
+
+    logger.info(f"Test actuator: {req.device_name} ({device.actuator_type}) = {command}")
+    return {
+        "status": "sent",
+        "device": req.device_name,
+        "command": command,
+        "sender_id": device.sender_id,
+        "destination": device.address
     }
 
 
