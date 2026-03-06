@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/data")
 ENOCEAN_PORT = os.getenv("ENOCEAN_PORT", "")
 CACHE_DEVICE_STATES = os.getenv("CACHE_DEVICE_STATES", "true").lower() == "true"
-VERSION = "2.1.5"
+VERSION = "2.1.6"
 
 # Global instances
 mqtt_handler: MQTTHandler = None
@@ -65,8 +65,8 @@ async def lifespan(app: FastAPI):
     await eep_manager.initialize()
     logger.info(f"Loaded {eep_manager.profile_count} EEP profiles")
 
-    # Initialize Mapping Manager
-    mapping_manager = MappingManager(CONFIG_PATH)
+    # Initialize Mapping Manager (with eep_manager for ha_mapping lookup)
+    mapping_manager = MappingManager(CONFIG_PATH, eep_manager=eep_manager)
     await mapping_manager.initialize()
 
     # Initialize Device Manager

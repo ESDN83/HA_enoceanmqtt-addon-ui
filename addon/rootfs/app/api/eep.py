@@ -16,6 +16,7 @@ class CustomProfileCreate(BaseModel):
     type: str
     description: str
     fields: List[Dict[str, Any]] = []
+    ha_mapping: Optional[Dict[str, Dict[str, Any]]] = None
 
 
 @router.get("")
@@ -120,7 +121,7 @@ async def create_custom_profile(profile: CustomProfileCreate, request: Request) 
     }
 
     try:
-        success = await eep_manager.save_custom_profile(profile_data)
+        success = await eep_manager.save_custom_profile(profile_data, ha_mapping=profile.ha_mapping)
         if not success:
             raise HTTPException(status_code=500, detail="Failed to write custom profile to disk")
     except HTTPException:
@@ -156,7 +157,7 @@ async def update_custom_profile(eep_id: str, profile: CustomProfileCreate, reque
         "fields": profile.fields
     }
 
-    success = await eep_manager.save_custom_profile(profile_data)
+    success = await eep_manager.save_custom_profile(profile_data, ha_mapping=profile.ha_mapping)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update custom profile")
 

@@ -229,8 +229,9 @@ def _normalize_eep(eep_id: str) -> str:
 class MappingManager:
     """Manages EEP to MQTT/HA entity mappings"""
 
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: str, eep_manager=None):
         self.config_path = config_path
+        self.eep_manager = eep_manager
         self.mappings_file = os.path.join(config_path, "mapping.yaml")
         self.custom_mappings: Dict[str, Dict[str, Any]] = {}
 
@@ -272,10 +273,11 @@ class MappingManager:
         """Get mapping for a device
 
         Priority:
-        1. Model-based mapping (if model is set)
-        2. Custom EEP mapping (from mapping.yaml)
-        3. Default EEP mapping
-        4. Empty dict
+        1. Model-based mapping (if model is set and known)
+        2. Custom EEP profile ha_mapping (from custom_eep YAML)
+        3. Custom EEP mapping (from mapping.yaml)
+        4. Default EEP mapping
+        5. Empty dict
         """
         # Model mapping takes highest priority
         if model and model in MODEL_MAPPINGS:
@@ -283,6 +285,13 @@ class MappingManager:
             return MODEL_MAPPINGS[model]
 
         eep_id = eep_id.upper()
+
+        # Check custom EEP profile ha_mapping
+        if self.eep_manager:
+            profile = self.eep_manager.get_profile(eep_id)
+            if profile and profile.ha_mapping:
+                logger.debug(f"Using ha_mapping from custom EEP profile {eep_id}")
+                return profile.ha_mapping
 
         if eep_id in self.custom_mappings:
             return self.custom_mappings[eep_id]

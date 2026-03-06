@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.1.6] - 2026-03-06
+
+### Added - HA Entity Mapping in Custom EEP Profiles
+- **HA Mapping Builder** in Custom EEP Profile modal — define how EEP fields map to Home Assistant entities
+  - Visual row-based editor: Shortcut, Component, Name, Device Class, Icon, Unit per entity
+  - Supports sensor, binary_sensor, switch, light, cover, climate, fan component types
+  - Context-aware device class dropdowns (change with component type)
+  - Mappings saved alongside profile in custom EEP YAML files
+- **Mapping priority chain** updated: Model → Custom EEP ha_mapping → Custom mapping.yaml → Default EEP → Empty
+- **Profile detail view** now shows HA entity mapping section with badges
+- Users can now create fully custom device profiles including HA discovery without code changes
+
+### Changed
+- Custom Profile modal expanded to XL for better HA mapping editing space
+- MappingManager now accepts EEPManager reference for ha_mapping lookup
+
 ## [2.1.5] - 2026-03-06
 
 ### Fixed
