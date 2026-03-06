@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.1.13] - 2026-03-06
+
+### Fixed
+- **Kessel Staufix alarm STILL not detected after v2.1.12** — The corrected bit offsets from v2.1.12 were never deployed to persistent storage. The seeding logic only compared field COUNT (both old and new had 5 fields), so the persistent profile with wrong offsets was never overwritten.
+  - Seeding now compares actual field content (offsets, sizes, ha_mapping), not just field count
+  - Any change in bundled profiles is now correctly propagated to persistent storage on startup
+
+### Changed
+- **Kessel Staufix profile simplified** — Removed DI0-DI3 fields (Valve Closed, Error, Maintenance Required, Battery Low) because the Staufix device does NOT output these values. Only the AL (Alarm) field is decoded, matching the MV-01-01 manufacturer profile from ChristopheHD's addon.
+  - Old: 5 fields (AL + DI0-DI3) — DI0-DI3 always showed meaningless values
+  - New: 1 field (AL only) — clean, accurate alarm detection
+
 ## [2.1.12] - 2026-03-06
 
 ### Fixed
