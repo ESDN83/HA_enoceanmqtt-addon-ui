@@ -255,18 +255,22 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
     command = payload.strip().upper()
     logger.info(f"Actuator command: {device_name} ({device.actuator_type}) = {command}")
 
+    # F6 rocker commands use BROADCAST like real EnOcean pushbuttons.
+    # Eltako actuators match by sender ID, not by destination address.
+    broadcast = 0xFFFFFFFF
+
     if device.actuator_type in ("light", "switch"):
         if command == "ON":
             # F6 Rocker B top (BI) pressed: data=0x50, status=0x30 (T21+NU)
             await serial_handler.send_telegram(
                 sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x50]), destination=destination, status=0x30
+                data=bytes([0x50]), destination=broadcast, status=0x30
             )
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.1)
             # Release: data=0x00, status=0x20 (T21, no NU)
             await serial_handler.send_telegram(
                 sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x00]), destination=destination, status=0x20
+                data=bytes([0x00]), destination=broadcast, status=0x20
             )
             logger.info(f"Sent ON (F6 BI press+release) to {device_name}")
 
@@ -274,13 +278,13 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             # F6 Rocker B bottom (B0) pressed: data=0x70, status=0x30 (T21+NU)
             await serial_handler.send_telegram(
                 sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x70]), destination=destination, status=0x30
+                data=bytes([0x70]), destination=broadcast, status=0x30
             )
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.1)
             # Release: data=0x00, status=0x20 (T21, no NU)
             await serial_handler.send_telegram(
                 sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x00]), destination=destination, status=0x20
+                data=bytes([0x00]), destination=broadcast, status=0x20
             )
             logger.info(f"Sent OFF (F6 B0 press+release) to {device_name}")
 
@@ -292,29 +296,29 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             # BI press+release for open/up
             await serial_handler.send_telegram(
                 sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x50]), destination=destination, status=0x30
+                data=bytes([0x50]), destination=broadcast, status=0x30
             )
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.1)
             await serial_handler.send_telegram(
                 sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x00]), destination=destination, status=0x20
+                data=bytes([0x00]), destination=broadcast, status=0x20
             )
         elif command == "CLOSE":
             # B0 press+release for close/down
             await serial_handler.send_telegram(
                 sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x70]), destination=destination, status=0x30
+                data=bytes([0x70]), destination=broadcast, status=0x30
             )
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.1)
             await serial_handler.send_telegram(
                 sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x00]), destination=destination, status=0x20
+                data=bytes([0x00]), destination=broadcast, status=0x20
             )
         elif command == "STOP":
             # Any release without prior press = stop
             await serial_handler.send_telegram(
                 sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x00]), destination=destination, status=0x20
+                data=bytes([0x00]), destination=broadcast, status=0x20
             )
 
 

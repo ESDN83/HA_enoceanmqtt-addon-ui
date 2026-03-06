@@ -151,34 +151,38 @@ async def test_actuator(req: TestActuatorRequest, request: Request) -> Dict[str,
 
     command = req.command.strip().upper()
 
+    # F6 rocker commands use BROADCAST like real EnOcean pushbuttons.
+    # Eltako actuators match by sender ID, not by destination address.
+    broadcast = 0xFFFFFFFF
+
     # F6 rocker commands for Eltako actuators
     if command in ("ON", "OPEN"):
         # Rocker B top (BI) pressed + release
         await serial_handler.send_telegram(
             sender_id=sender_id, rorg=0xF6,
-            data=bytes([0x50]), destination=destination, status=0x30
+            data=bytes([0x50]), destination=broadcast, status=0x30
         )
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.1)
         await serial_handler.send_telegram(
             sender_id=sender_id, rorg=0xF6,
-            data=bytes([0x00]), destination=destination, status=0x20
+            data=bytes([0x00]), destination=broadcast, status=0x20
         )
     elif command in ("OFF", "CLOSE"):
         # Rocker B bottom (B0) pressed + release
         await serial_handler.send_telegram(
             sender_id=sender_id, rorg=0xF6,
-            data=bytes([0x70]), destination=destination, status=0x30
+            data=bytes([0x70]), destination=broadcast, status=0x30
         )
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.1)
         await serial_handler.send_telegram(
             sender_id=sender_id, rorg=0xF6,
-            data=bytes([0x00]), destination=destination, status=0x20
+            data=bytes([0x00]), destination=broadcast, status=0x20
         )
     elif command == "STOP":
         # Release without prior press = stop
         await serial_handler.send_telegram(
             sender_id=sender_id, rorg=0xF6,
-            data=bytes([0x00]), destination=destination, status=0x20
+            data=bytes([0x00]), destination=broadcast, status=0x20
         )
     else:
         raise HTTPException(status_code=400, detail=f"Unknown command: {command}. Use ON, OFF, OPEN, CLOSE, or STOP.")

@@ -581,26 +581,31 @@ class SerialHandler:
             logger.error("Cannot send teach-in: base ID not read yet")
             return False
 
-        logger.info(f"Sending F6 teach-in to 0x{destination:08X} with sender 0x{sender_id:08X}")
+        logger.info(f"Sending F6 teach-in to 0x{destination:08X} with sender 0x{sender_id:08X} (broadcast)")
 
-        # Send button press (AI): data=0x50, status=0x30 (T21+NU)
+        # Teach-in uses BROADCAST (0xFFFFFFFF) like real EnOcean pushbuttons.
+        # Eltako actuators in learn mode listen for broadcast F6 telegrams
+        # and store the sender ID from the telegram.
+        broadcast = 0xFFFFFFFF
+
+        # Send button press (BI): data=0x50, status=0x30 (T21+NU)
         success = await self.send_telegram(
             sender_id=sender_id,
             rorg=0xF6,
             data=bytes([0x50]),
-            destination=destination
+            destination=broadcast
         )
         if not success:
             return False
 
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.3)
 
         # Send button release: data=0x00, status=0x20 (T21, no NU)
         success = await self.send_telegram(
             sender_id=sender_id,
             rorg=0xF6,
             data=bytes([0x00]),
-            destination=destination,
+            destination=broadcast,
             status=0x20
         )
         return success
