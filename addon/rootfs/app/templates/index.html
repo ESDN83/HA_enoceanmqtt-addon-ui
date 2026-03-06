@@ -410,11 +410,35 @@
                                     <i class="bi bi-lightning"></i> Actuator Teach-In (Eltako FD62NPN, FSB61, FUD61, etc.)
                                 </div>
                                 <div class="card-body">
-                                    <div class="alert alert-info small">
-                                        <strong>How it works:</strong> The gateway sends its sender ID to the actuator.
-                                        Put the actuator in learn mode first (see device manual — e.g., hold button/dial until LED blinks),
-                                        then click "Send Teach-In".
+                                    <div class="alert alert-warning small mb-3">
+                                        <strong><i class="bi bi-exclamation-triangle"></i> Before you start:</strong>
+                                        Each sender offset (1-127) can only control <strong>one</strong> actuator. Use a different offset for each device.
                                     </div>
+
+                                    <h6>Step-by-Step</h6>
+                                    <ol class="small mb-3">
+                                        <li><strong>Read Base ID</strong> — Click "Read" to get the gateway's base address</li>
+                                        <li><strong>Enter actuator address</strong> — The address printed on the actuator or its packaging (e.g., <code>0x05834FA4</code>)</li>
+                                        <li><strong>Choose sender offset</strong> — Pick a unique number (1-127) for this actuator</li>
+                                        <li><strong>Put actuator in learn mode:</strong>
+                                            <ul>
+                                                <li><strong>Eltako FD62NPN (Dimmer):</strong> Short press the learn button on the bottom — LED blinks slowly</li>
+                                                <li><strong>Eltako FSR61 (Switch):</strong> Short press the learn button — LED blinks</li>
+                                                <li><strong>Eltako FSB61 (Blind):</strong> Turn the rotary dial to desired run time, then press learn button</li>
+                                                <li><strong>Other Eltako:</strong> Check manual — typically short press the learn/prog button</li>
+                                            </ul>
+                                        </li>
+                                        <li><strong>Click "Send Teach-In"</strong> within 30 seconds — the actuator LED should <strong>flash quickly</strong> to confirm</li>
+                                        <li><strong>Add the device</strong> with the sender ID shown below using "Manual Entry"</li>
+                                    </ol>
+
+                                    <div class="alert alert-info small mb-3">
+                                        <i class="bi bi-info-circle"></i>
+                                        <strong>Teach-in didn't work?</strong> Clear all learned senders first:
+                                        Press the learn button <strong>5× quickly</strong> (LED flashes rapidly = all cleared).
+                                        Then try again from step 4.
+                                    </div>
+
                                     <div class="row mb-3">
                                         <div class="col-md-4">
                                             <label class="form-label">Gateway Base ID</label>
@@ -1163,6 +1187,31 @@
             }
         }
 
+        async function testActuator(deviceName, command) {
+            const resultSpan = document.getElementById('test-actuator-result');
+            resultSpan.innerHTML = '<span class="text-info"><i class="bi bi-hourglass-split"></i> Sending...</span>';
+
+            try {
+                const resp = await fetch(getApiUrl('/api/gateway/test-actuator'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_name: deviceName, command: command })
+                });
+                const data = await resp.json();
+
+                if (resp.ok) {
+                    resultSpan.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> ${command} sent to ${deviceName}</span>`;
+                } else {
+                    resultSpan.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle"></i> ${data.detail || 'Error'}</span>`;
+                }
+            } catch (e) {
+                resultSpan.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+            }
+
+            // Clear result after 5 seconds
+            setTimeout(() => { resultSpan.innerHTML = ''; }, 5000);
+        }
+
         function startTeachIn() {
             const status = document.getElementById('teach-in-status');
             status.style.display = 'block';
@@ -1390,6 +1439,38 @@
                                 </div>
                             </div>
                         </div>
+
+                        ${device.actuator_type ? `
+                        <div class="card mb-3">
+                            <div class="card-header bg-warning bg-opacity-25">
+                                <h6 class="mb-0"><i class="bi bi-lightning"></i> Actuator Test</h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="small text-muted mb-2">Send F6 rocker commands directly to test if teach-in was successful.</p>
+                                <div class="d-flex gap-2 align-items-center flex-wrap">
+                                    ${device.actuator_type === 'cover' ? `
+                                        <button class="btn btn-success" onclick="testActuator('${device.name}', 'OPEN')">
+                                            <i class="bi bi-arrow-up"></i> Open
+                                        </button>
+                                        <button class="btn btn-secondary" onclick="testActuator('${device.name}', 'STOP')">
+                                            <i class="bi bi-stop-fill"></i> Stop
+                                        </button>
+                                        <button class="btn btn-danger" onclick="testActuator('${device.name}', 'CLOSE')">
+                                            <i class="bi bi-arrow-down"></i> Close
+                                        </button>
+                                    ` : `
+                                        <button class="btn btn-success" onclick="testActuator('${device.name}', 'ON')">
+                                            <i class="bi bi-power"></i> Test ON
+                                        </button>
+                                        <button class="btn btn-danger" onclick="testActuator('${device.name}', 'OFF')">
+                                            <i class="bi bi-power"></i> Test OFF
+                                        </button>
+                                    `}
+                                    <span id="test-actuator-result" class="small"></span>
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
 
                         <div class="card">
                             <div class="card-header d-flex justify-content-between align-items-center">
