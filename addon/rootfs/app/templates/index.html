@@ -493,9 +493,21 @@
                                     <input type="text" class="form-control" name="room" placeholder="e.g., Living Room">
                                 </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Sender ID (for bidirectional devices)</label>
-                                <input type="text" class="form-control" name="sender_id" placeholder="0xFFBD7480">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Sender ID (for bidirectional devices)</label>
+                                    <input type="text" class="form-control" name="sender_id" placeholder="0xFFBD7480">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Device Role</label>
+                                    <select class="form-select" name="actuator_type">
+                                        <option value="">Sensor (receive only)</option>
+                                        <option value="light">Actuator: Light / Dimmer</option>
+                                        <option value="switch">Actuator: Switch</option>
+                                        <option value="cover">Actuator: Cover / Blind</option>
+                                    </select>
+                                    <small class="text-muted">Actuators create controllable HA entities (requires Sender ID)</small>
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Manufacturer</label>
@@ -827,6 +839,7 @@
                                 </p>
                                 <p class="card-text mb-1">
                                     <span class="badge bg-primary">${device.rorg}-${device.func}-${device.type}</span>
+                                    ${device.actuator_type ? `<span class="badge bg-warning text-dark ms-1"><i class="bi bi-lightning"></i> ${device.actuator_type}</span>` : ''}
                                     ${device.room ? `<span class="badge bg-secondary ms-1">${device.room}</span>` : ''}
                                 </p>
                                 ${device.description ? `<p class="card-text mb-0"><small class="text-muted">${device.description}</small></p>` : ''}
@@ -1301,6 +1314,7 @@
                 document.querySelector('[name="description"]').value = device.description || '';
                 document.querySelector('[name="room"]').value = device.room || '';
                 document.querySelector('[name="sender_id"]').value = device.sender_id || '';
+                document.querySelector('[name="actuator_type"]').value = device.actuator_type || '';
                 document.querySelector('[name="manufacturer"]').value = device.manufacturer || '';
 
                 // Mark as edit mode
@@ -1362,6 +1376,7 @@
                                             ${device.description ? `<tr><th>Description</th><td>${device.description}</td></tr>` : ''}
                                             ${device.room ? `<tr><th>Room</th><td>${device.room}</td></tr>` : ''}
                                             ${device.sender_id ? `<tr><th>Sender ID</th><td><code>${device.sender_id}</code></td></tr>` : ''}
+                                            ${device.actuator_type ? `<tr><th>Device Role</th><td><span class="badge bg-warning text-dark">${device.actuator_type}</span></td></tr>` : ''}
                                             ${device.manufacturer ? `<tr><th>Manufacturer</th><td>${device.manufacturer}</td></tr>` : ''}
                                         </table>
                                     </div>

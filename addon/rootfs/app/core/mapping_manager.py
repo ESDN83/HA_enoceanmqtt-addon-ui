@@ -268,79 +268,140 @@ class MappingManager:
         device_address: str,
         device_sender: str,
         mqtt_prefix: str,
-        device_info: Dict[str, Any]
+        device_info: Dict[str, Any],
+        actuator_type: str = ""
     ) -> List[Dict[str, Any]]:
         """Generate Home Assistant MQTT discovery configurations.
 
         Returns a list of discovery configs for all entities defined in the mapping.
         Uses ChristopheHD-compatible UID format and per-device availability.
+
+        If actuator_type is set (light/switch/cover), generates a controllable entity
+        instead of sensor entities from the EEP profile.
         """
-        mapping = self.get_mapping(eep_id)
         configs = []
 
-        for field_name, field_config in mapping.items():
-            component = field_config.get("component", "sensor")
-
-            # Build unique ID (ChristopheHD compatible)
-            unique_id = self.build_unique_id(eep_id, device_address, device_sender, field_name)
-
-            # Build discovery config
-            config = {
-                "name": field_config.get("name", field_name),
-                "unique_id": unique_id,
-                "object_id": f"{device_name}_{field_name}".lower().replace(" ", "_"),
-                "state_topic": f"{mqtt_prefix}/{device_name}/state",
-                "value_template": field_config.get(
-                    "value_template",
-                    f"{{{{ value_json.{field_name} }}}}"
-                )
-            }
-
-            # Add optional fields
-            if "device_class" in field_config:
-                config["device_class"] = field_config["device_class"]
-            if "unit_of_measurement" in field_config:
-                config["unit_of_measurement"] = field_config["unit_of_measurement"]
-            if "icon" in field_config:
-                config["icon"] = field_config["icon"]
-
-            # Binary sensor: HA expects "ON"/"OFF" by default, but EEP values are 0/1
-            if component == "binary_sensor":
-                config["payload_on"] = "1"
-                config["payload_off"] = "0"
-
-            # Add device info
-            config["device"] = device_info
-
-            # Add command topic for controllable entities
-            if component in ["switch", "light", "cover", "climate", "fan"]:
-                config["command_topic"] = f"{mqtt_prefix}/{device_name}/set"
-
-                if component == "cover":
-                    config["position_topic"] = f"{mqtt_prefix}/{device_name}/state"
-                    config["position_template"] = f"{{{{ value_json.{field_name} }}}}"
-                    config["set_position_topic"] = f"{mqtt_prefix}/{device_name}/position/set"
-
-            # Per-device availability (not global gateway status)
-            config["availability"] = {
-                "topic": f"{mqtt_prefix}/{device_name}/availability",
-                "payload_available": "online",
-                "payload_not_available": "offline"
-            }
-
-            configs.append({
-                "component": component,
-                "unique_id": unique_id,
-                "config": config
-            })
-
-        # Auto-add diagnostic entities for every device: RSSI + Last Seen
-        state_topic = f"{mqtt_prefix}/{device_name}/state"
         avail_config = {
             "topic": f"{mqtt_prefix}/{device_name}/availability",
             "payload_available": "online",
             "payload_not_available": "offline"
         }
+
+        # Actuator mode: create a controllable entity (light/switch/cover)
+        if actuator_type in ("light", "switch", "cover"):
+            unique_id = self.build_unique_id(eep_id, device_address, device_sender, actuator_type)
+
+            if actuator_type == "light":
+                config = {
+                    "name": None,  # Use device name
+                    "unique_id": unique_id,
+                    "object_id": f"{device_name}".lower().replace(" ", "_"),
+                    "command_topic": f"{mqtt_prefix}/{device_name}/set",
+                    "state_topic": f"{mqtt_prefix}/{device_name}/state",
+                    "state_value_template": "{{ value_json.state }}",
+                    "payload_on": "ON",
+                    "payload_off": "OFF",
+                    "optimistic": True,
+                    "icon": "mdi:lightbulb",
+                    "device": device_info,
+                    "availability": avail_config
+                }
+            elif actuator_type == "switch":
+                config = {
+                    "name": None,
+                    "unique_id": unique_id,
+                    "object_id": f"{device_name}".lower().replace(" ", "_"),
+                    "command_topic": f"{mqtt_prefix}/{device_name}/set",
+                    "state_topic": f"{mqtt_prefix}/{device_name}/state",
+                    "value_template": "{{ value_json.state }}",
+                    "payload_on": "ON",
+                    "payload_off": "OFF",
+                    "optimistic": True,
+                    "icon": "mdi:power",
+                    "device": device_info,
+                    "availability": avail_config
+                }
+            elif actuator_type == "cover":
+                config = {
+                    "name": None,
+                    "unique_id": unique_id,
+                    "object_id": f"{device_name}".lower().replace(" ", "_"),
+                    "command_topic": f"{mqtt_prefix}/{device_name}/set",
+                    "state_topic": f"{mqtt_prefix}/{device_name}/state",
+                    "value_template": "{{ value_json.state }}",
+                    "device_class": "blind",
+                    "optimistic": True,
+                    "icon": "mdi:blinds",
+                    "device": device_info,
+                    "availability": avail_config
+                }
+
+            configs.append({
+                "component": actuator_type,
+                "unique_id": unique_id,
+                "config": config
+            })
+
+            # Return early — actuators don't need sensor entities from EEP profile
+            # Still add diagnostic entities below
+        else:
+            # Sensor mode: create entities from EEP mapping
+            mapping = self.get_mapping(eep_id)
+
+            for field_name, field_config in mapping.items():
+                component = field_config.get("component", "sensor")
+
+                # Build unique ID (ChristopheHD compatible)
+                unique_id = self.build_unique_id(eep_id, device_address, device_sender, field_name)
+
+                # Build discovery config
+                config = {
+                    "name": field_config.get("name", field_name),
+                    "unique_id": unique_id,
+                    "object_id": f"{device_name}_{field_name}".lower().replace(" ", "_"),
+                    "state_topic": f"{mqtt_prefix}/{device_name}/state",
+                    "value_template": field_config.get(
+                        "value_template",
+                        f"{{{{ value_json.{field_name} }}}}"
+                    )
+                }
+
+                # Add optional fields
+                if "device_class" in field_config:
+                    config["device_class"] = field_config["device_class"]
+                if "unit_of_measurement" in field_config:
+                    config["unit_of_measurement"] = field_config["unit_of_measurement"]
+                if "icon" in field_config:
+                    config["icon"] = field_config["icon"]
+
+                # Binary sensor: HA expects "ON"/"OFF" by default, but EEP values are 0/1
+                if component == "binary_sensor":
+                    config["payload_on"] = "1"
+                    config["payload_off"] = "0"
+
+                # Add device info
+                config["device"] = device_info
+
+                # Add command topic for controllable entities
+                if component in ["switch", "light", "cover", "climate", "fan"]:
+                    config["command_topic"] = f"{mqtt_prefix}/{device_name}/set"
+
+                    if component == "cover":
+                        config["position_topic"] = f"{mqtt_prefix}/{device_name}/state"
+                        config["position_template"] = f"{{{{ value_json.{field_name} }}}}"
+                        config["set_position_topic"] = f"{mqtt_prefix}/{device_name}/position/set"
+
+                # Per-device availability (not global gateway status)
+                config["availability"] = avail_config
+
+                configs.append({
+                    "component": component,
+                    "unique_id": unique_id,
+                    "config": config
+                })
+
+        # Auto-add diagnostic entities for every device: RSSI + Last Seen
+        state_topic = f"{mqtt_prefix}/{device_name}/state"
 
         # RSSI sensor
         rssi_uid = self.build_unique_id(eep_id, device_address, device_sender, "rssi")

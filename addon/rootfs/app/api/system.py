@@ -215,7 +215,8 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
                             device_address=device.address,
                             device_sender=device.sender_id,
                             mqtt_prefix=mqtt_handler.prefix,
-                            device_info=device_info
+                            device_info=device_info,
+                            actuator_type=device.actuator_type
                         )
                         for item in configs:
                             await mqtt_handler.publish_discovery_config(

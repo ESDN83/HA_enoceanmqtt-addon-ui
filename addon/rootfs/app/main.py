@@ -126,6 +126,9 @@ async def lifespan(app: FastAPI):
         # or when MQTT broker reconnects
         mqtt_handler.set_ha_birth_callback(_publish_all_discoveries)
 
+        # Set command callback - routes MQTT commands to EnOcean telegrams
+        mqtt_handler.set_device_command_callback(_handle_device_command)
+
     # Store instances in app state for access in routes
     app.state.mqtt_handler = mqtt_handler
     app.state.serial_handler = serial_handler
@@ -183,7 +186,8 @@ async def _publish_all_discoveries():
                 device_address=device.address,
                 device_sender=device.sender_id,
                 mqtt_prefix=mqtt_handler.prefix,
-                device_info=device_info
+                device_info=device_info,
+                actuator_type=device.actuator_type
             )
 
             # Publish each entity discovery config
@@ -209,6 +213,109 @@ async def _publish_all_discoveries():
     if mqtt_handler.cache_states:
         await asyncio.sleep(2)
         await mqtt_handler.republish_cached_states()
+
+
+async def _handle_device_command(device_name: str, payload: str, entity: str = None):
+    """Handle MQTT command for an actuator device — send F6 telegram.
+
+    For Eltako actuators (FD62NPN, FSR61, FSB61, etc.):
+    - ON: F6 rocker B top (BI) press + release
+    - OFF: F6 rocker B bottom (B0) press + release
+    """
+    global serial_handler, device_manager
+
+    if not serial_handler or not serial_handler.is_connected:
+        logger.warning(f"Cannot send command for {device_name}: serial not connected")
+        return
+
+    if not device_manager:
+        return
+
+    device = device_manager.get_device(device_name)
+    if not device:
+        logger.warning(f"Command for unknown device: {device_name}")
+        return
+
+    if not device.actuator_type:
+        logger.debug(f"Ignoring command for sensor-only device: {device_name}")
+        return
+
+    if not device.sender_id:
+        logger.warning(f"Cannot send command for {device_name}: no sender_id configured")
+        return
+
+    # Parse sender ID to integer
+    try:
+        sender_id = int(device.sender_id.replace("0x", "").replace("0X", ""), 16)
+        destination = int(device.address.replace("0x", "").replace("0X", ""), 16)
+    except ValueError as e:
+        logger.error(f"Invalid address for {device_name}: {e}")
+        return
+
+    command = payload.strip().upper()
+    logger.info(f"Actuator command: {device_name} ({device.actuator_type}) = {command}")
+
+    if device.actuator_type in ("light", "switch"):
+        if command == "ON":
+            # F6 Rocker B top (BI) pressed: data=0x50, status=0x30 (T21+NU)
+            await serial_handler.send_telegram(
+                sender_id=sender_id, rorg=0xF6,
+                data=bytes([0x50]), destination=destination, status=0x30
+            )
+            await asyncio.sleep(0.05)
+            # Release: data=0x00, status=0x20 (T21, no NU)
+            await serial_handler.send_telegram(
+                sender_id=sender_id, rorg=0xF6,
+                data=bytes([0x00]), destination=destination, status=0x20
+            )
+            logger.info(f"Sent ON (F6 BI press+release) to {device_name}")
+
+        elif command == "OFF":
+            # F6 Rocker B bottom (B0) pressed: data=0x70, status=0x30 (T21+NU)
+            await serial_handler.send_telegram(
+                sender_id=sender_id, rorg=0xF6,
+                data=bytes([0x70]), destination=destination, status=0x30
+            )
+            await asyncio.sleep(0.05)
+            # Release: data=0x00, status=0x20 (T21, no NU)
+            await serial_handler.send_telegram(
+                sender_id=sender_id, rorg=0xF6,
+                data=bytes([0x00]), destination=destination, status=0x20
+            )
+            logger.info(f"Sent OFF (F6 B0 press+release) to {device_name}")
+
+        else:
+            logger.warning(f"Unknown command '{command}' for {device_name}")
+
+    elif device.actuator_type == "cover":
+        if command == "OPEN":
+            # BI press+release for open/up
+            await serial_handler.send_telegram(
+                sender_id=sender_id, rorg=0xF6,
+                data=bytes([0x50]), destination=destination, status=0x30
+            )
+            await asyncio.sleep(0.05)
+            await serial_handler.send_telegram(
+                sender_id=sender_id, rorg=0xF6,
+                data=bytes([0x00]), destination=destination, status=0x20
+            )
+        elif command == "CLOSE":
+            # B0 press+release for close/down
+            await serial_handler.send_telegram(
+                sender_id=sender_id, rorg=0xF6,
+                data=bytes([0x70]), destination=destination, status=0x30
+            )
+            await asyncio.sleep(0.05)
+            await serial_handler.send_telegram(
+                sender_id=sender_id, rorg=0xF6,
+                data=bytes([0x00]), destination=destination, status=0x20
+            )
+        elif command == "STOP":
+            # Any release without prior press = stop
+            await serial_handler.send_telegram(
+                sender_id=sender_id, rorg=0xF6,
+                data=bytes([0x00]), destination=destination, status=0x20
+            )
 
 
 # Create FastAPI app

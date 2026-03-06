@@ -20,6 +20,7 @@ class DeviceCreate(BaseModel):
     description: Optional[str] = ""
     room: Optional[str] = ""
     manufacturer: Optional[str] = ""
+    actuator_type: Optional[str] = ""  # "light", "switch", "cover", or ""
 
 
 class DeviceUpdate(BaseModel):
@@ -32,6 +33,7 @@ class DeviceUpdate(BaseModel):
     description: Optional[str] = None
     room: Optional[str] = None
     manufacturer: Optional[str] = None
+    actuator_type: Optional[str] = None
 
 
 @router.get("")
@@ -91,7 +93,8 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
         sender_id=device.sender_id or "",
         description=device.description or "",
         room=device.room or "",
-        manufacturer=device.manufacturer or ""
+        manufacturer=device.manufacturer or "",
+        actuator_type=device.actuator_type or ""
     )
 
     success = await device_manager.add_device(new_device)
@@ -110,7 +113,8 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
                 device_address=new_device.address,
                 device_sender=new_device.sender_id,
                 mqtt_prefix=mqtt_handler.prefix,
-                device_info=device_info
+                device_info=device_info,
+                actuator_type=new_device.actuator_type
             )
             for item in configs:
                 await mqtt_handler.publish_discovery_config(
@@ -155,6 +159,8 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
         update_data["room"] = update.room
     if update.manufacturer is not None:
         update_data["manufacturer"] = update.manufacturer
+    if update.actuator_type is not None:
+        update_data["actuator_type"] = update.actuator_type
 
     success = await device_manager.update_device(name, update_data)
     if not success:
@@ -173,7 +179,8 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
                 device_address=updated_device.address,
                 device_sender=updated_device.sender_id,
                 mqtt_prefix=mqtt_handler.prefix,
-                device_info=device_info
+                device_info=device_info,
+                actuator_type=updated_device.actuator_type
             )
             for item in configs:
                 await mqtt_handler.publish_discovery_config(
@@ -212,7 +219,8 @@ async def delete_device(name: str, request: Request) -> Dict[str, str]:
                 device_address=device.address,
                 device_sender=device.sender_id,
                 mqtt_prefix=mqtt_handler.prefix,
-                device_info=device_info
+                device_info=device_info,
+                actuator_type=device.actuator_type
             )
             # Remove each discovery config (publish empty payload)
             for item in configs:
