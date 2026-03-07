@@ -32,6 +32,8 @@ logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+# Apply log level to all loggers (including uvicorn, paho.mqtt, etc.)
+logging.getLogger().setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
 logger = logging.getLogger(__name__)
 
 # Configuration
@@ -39,7 +41,7 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/data")
 ENOCEAN_PORT = os.getenv("ENOCEAN_PORT", "")
 CACHE_DEVICE_STATES = os.getenv("CACHE_DEVICE_STATES", "true").lower() == "true"
-VERSION = "2.2.0"
+VERSION = "1.0.0"
 
 # Global instances
 mqtt_handler: MQTTHandler = None
@@ -350,7 +352,7 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
 
 # Create FastAPI app
 app = FastAPI(
-    title="EnOcean MQTT",
+    title="EnOcean MQTT UI",
     description="All-in-One EnOcean to MQTT bridge with web UI",
     version=VERSION,
     lifespan=lifespan
@@ -393,4 +395,9 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8099)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8099,
+        log_level=LOG_LEVEL.lower()
+    )

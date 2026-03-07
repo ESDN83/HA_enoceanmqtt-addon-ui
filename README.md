@@ -1,4 +1,4 @@
-# EnOcean MQTT - All-in-One Home Assistant Add-on
+# EnOcean MQTT UI - All-in-One Home Assistant Add-on
 
 [\![Add to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/ESDN83/HA_enoceanmqtt-addon-ui)
 
@@ -17,8 +17,10 @@ Modern web-based EnOcean to MQTT bridge for Home Assistant with visual device co
 - **Live Telegram Monitor** - Debug incoming EnOcean telegrams in real-time
 - **Unknown Device Detection** - Automatically detect and list unconfigured devices
 - **Configuration Export/Import** - Backup and restore your configuration as ZIP files
+- **Local Backup System** - Create, list, restore, and delete local backups with confirmation dialogs
 - **Device State Caching** - Persist sensor states across restarts (essential for infrequent senders)
 - **Actuator Control** - Control Eltako dimmers, switches, and blinds via F6 rocker telegrams with teach-in support
+- **Dark Mode** - Automatically adapts to Home Assistant theme (dark/light) and OS preference
 
 ## Installation
 
@@ -29,7 +31,7 @@ Modern web-based EnOcean to MQTT bridge for Home Assistant with visual device co
    https://github.com/ESDN83/HA_enoceanmqtt-addon-ui
    ```
 
-2. Install the "EnOcean MQTT" add-on
+2. Install the "EnOcean MQTT UI" add-on
 
 3. Configure the add-on:
    - **Serial Port**: Select your EnOcean USB transceiver (e.g., `/dev/ttyUSB0` or TCP: `tcp:192.168.1.100:9637`)
@@ -222,17 +224,21 @@ A rocker switch sends button press events as enum values.
 
 ### Backup & Restore
 
-**Export:**
+**Export (download):**
 1. Go to "Settings" in the web UI
-2. Click "Export Configuration" - downloads a ZIP file containing:
-   - `devices.json` (all configured devices)
-   - `mapping.yaml` (custom entity mappings)
-   - `custom_eep/*.yaml` (custom EEP profiles)
+2. Click "Export All" — downloads a ZIP file containing devices, mappings, and custom profiles
 
-**Import / Restore:**
-1. Go to "Settings" > "Import Configuration"
-2. Upload the ZIP file
-3. Devices and profiles are restored automatically
+**Local Backup:**
+1. Go to "Settings" > "Local Backups"
+2. Click "Create Backup" — saves a ZIP to the addon's data directory
+3. The backup list shows all local backups with date, size, and device count
+4. Use the download, restore, or delete buttons per backup
+5. Restore and delete actions require confirmation via popup dialog
+
+**Import:**
+1. Go to "Settings" > click "Import"
+2. Upload a ZIP file (from Export or Local Backup download)
+3. Devices, mappings, and custom profiles are restored automatically
 
 ### Controlling Actuators (Eltako Dimmers/Switches/Blinds)
 
@@ -286,7 +292,8 @@ Access the web UI via Home Assistant sidebar (EnOcean icon).
 - Profile suggestion based on detected EEP
 
 ### Settings
-- Export/Import configuration (ZIP)
+- Export/Import configuration (ZIP download/upload)
+- Local Backup: create, list, restore, delete (with confirmation popups)
 - Restart services
 
 ## API Reference
@@ -310,8 +317,13 @@ The add-on provides a REST API for automation:
 | `/api/gateway/test-actuator` | POST | Test actuator ON/OFF/Open/Close |
 | `/api/gateway/info` | GET | Gateway info (base ID, port) |
 | `/api/system/status` | GET | System status |
-| `/api/system/export` | POST | Export config (ZIP) |
-| `/api/system/import` | POST | Import config |
+| `/api/system/export` | POST | Export config (ZIP download) |
+| `/api/system/import` | POST | Import config (ZIP upload) |
+| `/api/system/backup` | POST | Create local backup |
+| `/api/system/backups` | GET | List local backups |
+| `/api/system/backup/restore/{filename}` | POST | Restore from backup |
+| `/api/system/backup/{filename}` | DELETE | Delete backup |
+| `/api/system/backup/download/{filename}` | GET | Download backup |
 | `/api/system/restart` | POST | Restart services |
 
 ## Architecture
@@ -388,7 +400,7 @@ docker build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.1
 ## Support
 
 - Report issues on [GitHub Issues](https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/issues)
-- Check logs in Home Assistant: Settings > Add-ons > EnOcean MQTT > Log
+- Check logs in Home Assistant: Settings > Add-ons > EnOcean MQTT UI > Log
 
 ## Credits
 

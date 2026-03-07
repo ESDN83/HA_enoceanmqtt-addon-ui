@@ -1,6 +1,6 @@
 ---
-name: "EnOcean MQTT"
-version: "2.2.0"
+name: "EnOcean MQTT UI"
+version: "1.0.0"
 slug: "enocean-mqtt"
 description: "All-in-One EnOcean to MQTT bridge with web UI. Configure devices visually, create custom EEP profiles, and manage MQTT mappings - no config files needed!"
 url: "https://github.com/ESDN83/HA_enoceanmqtt-addon-ui"
