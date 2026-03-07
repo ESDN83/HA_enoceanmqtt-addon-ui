@@ -276,10 +276,11 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             await serial_handler.send_a5_dimmer_command(sender_id, "OFF")
             logger.info(f"Sent OFF (A5-38-08) to {device_name}")
         else:
-            # Brightness value from HA (0-100) — convert to 0-255 for dimmer
+            # Brightness value from HA (0-100) — send as 0-100 directly
+            # Eltako dimmers use 0-100 range (not standard 0-255)
             try:
                 val = int(command)
-                dim = max(0, min(255, int(val * 255 / 100))) if 0 <= val <= 100 else max(0, min(255, val))
+                dim = max(0, min(100, val))
                 if dim == 0:
                     await serial_handler.send_a5_dimmer_command(sender_id, "OFF")
                     logger.info(f"Sent OFF (A5-38-08 brightness=0) to {device_name}")
