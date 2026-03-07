@@ -3,29 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EnOcean MQTT</title>
+    <title>EnOcean MQTT UI</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <style>
+        /* ===== Light Theme (default) ===== */
         :root {
             --primary-color: #0d6efd;
             --success-color: #198754;
             --warning-color: #ffc107;
             --danger-color: #dc3545;
+            --bg-color: #f8f9fa;
+            --bg-card: #fff;
+            --bg-sidebar: #fff;
+            --bg-navbar: #0d6efd;
+            --text-color: #212529;
+            --text-muted: #6c757d;
+            --border-color: rgba(0, 0, 0, 0.125);
+            --hover-bg: #e9ecef;
+            --code-bg: #f8f9fa;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --card-header-bg: rgba(0, 0, 0, 0.03);
+            --table-stripe-bg: rgba(0, 0, 0, 0.02);
+            --input-bg: #fff;
+            --input-border: #ced4da;
         }
+
+        /* ===== Dark Theme ===== */
+        [data-theme="dark"] {
+            --primary-color: #4da3ff;
+            --success-color: #2ecc71;
+            --warning-color: #f1c40f;
+            --danger-color: #e74c3c;
+            --bg-color: #1a1a2e;
+            --bg-card: #16213e;
+            --bg-sidebar: #0f3460;
+            --bg-navbar: #0f3460;
+            --text-color: #e0e0e0;
+            --text-muted: #8899aa;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --hover-bg: rgba(255, 255, 255, 0.08);
+            --code-bg: #1a1a2e;
+            --shadow-color: rgba(0, 0, 0, 0.3);
+            --card-header-bg: rgba(255, 255, 255, 0.05);
+            --table-stripe-bg: rgba(255, 255, 255, 0.03);
+            --input-bg: #1a1a2e;
+            --input-border: rgba(255, 255, 255, 0.2);
+        }
+
         body {
-            background-color: #f8f9fa;
-            padding-top: 56px; /* Height of navbar */
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding-top: 56px;
         }
         .sidebar {
             position: fixed;
-            top: 56px; /* Below navbar */
+            top: 56px;
             bottom: 0;
             left: 0;
             z-index: 100;
             width: 240px;
-            box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
-            background-color: #fff;
+            box-shadow: inset -1px 0 0 var(--border-color);
+            background-color: var(--bg-sidebar);
         }
         .sidebar-sticky {
             position: relative;
@@ -36,11 +75,11 @@
             overflow-y: auto;
         }
         .nav-link {
-            color: #333;
+            color: var(--text-color);
             padding: 0.75rem 1rem;
         }
         .nav-link:hover, .nav-link.active {
-            background-color: #e9ecef;
+            background-color: var(--hover-bg);
             color: var(--primary-color);
         }
         .nav-link i {
@@ -50,6 +89,7 @@
             margin-left: 240px;
             padding: 20px;
         }
+
         /* Mobile responsive */
         @media (max-width: 767.98px) {
             .sidebar {
@@ -80,6 +120,119 @@
                 display: block;
             }
         }
+
+        /* ===== Dark theme overrides for Bootstrap components ===== */
+        [data-theme="dark"] .navbar {
+            background-color: var(--bg-navbar) !important;
+        }
+        [data-theme="dark"] .card {
+            background-color: var(--bg-card);
+            border-color: var(--border-color);
+            color: var(--text-color);
+        }
+        [data-theme="dark"] .card-header {
+            background-color: var(--card-header-bg);
+            border-color: var(--border-color);
+            color: var(--text-color);
+        }
+        [data-theme="dark"] .table {
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+        [data-theme="dark"] .table-hover tbody tr:hover {
+            background-color: var(--hover-bg);
+            color: var(--text-color);
+        }
+        [data-theme="dark"] .form-control,
+        [data-theme="dark"] .form-select {
+            background-color: var(--input-bg);
+            border-color: var(--input-border);
+            color: var(--text-color);
+        }
+        [data-theme="dark"] .form-control:focus,
+        [data-theme="dark"] .form-select:focus {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border-color: var(--primary-color);
+        }
+        [data-theme="dark"] .form-control::placeholder {
+            color: var(--text-muted);
+        }
+        [data-theme="dark"] .modal-content {
+            background-color: var(--bg-card);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+        [data-theme="dark"] .modal-header,
+        [data-theme="dark"] .modal-footer {
+            border-color: var(--border-color);
+        }
+        [data-theme="dark"] .btn-close {
+            filter: invert(1) grayscale(100%) brightness(200%);
+        }
+        [data-theme="dark"] .list-group-item {
+            background-color: var(--bg-card);
+            border-color: var(--border-color);
+            color: var(--text-color);
+        }
+        [data-theme="dark"] .alert-info {
+            background-color: rgba(77, 163, 255, 0.15);
+            border-color: rgba(77, 163, 255, 0.3);
+            color: #8ecaff;
+        }
+        [data-theme="dark"] .alert-warning {
+            background-color: rgba(241, 196, 15, 0.15);
+            border-color: rgba(241, 196, 15, 0.3);
+            color: #f5d76e;
+        }
+        [data-theme="dark"] .text-muted {
+            color: var(--text-muted) !important;
+        }
+        [data-theme="dark"] code {
+            color: #e6a07c;
+            background-color: var(--code-bg);
+        }
+        [data-theme="dark"] .border-bottom {
+            border-color: var(--border-color) !important;
+        }
+        [data-theme="dark"] .btn-outline-primary {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        [data-theme="dark"] .btn-outline-secondary {
+            color: var(--text-muted);
+            border-color: var(--text-muted);
+        }
+        [data-theme="dark"] .btn-outline-danger {
+            color: var(--danger-color);
+            border-color: var(--danger-color);
+        }
+        [data-theme="dark"] .btn-outline-warning {
+            color: var(--warning-color);
+            border-color: var(--warning-color);
+        }
+        [data-theme="dark"] h1, [data-theme="dark"] h2,
+        [data-theme="dark"] h3, [data-theme="dark"] h4,
+        [data-theme="dark"] h5, [data-theme="dark"] h6 {
+            color: var(--text-color);
+        }
+        [data-theme="dark"] .accordion-button {
+            background-color: var(--bg-card);
+            color: var(--text-color);
+        }
+        [data-theme="dark"] .accordion-button:not(.collapsed) {
+            background-color: var(--hover-bg);
+            color: var(--primary-color);
+        }
+        [data-theme="dark"] .accordion-body {
+            background-color: var(--bg-card);
+        }
+        [data-theme="dark"] textarea.form-control {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+        }
+
+        /* ===== Component styles ===== */
         .status-card {
             border-left: 4px solid var(--primary-color);
         }
@@ -94,7 +247,7 @@
         }
         .device-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px var(--shadow-color);
         }
         .eep-tree {
             max-height: 500px;
@@ -106,10 +259,13 @@
             border-radius: 4px;
         }
         .eep-item:hover {
-            background-color: #e9ecef;
+            background-color: var(--hover-bg);
         }
         .eep-item.custom {
             background-color: #fff3cd;
+        }
+        [data-theme="dark"] .eep-item.custom {
+            background-color: rgba(241, 196, 15, 0.2);
         }
         .teach-in-indicator {
             animation: pulse 2s infinite;
@@ -135,14 +291,14 @@
 </head>
 <body>
     <!-- Top Navbar -->
-    <nav class="navbar navbar-dark bg-primary fixed-top">
+    <nav class="navbar navbar-dark fixed-top" style="background-color: var(--bg-navbar);">
         <div class="container-fluid">
             <!-- Mobile menu toggle button -->
             <button class="navbar-toggler d-md-none me-2" type="button" onclick="toggleSidebar()">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <a class="navbar-brand" href="#">
-                <i class="bi bi-broadcast-pin"></i> EnOcean MQTT
+                <i class="bi bi-broadcast-pin"></i> EnOcean MQTT UI
             </a>
             <div class="d-flex align-items-center">
                 <span id="mqtt-status" class="badge bg-danger me-2">
@@ -318,15 +474,9 @@
         <div id="page-profiles" class="page-content" style="display: none;">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2>EEP Profiles</h2>
-                <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#customProfileModal">
+                <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#customProfileModal">
                     <i class="bi bi-plus-circle"></i> Create Custom Profile
                 </button>
-            </div>
-
-            <div class="alert alert-info mb-3">
-                <i class="bi bi-info-circle"></i>
-                <strong>56 standard profiles</strong> from the EnOcean protocol are included.
-                Need a missing profile? Create a <strong>Custom Profile</strong> for devices like Kessel Staufix or manufacturer-specific sensors.
             </div>
 
             <div class="mb-3">
@@ -498,7 +648,11 @@
                             <div class="alert alert-info teach-in-indicator">
                                 <i class="bi bi-broadcast"></i>
                                 Waiting for device... Press the teach-in button now.
+                                <span id="teach-in-countdown" class="fw-bold ms-2"></span>
                             </div>
+                            <button class="btn btn-outline-secondary btn-sm mt-2" onclick="cancelTeachIn()">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </button>
                         </div>
                     </div>
 
@@ -615,11 +769,45 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Local Backups -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-archive"></i> Local Backups</span>
+                    <button class="btn btn-sm btn-success" onclick="createBackup()">
+                        <i class="bi bi-plus-circle"></i> Create Backup
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="backup-list">
+                        <p class="text-muted">Loading backups...</p>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
 
     <!-- Toast Container -->
     <div class="toast-container" id="toast-container"></div>
+
+    <!-- Confirmation Modal (reusable) -->
+    <div class="modal fade" id="confirmModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmModalTitle">Confirm</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="confirmModalBody">
+                    Are you sure?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn" id="confirmModalAction" onclick="executeConfirmedAction()">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Custom Profile Modal -->
     <div class="modal fade" id="customProfileModal" tabindex="-1">
@@ -725,8 +913,54 @@
             return `${wsProtocol}//${window.location.host}${basePath}${path}`;
         }
 
+        // ===== Theme Detection =====
+
+        function detectAndApplyTheme() {
+            let dark = false;
+
+            // Method 1: Check HA Ingress — HA sets body background via inline style
+            try {
+                const parentDoc = window.parent.document;
+                const haTheme = parentDoc.querySelector('html')?.getAttribute('data-theme') ||
+                                parentDoc.querySelector('home-assistant')?.getAttribute('hass-theme') || '';
+                if (haTheme.toLowerCase().includes('dark')) {
+                    dark = true;
+                }
+                // Also check computed style of HA body background
+                if (!dark) {
+                    const bgColor = getComputedStyle(parentDoc.body).backgroundColor;
+                    // Parse rgb(r,g,b) — if average < 128 it's dark
+                    const m = bgColor.match(/\d+/g);
+                    if (m && m.length >= 3) {
+                        const avg = (parseInt(m[0]) + parseInt(m[1]) + parseInt(m[2])) / 3;
+                        if (avg < 128) dark = true;
+                    }
+                }
+            } catch (e) {
+                // Cross-origin — not in HA Ingress, fall through
+            }
+
+            // Method 2: prefers-color-scheme media query (standalone browser)
+            if (!dark && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                dark = true;
+            }
+
+            document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        }
+
+        // Listen for OS theme changes (standalone mode)
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', detectAndApplyTheme);
+        }
+
+        // Apply theme immediately (before DOMContentLoaded to prevent flash)
+        detectAndApplyTheme();
+
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
+            // Re-check theme after full load (HA Ingress may set theme late)
+            setTimeout(detectAndApplyTheme, 500);
+
             // Navigation
             document.querySelectorAll('[data-page]').forEach(link => {
                 link.addEventListener('click', function(e) {
@@ -793,6 +1027,7 @@
             // Load page-specific data
             if (page === 'devices') loadDevices();
             if (page === 'profiles') loadProfiles();
+            if (page === 'settings') loadBackups();
         }
 
         async function loadStatus() {
@@ -1133,8 +1368,9 @@
 
         // ===== Actuator Teach-In Functions =====
         function showActuatorTeachIn() {
+            // Cancel any running automatic teach-in first
+            cancelTeachIn();
             document.getElementById('actuator-teach-in-panel').style.display = 'block';
-            document.getElementById('teach-in-status').style.display = 'none';
             readBaseId();
         }
 
@@ -1289,9 +1525,27 @@
             setTimeout(() => { resultSpan.innerHTML = ''; }, 5000);
         }
 
+        let teachInTimer = null;
+
         function startTeachIn() {
+            // Auto-close actuator panel if open
+            document.getElementById('actuator-teach-in-panel').style.display = 'none';
+
             const status = document.getElementById('teach-in-status');
             status.style.display = 'block';
+
+            // Start 60-second countdown
+            let remaining = 60;
+            const countdownEl = document.getElementById('teach-in-countdown');
+            countdownEl.textContent = `(${remaining}s)`;
+            teachInTimer = setInterval(() => {
+                remaining--;
+                countdownEl.textContent = `(${remaining}s)`;
+                if (remaining <= 0) {
+                    cancelTeachIn();
+                    showToast('Teach-in timed out — no device detected', 'warning');
+                }
+            }, 1000);
 
             // Connect to WebSocket
             teachInSocket = new WebSocket(getWsUrl('/api/gateway/teach-in'));
@@ -1305,7 +1559,7 @@
                     document.querySelector('[name="func"]').value = data.data.func;
                     document.querySelector('[name="type"]').value = data.data.type;
 
-                    status.style.display = 'none';
+                    cancelTeachIn();
                     wizardNext();
 
                     showToast('Device detected!', 'success');
@@ -1313,8 +1567,23 @@
             };
 
             teachInSocket.onerror = function() {
-                status.innerHTML = '<div class="alert alert-danger">Connection failed. EnOcean gateway may not be connected.</div>';
+                cancelTeachIn();
+                status.style.display = 'block';
+                status.querySelector('.alert').className = 'alert alert-danger';
+                status.querySelector('.alert').innerHTML = '<i class="bi bi-x-circle"></i> Connection failed. EnOcean gateway may not be connected.';
             };
+        }
+
+        function cancelTeachIn() {
+            if (teachInTimer) {
+                clearInterval(teachInTimer);
+                teachInTimer = null;
+            }
+            if (teachInSocket) {
+                teachInSocket.close();
+                teachInSocket = null;
+            }
+            document.getElementById('teach-in-status').style.display = 'none';
         }
 
         function showManualEntry() {
@@ -1565,7 +1834,7 @@
                                                     <td><small>${new Date(t.timestamp).toLocaleTimeString()}</small></td>
                                                     <td><span class="badge bg-secondary">${t.rorg}</span></td>
                                                     <td><code>${t.data || '-'}</code></td>
-                                                    <td>${t.dbm} dBm</td>
+                                                    <td>${t.dbm ? t.dbm + ' dBm' : '<span class="text-muted">N/A</span>'}</td>
                                                     <td>${t.is_teach_in ? '<span class="badge bg-warning">Yes</span>' : '-'}</td>
                                                 </tr>
                                             `).join('')}
@@ -1642,6 +1911,168 @@
             } catch (error) {
                 showToast('Restart failed', 'danger');
             }
+        }
+
+        // ===== Confirmation Modal =====
+
+        let _pendingConfirmAction = null;
+
+        function showConfirmDialog(title, body, btnLabel, btnClass, action) {
+            document.getElementById('confirmModalTitle').textContent = title;
+            document.getElementById('confirmModalBody').innerHTML = body;
+            const btn = document.getElementById('confirmModalAction');
+            btn.textContent = btnLabel;
+            btn.className = 'btn ' + btnClass;
+            _pendingConfirmAction = action;
+            new bootstrap.Modal(document.getElementById('confirmModal')).show();
+        }
+
+        async function executeConfirmedAction() {
+            bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
+            if (_pendingConfirmAction) {
+                await _pendingConfirmAction();
+                _pendingConfirmAction = null;
+            }
+        }
+
+        // ===== Backup Management =====
+
+        async function loadBackups() {
+            try {
+                const response = await fetch(getApiUrl('/api/system/backups'));
+                const backups = await response.json();
+                renderBackupList(backups);
+            } catch (error) {
+                document.getElementById('backup-list').innerHTML =
+                    '<p class="text-danger">Failed to load backups</p>';
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function renderBackupList(backups) {
+            const container = document.getElementById('backup-list');
+
+            if (backups.length === 0) {
+                container.innerHTML = '<p class="text-muted">No backups yet. Click "Create Backup" to save your current configuration.</p>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Filename</th>
+                                <th>Created</th>
+                                <th>Size</th>
+                                <th>Devices</th>
+                                <th>Version</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${backups.map(b => `
+                                <tr>
+                                    <td><code class="small">${b.filename}</code></td>
+                                    <td><small>${new Date(b.created_at).toLocaleString()}</small></td>
+                                    <td><small>${formatFileSize(b.size)}</small></td>
+                                    <td><small>${b.devices}</small></td>
+                                    <td><small>${b.version}</small></td>
+                                    <td class="text-end text-nowrap">
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="downloadBackup('${b.filename}')" title="Download">
+                                            <i class="bi bi-download"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning me-1" onclick="confirmRestoreBackup('${b.filename}')" title="Restore">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteBackup('${b.filename}')" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        async function createBackup() {
+            try {
+                showToast('Creating backup...', 'info');
+                const response = await fetch(getApiUrl('/api/system/backup'), {method: 'POST'});
+                if (!response.ok) throw new Error('Backup failed');
+                const result = await response.json();
+                showToast(`Backup created: ${result.filename}`, 'success');
+                loadBackups();
+            } catch (error) {
+                showToast('Backup failed: ' + error.message, 'danger');
+            }
+        }
+
+        function downloadBackup(filename) {
+            const a = document.createElement('a');
+            a.href = getApiUrl(`/api/system/backup/download/${filename}`);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function confirmRestoreBackup(filename) {
+            showConfirmDialog(
+                'Restore Backup',
+                `<p>Are you sure you want to restore from:</p>
+                 <p><strong><code>${filename}</code></strong></p>
+                 <p class="text-warning mb-0"><i class="bi bi-exclamation-triangle"></i>
+                 This will overwrite your current devices, mappings, and custom profiles.</p>`,
+                'Restore',
+                'btn-warning',
+                async () => {
+                    try {
+                        showToast('Restoring backup...', 'info');
+                        const response = await fetch(getApiUrl(`/api/system/backup/restore/${filename}`), {method: 'POST'});
+                        if (!response.ok) {
+                            const err = await response.json().catch(() => null);
+                            throw new Error(err?.detail || 'Restore failed');
+                        }
+                        const result = await response.json();
+                        showToast(`Backup restored: ${result.details.devices ? 'devices, ' : ''}${result.details.mappings ? 'mappings, ' : ''}${result.details.custom_profiles} custom profiles`, 'success');
+                        loadStatus();
+                        loadDevices();
+                        loadProfiles();
+                    } catch (error) {
+                        showToast('Restore failed: ' + error.message, 'danger');
+                    }
+                }
+            );
+        }
+
+        function confirmDeleteBackup(filename) {
+            showConfirmDialog(
+                'Delete Backup',
+                `<p>Are you sure you want to delete:</p>
+                 <p><strong><code>${filename}</code></strong></p>
+                 <p class="text-danger mb-0"><i class="bi bi-exclamation-triangle"></i>
+                 This cannot be undone.</p>`,
+                'Delete',
+                'btn-danger',
+                async () => {
+                    try {
+                        const response = await fetch(getApiUrl(`/api/system/backup/${filename}`), {method: 'DELETE'});
+                        if (!response.ok) throw new Error('Delete failed');
+                        showToast('Backup deleted', 'success');
+                        loadBackups();
+                    } catch (error) {
+                        showToast('Delete failed: ' + error.message, 'danger');
+                    }
+                }
+            );
         }
 
         // ===== HA Mapping Builder =====
@@ -1880,46 +2311,47 @@
         }
 
         function filterDevices() {
-            // TODO: Implement client-side filtering
+            const query = document.getElementById('device-search').value.toLowerCase();
+            const cards = document.querySelectorAll('#device-list > .col-md-4');
+
+            cards.forEach(card => {
+                const text = card.textContent.toLowerCase();
+                card.style.display = text.includes(query) ? '' : 'none';
+            });
         }
 
         function filterProfiles() {
             const query = document.getElementById('profile-search').value.toLowerCase();
             const container = document.getElementById('eep-tree');
-            const items = container.querySelectorAll('.eep-item');
-            const rorgDivs = container.querySelectorAll(':scope > div');
+            const allItems = container.querySelectorAll('.eep-item');
+            const topDivs = container.querySelectorAll(':scope > div');
 
             if (!query) {
-                // Show all items
-                items.forEach(item => item.style.display = '');
-                rorgDivs.forEach(div => div.style.display = '');
+                // Reset: show all top-level sections, hide items (collapse tree)
+                allItems.forEach(item => item.style.display = '');
+                topDivs.forEach(div => div.style.display = '');
+                // Re-collapse standard tree nodes (leave custom section expanded)
+                container.querySelectorAll('[id^="rorg-"], [id^="func-"]').forEach(el => {
+                    el.style.display = 'none';
+                });
                 return;
             }
 
-            // Hide/show based on search
-            rorgDivs.forEach(rorgDiv => {
-                let rorgHasVisible = false;
-                const funcDivs = rorgDiv.querySelectorAll(':scope > .ms-3');
+            // Search: iterate all eep-items, show matches and expand parents
+            allItems.forEach(item => item.style.display = 'none');
+            topDivs.forEach(div => div.style.display = 'none');
 
-                funcDivs.forEach(funcDiv => {
-                    let funcHasVisible = false;
-                    const typeItems = funcDiv.querySelectorAll('.eep-item');
-
-                    typeItems.forEach(item => {
-                        const text = item.textContent.toLowerCase();
-                        if (text.includes(query)) {
-                            item.style.display = '';
-                            funcHasVisible = true;
-                            rorgHasVisible = true;
-                        } else {
-                            item.style.display = 'none';
-                        }
-                    });
-
-                    funcDiv.style.display = funcHasVisible ? '' : 'none';
-                });
-
-                rorgDiv.style.display = rorgHasVisible ? '' : 'none';
+            allItems.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                if (text.includes(query)) {
+                    item.style.display = '';
+                    // Expand all parent nodes up to the container
+                    let parent = item.parentElement;
+                    while (parent && parent !== container) {
+                        parent.style.display = '';
+                        parent = parent.parentElement;
+                    }
+                }
             });
         }
 
@@ -1944,7 +2376,7 @@
                         </div>
                         <div>
                             <span class="badge bg-secondary">${t.rorg}</span>
-                            <small class="text-muted">${t.dbm} dBm</small>
+                            <small class="text-muted">${t.dbm ? t.dbm + ' dBm' : 'N/A'}</small>
                         </div>
                     </div>
                 `).join('');
@@ -1994,7 +2426,7 @@
                                     <tr>
                                         <td><code>${d.sender_id}</code></td>
                                         <td><span class="badge bg-primary">${d.rorg}</span></td>
-                                        <td>${d.dbm} dBm</td>
+                                        <td>${d.dbm ? d.dbm + ' dBm' : '<span class="text-muted">N/A</span>'}</td>
                                         <td>${d.count}</td>
                                         <td><small>${new Date(d.last_seen).toLocaleTimeString()}</small></td>
                                         <td>

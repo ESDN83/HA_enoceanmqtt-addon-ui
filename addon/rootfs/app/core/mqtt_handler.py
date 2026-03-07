@@ -182,7 +182,7 @@ class MQTTHandler:
             topic = message.topic
             payload = message.payload.decode('utf-8')
 
-            logger.info(f"MQTT RX [{topic}] = {payload}")
+            logger.debug(f"MQTT RX [{topic}] = {payload}")
 
             # Handle HA birth message - re-publish all discoveries
             if topic == f"{self.discovery_prefix}/status" and payload == "online":

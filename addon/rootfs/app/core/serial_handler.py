@@ -271,7 +271,7 @@ class SerialHandler:
                     continue
 
                 packet_count += 1
-                logger.info(f"ESP3 packet #{packet_count}: type={packet_type:#04x} data_len={data_len} opt_len={optional_len}")
+                logger.debug(f"ESP3 packet #{packet_count}: type={packet_type:#04x} data_len={data_len} opt_len={optional_len}")
 
                 # Process by packet type
                 if packet_type == PACKET_TYPE_RADIO:
@@ -321,9 +321,11 @@ class SerialHandler:
         payload = data[1:-5]
 
         # Get signal strength from optional data
+        # ESP3: optional[4] = dBm value. 0xFF means "not available" (USB300 always sends 0xFF)
         dbm = 0
         if len(optional) >= 5:
-            dbm = -optional[4]
+            raw_dbm = optional[4]
+            dbm = 0 if raw_dbm == 0xFF else -raw_dbm
 
         telegram = RadioTelegram(
             rorg=rorg,
@@ -333,7 +335,7 @@ class SerialHandler:
             dbm=dbm
         )
 
-        logger.info(f"RX [{telegram.sender_hex}] RORG={telegram.rorg_hex} Data={telegram.data.hex().upper()} dBm={telegram.dbm}")
+        logger.debug(f"RX [{telegram.sender_hex}] RORG={telegram.rorg_hex} Data={telegram.data.hex().upper()} dBm={telegram.dbm}")
 
         # Check if this is a teach-in telegram
         is_teach_in = self._is_teach_in(telegram)
@@ -449,12 +451,12 @@ class SerialHandler:
             # EDIM is raw 0-255, convert to 0-100 for HA (brightness_scale: 100)
             decoded["brightness"] = round(float(edim) * 100 / 255) if edim else 0
 
-        logger.info(f"RX [{telegram.sender_hex}] Device={device.name} EEP={device.eep_id} Decoded={decoded}")
+        logger.debug(f"RX [{telegram.sender_hex}] Device={device.name} EEP={device.eep_id} Decoded={decoded}")
 
         # Publish to MQTT
         if self.mqtt_handler:
             await self.mqtt_handler.publish_state(device.name, decoded)
-            logger.info(f"TX MQTT [{device.name}] Published state to {self.mqtt_handler.prefix}/{device.name}/state")
+            logger.debug(f"TX MQTT [{device.name}] Published state to {self.mqtt_handler.prefix}/{device.name}/state")
 
         return device.name, device.eep_id, decoded
 
@@ -774,7 +776,7 @@ class SerialHandler:
             elif self._socket:
                 self._socket.send(packet)
 
-            logger.info(f"TX EnOcean: RORG={rorg:02X}, Data={data.hex()}, Dest={destination:08X}")
+            logger.debug(f"TX EnOcean: RORG={rorg:02X}, Data={data.hex()}, Dest={destination:08X}")
             return True
 
         except Exception as e:
