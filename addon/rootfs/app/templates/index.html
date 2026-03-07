@@ -121,59 +121,17 @@
             }
         }
 
-        /* ===== Dark theme overrides for Bootstrap components ===== */
+        /* ===== Dark theme overrides (Bootstrap data-bs-theme handles basics) ===== */
         [data-theme="dark"] .navbar {
             background-color: var(--bg-navbar) !important;
         }
         [data-theme="dark"] .card {
             background-color: var(--bg-card);
             border-color: var(--border-color);
-            color: var(--text-color);
         }
         [data-theme="dark"] .card-header {
             background-color: var(--card-header-bg);
             border-color: var(--border-color);
-            color: var(--text-color);
-        }
-        [data-theme="dark"] .table {
-            color: var(--text-color);
-            border-color: var(--border-color);
-        }
-        [data-theme="dark"] .table-hover tbody tr:hover {
-            background-color: var(--hover-bg);
-            color: var(--text-color);
-        }
-        [data-theme="dark"] .form-control,
-        [data-theme="dark"] .form-select {
-            background-color: var(--input-bg);
-            border-color: var(--input-border);
-            color: var(--text-color);
-        }
-        [data-theme="dark"] .form-control:focus,
-        [data-theme="dark"] .form-select:focus {
-            background-color: var(--input-bg);
-            color: var(--text-color);
-            border-color: var(--primary-color);
-        }
-        [data-theme="dark"] .form-control::placeholder {
-            color: var(--text-muted);
-        }
-        [data-theme="dark"] .modal-content {
-            background-color: var(--bg-card);
-            color: var(--text-color);
-            border-color: var(--border-color);
-        }
-        [data-theme="dark"] .modal-header,
-        [data-theme="dark"] .modal-footer {
-            border-color: var(--border-color);
-        }
-        [data-theme="dark"] .btn-close {
-            filter: invert(1) grayscale(100%) brightness(200%);
-        }
-        [data-theme="dark"] .list-group-item {
-            background-color: var(--bg-card);
-            border-color: var(--border-color);
-            color: var(--text-color);
         }
         [data-theme="dark"] .alert-info {
             background-color: rgba(3, 169, 244, 0.15);
@@ -185,51 +143,12 @@
             border-color: rgba(255, 152, 0, 0.3);
             color: #ffb74d;
         }
-        [data-theme="dark"] .text-muted {
-            color: var(--text-muted) !important;
-        }
         [data-theme="dark"] code {
             color: #e6a07c;
             background-color: var(--code-bg);
         }
         [data-theme="dark"] .border-bottom {
             border-color: var(--border-color) !important;
-        }
-        [data-theme="dark"] .btn-outline-primary {
-            color: var(--primary-color);
-            border-color: var(--primary-color);
-        }
-        [data-theme="dark"] .btn-outline-secondary {
-            color: var(--text-muted);
-            border-color: var(--text-muted);
-        }
-        [data-theme="dark"] .btn-outline-danger {
-            color: var(--danger-color);
-            border-color: var(--danger-color);
-        }
-        [data-theme="dark"] .btn-outline-warning {
-            color: var(--warning-color);
-            border-color: var(--warning-color);
-        }
-        [data-theme="dark"] h1, [data-theme="dark"] h2,
-        [data-theme="dark"] h3, [data-theme="dark"] h4,
-        [data-theme="dark"] h5, [data-theme="dark"] h6 {
-            color: var(--text-color);
-        }
-        [data-theme="dark"] .accordion-button {
-            background-color: var(--bg-card);
-            color: var(--text-color);
-        }
-        [data-theme="dark"] .accordion-button:not(.collapsed) {
-            background-color: var(--hover-bg);
-            color: var(--primary-color);
-        }
-        [data-theme="dark"] .accordion-body {
-            background-color: var(--bg-card);
-        }
-        [data-theme="dark"] textarea.form-control {
-            background-color: var(--input-bg);
-            color: var(--text-color);
         }
 
         /* ===== Component styles ===== */
@@ -948,7 +867,23 @@
                 dark = true;
             }
 
-            document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+            // Set both our theme and Bootstrap's native dark mode
+            const theme = dark ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+            document.documentElement.setAttribute('data-bs-theme', theme);
+
+            // Clear any previously applied HA inline vars when switching to light
+            if (!dark) {
+                clearHAThemeVars();
+            }
+        }
+
+        const HA_THEME_VARS = ['--primary-color', '--bg-color', '--bg-card', '--bg-sidebar',
+            '--bg-navbar', '--text-color', '--text-muted', '--border-color'];
+
+        function clearHAThemeVars() {
+            const root = document.documentElement;
+            HA_THEME_VARS.forEach(v => root.style.removeProperty(v));
         }
 
         function applyHAThemeVars(parentDoc) {
