@@ -836,33 +836,45 @@
 
         function detectAndApplyTheme() {
             let dark = false;
+            let haParentDoc = null;
 
-            // Method 1: Check HA Ingress — HA sets body background via inline style
+            // Method 1: Check HA Ingress iframe — parent window has HA theme info
             try {
-                const parentDoc = window.parent.document;
-                const haTheme = parentDoc.querySelector('html')?.getAttribute('data-theme') ||
-                                parentDoc.querySelector('home-assistant')?.getAttribute('hass-theme') || '';
-                if (haTheme.toLowerCase().includes('dark')) {
-                    dark = true;
+                if (window.parent !== window && window.parent.document) {
+                    const parentDoc = window.parent.document;
+                    const haTheme = parentDoc.querySelector('html')?.getAttribute('data-theme') ||
+                                    parentDoc.querySelector('home-assistant')?.getAttribute('hass-theme') || '';
+                    if (haTheme.toLowerCase().includes('dark')) {
+                        dark = true;
+                    }
+                    if (!dark) {
+                        const bgColor = getComputedStyle(parentDoc.body).backgroundColor;
+                        const m = bgColor.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+                        if (m) {
+                            const avg = (parseInt(m[1]) + parseInt(m[2]) + parseInt(m[3])) / 3;
+                            if (avg < 128) dark = true;
+                        }
+                    }
+                    haParentDoc = parentDoc;
                 }
-                // Also check computed style of HA body background
-                if (!dark) {
-                    const bgColor = getComputedStyle(parentDoc.body).backgroundColor;
-                    // Parse rgb(r,g,b) — if average < 128 it's dark
-                    const m = bgColor.match(/\d+/g);
-                    if (m && m.length >= 3) {
-                        const avg = (parseInt(m[0]) + parseInt(m[1]) + parseInt(m[2])) / 3;
+            } catch (e) {
+                // Cross-origin — not in HA Ingress iframe
+            }
+
+            // Method 2: Check HA inline background on <html> (HA Ingress direct /app/ route)
+            // HA injects inline background-color on documentElement when serving addons
+            if (!dark && !haParentDoc) {
+                const htmlBg = document.documentElement.style.backgroundColor;
+                if (htmlBg) {
+                    const m = htmlBg.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+                    if (m) {
+                        const avg = (parseInt(m[1]) + parseInt(m[2]) + parseInt(m[3])) / 3;
                         if (avg < 128) dark = true;
                     }
                 }
-
-                // Try to inherit HA's CSS custom properties for exact theme matching
-                applyHAThemeVars(parentDoc);
-            } catch (e) {
-                // Cross-origin — not in HA Ingress, fall through
             }
 
-            // Method 2: prefers-color-scheme media query (standalone browser)
+            // Method 3: prefers-color-scheme media query (standalone browser)
             if (!dark && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
                 dark = true;
             }
@@ -871,6 +883,11 @@
             const theme = dark ? 'dark' : 'light';
             document.documentElement.setAttribute('data-theme', theme);
             document.documentElement.setAttribute('data-bs-theme', theme);
+
+            // Inherit HA's CSS custom properties if in iframe
+            if (haParentDoc) {
+                applyHAThemeVars(haParentDoc);
+            }
 
             // Clear any previously applied HA inline vars when switching to light
             if (!dark) {
@@ -911,6 +928,13 @@
         if (window.matchMedia) {
             window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', detectAndApplyTheme);
         }
+
+        // Watch for HA changing inline background-color on <html> (theme switch in HA UI)
+        let _themeDebounce = null;
+        new MutationObserver(() => {
+            clearTimeout(_themeDebounce);
+            _themeDebounce = setTimeout(detectAndApplyTheme, 50);
+        }).observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
 
         // Apply theme immediately (before DOMContentLoaded to prevent flash)
         detectAndApplyTheme();
