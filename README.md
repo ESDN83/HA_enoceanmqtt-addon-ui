@@ -4,9 +4,9 @@
 
 Modern web-based EnOcean to MQTT bridge for Home Assistant with visual device configuration.
 
-**This is an All-in-One solution**
+**This is an All-in-One solution** — visual device management, EEP profile browser, teach-in wizard, actuator control, and local backups — all in one web UI.
 
-<img width="2235" height="1291" alt="grafik" src="https://github.com/user-attachments/assets/19cb1b4a-0545-4235-b29b-b5bc4fba81b8" />
+![Dashboard](docs/images/dashboard.png)
 
 ## Features
 
@@ -124,7 +124,7 @@ The Kessel Staufix backwater valve sends a single alarm bit. Telegram data `0100
   }
 ]
 ```
-<img width="1705" height="1702" alt="grafik" src="https://github.com/user-attachments/assets/8df696e5-04d0-4207-929e-6f19142b9a55" />
+![Custom Profile Example](docs/images/custom-profile-editor.png)
 
 
 
@@ -270,31 +270,35 @@ homeassistant/<component>/enocean/<uid>/config
 
 Access the web UI via Home Assistant sidebar (EnOcean icon).
 
-### Dashboard
-- Connection status (MQTT & EnOcean)
-- Device and profile counts
-- Recent telegram activity
-- Unknown device detection with quick-add buttons
-
 ### Devices
-- List all configured devices with EEP info
-- Add, edit, delete devices
-- View device detail with recent telegrams and MQTT topics
+
+List all configured devices with EEP info, search, edit, and delete.
+
+![Devices](docs/images/devices.png)
+
+### Add Device Wizard
+
+Three ways to add devices: automatic teach-in, actuator teach-in (Eltako), or manual entry.
+
+![Add Device](docs/images/add-device.png)
 
 ### EEP Profiles
-- Browse profile tree by RORG/FUNC/TYPE
-- View field definitions with bit offsets
-- Create custom profiles with HA entity mapping
 
-### Teach-In
-- Automatic device detection via teach-in mode
-- Manual entry option
-- Profile suggestion based on detected EEP
+Browse 96+ profiles by RORG/FUNC/TYPE tree. Create custom profiles with HA entity mappings.
 
-### Settings
-- Export/Import configuration (ZIP download/upload)
-- Local Backup: create, list, restore, delete (with confirmation popups)
-- Restart services
+![EEP Profiles](docs/images/eep-profiles.png)
+
+### Custom Profile Editor
+
+Define telegram fields (JSON), bit offsets, and HA entity mappings for non-standard devices.
+
+![Custom Profile Editor](docs/images/custom-profile-editor.png)
+
+### Settings & Backups
+
+Export/import configuration, create and manage local backups, restart services.
+
+![Settings](docs/images/settings.png)
 
 ## API Reference
 
