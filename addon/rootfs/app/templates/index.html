@@ -29,25 +29,25 @@
             --input-border: #ced4da;
         }
 
-        /* ===== Dark Theme ===== */
+        /* ===== Dark Theme (matches HA default dark) ===== */
         [data-theme="dark"] {
-            --primary-color: #4da3ff;
-            --success-color: #2ecc71;
-            --warning-color: #f1c40f;
-            --danger-color: #e74c3c;
-            --bg-color: #1a1a2e;
-            --bg-card: #16213e;
-            --bg-sidebar: #0f3460;
-            --bg-navbar: #0f3460;
-            --text-color: #e0e0e0;
-            --text-muted: #8899aa;
-            --border-color: rgba(255, 255, 255, 0.1);
+            --primary-color: #03a9f4;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+            --danger-color: #f44336;
+            --bg-color: #111111;
+            --bg-card: #1c1c1c;
+            --bg-sidebar: #1c1c1c;
+            --bg-navbar: #1c1c1c;
+            --text-color: #e1e1e1;
+            --text-muted: #9b9b9b;
+            --border-color: rgba(255, 255, 255, 0.12);
             --hover-bg: rgba(255, 255, 255, 0.08);
-            --code-bg: #1a1a2e;
-            --shadow-color: rgba(0, 0, 0, 0.3);
+            --code-bg: #262626;
+            --shadow-color: rgba(0, 0, 0, 0.4);
             --card-header-bg: rgba(255, 255, 255, 0.05);
             --table-stripe-bg: rgba(255, 255, 255, 0.03);
-            --input-bg: #1a1a2e;
+            --input-bg: #262626;
             --input-border: rgba(255, 255, 255, 0.2);
         }
 
@@ -176,14 +176,14 @@
             color: var(--text-color);
         }
         [data-theme="dark"] .alert-info {
-            background-color: rgba(77, 163, 255, 0.15);
-            border-color: rgba(77, 163, 255, 0.3);
-            color: #8ecaff;
+            background-color: rgba(3, 169, 244, 0.15);
+            border-color: rgba(3, 169, 244, 0.3);
+            color: #4fc3f7;
         }
         [data-theme="dark"] .alert-warning {
-            background-color: rgba(241, 196, 15, 0.15);
-            border-color: rgba(241, 196, 15, 0.3);
-            color: #f5d76e;
+            background-color: rgba(255, 152, 0, 0.15);
+            border-color: rgba(255, 152, 0, 0.3);
+            color: #ffb74d;
         }
         [data-theme="dark"] .text-muted {
             color: var(--text-muted) !important;
@@ -936,6 +936,9 @@
                         if (avg < 128) dark = true;
                     }
                 }
+
+                // Try to inherit HA's CSS custom properties for exact theme matching
+                applyHAThemeVars(parentDoc);
             } catch (e) {
                 // Cross-origin — not in HA Ingress, fall through
             }
@@ -946,6 +949,27 @@
             }
 
             document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        }
+
+        function applyHAThemeVars(parentDoc) {
+            // Map HA CSS variables to our variables for seamless theme integration
+            const haRoot = parentDoc.documentElement;
+            const style = getComputedStyle(haRoot);
+            const mapping = {
+                '--primary-color': '--primary-color',
+                '--primary-background-color': '--bg-color',
+                '--card-background-color': '--bg-card',
+                '--sidebar-background-color': '--bg-sidebar',
+                '--app-header-background-color': '--bg-navbar',
+                '--primary-text-color': '--text-color',
+                '--secondary-text-color': '--text-muted',
+                '--divider-color': '--border-color',
+            };
+            const root = document.documentElement;
+            for (const [haVar, ourVar] of Object.entries(mapping)) {
+                const val = style.getPropertyValue(haVar).trim();
+                if (val) root.style.setProperty(ourVar, val);
+            }
         }
 
         // Listen for OS theme changes (standalone mode)
@@ -1024,10 +1048,27 @@
             // Close sidebar on mobile after navigation
             closeSidebar();
 
+            // Reset teach-in state when leaving the page
+            if (page !== 'teach-in') {
+                cancelTeachIn();
+                document.getElementById('actuator-teach-in-panel').style.display = 'none';
+            }
+
+            // Clear search fields when navigating away
+            if (page !== 'devices') {
+                const ds = document.getElementById('device-search');
+                if (ds) ds.value = '';
+            }
+            if (page !== 'profiles') {
+                const ps = document.getElementById('profile-search');
+                if (ps) ps.value = '';
+            }
+
             // Load page-specific data
             if (page === 'devices') loadDevices();
             if (page === 'profiles') loadProfiles();
             if (page === 'settings') loadBackups();
+            if (page === 'teach-in') resetTeachInPage();
         }
 
         async function loadStatus() {
@@ -1102,6 +1143,11 @@
                 devices.forEach(device => {
                     const card = document.createElement('div');
                     card.className = 'col-md-4 mb-3';
+                    // Build searchable text from device properties only (not button text)
+                    const searchText = [device.name, device.address, `${device.rorg}-${device.func}-${device.type}`,
+                        device.actuator_type, device.room, device.description, device.sender_id
+                    ].filter(Boolean).join(' ').toLowerCase();
+                    card.dataset.search = searchText;
                     card.innerHTML = `
                         <div class="card device-card" style="cursor: pointer;" onclick="showDeviceDetail('${device.name}')">
                             <div class="card-body">
@@ -1131,6 +1177,10 @@
                     `;
                     container.appendChild(card);
                 });
+
+                // Re-apply search filter if query is active
+                const searchQuery = document.getElementById('device-search').value;
+                if (searchQuery) filterDevices();
             } catch (error) {
                 showToast('Failed to load devices', 'danger');
             }
@@ -1174,6 +1224,7 @@
                         const typeDiv = document.createElement('div');
                         typeDiv.className = 'ms-3 eep-item custom';
                         typeDiv.style.cursor = 'pointer';
+                        typeDiv.dataset.search = `${typeData.eep_id} ${typeData.description} custom`.toLowerCase();
                         typeDiv.innerHTML = `<i class="bi bi-file-earmark-fill text-warning"></i> ${typeData.eep_id} - ${typeData.description}`;
                         typeDiv.onclick = () => showProfileDetails(typeData.eep_id);
                         customSection.appendChild(typeDiv);
@@ -1216,6 +1267,8 @@
                             const typeDiv = document.createElement('div');
                             typeDiv.className = `ms-4 eep-item ${typeData.is_custom ? 'custom' : ''}`;
                             typeDiv.style.cursor = 'pointer';
+                            // Include RORG + FUNC + TYPE descriptions for broader search matches
+                            typeDiv.dataset.search = `${rorg} ${rorgData.description} ${func} ${funcData.description || ''} ${typeData.eep_id} ${typeData.description}`.toLowerCase();
                             typeDiv.innerHTML = `<i class="bi bi-file-earmark"></i> ${typeData.eep_id} - ${typeData.description}`;
                             typeDiv.onclick = (e) => { e.stopPropagation(); showProfileDetails(typeData.eep_id); };
                             funcContent.appendChild(typeDiv);
@@ -1228,6 +1281,10 @@
                     rorgDiv.appendChild(rorgContent);
                     container.appendChild(rorgDiv);
                 }
+
+                // Re-apply search filter if query is active
+                const searchQuery = document.getElementById('profile-search').value;
+                if (searchQuery) filterProfiles();
             } catch (error) {
                 showToast('Failed to load profiles', 'danger');
             }
@@ -1584,6 +1641,15 @@
                 teachInSocket = null;
             }
             document.getElementById('teach-in-status').style.display = 'none';
+        }
+
+        function resetTeachInPage() {
+            cancelTeachIn();
+            document.getElementById('actuator-teach-in-panel').style.display = 'none';
+            // Reset wizard to step 1
+            document.querySelectorAll('.wizard-step').forEach((step, i) => {
+                step.classList.toggle('active', i === 0);
+            });
         }
 
         function showManualEntry() {
@@ -2315,7 +2381,7 @@
             const cards = document.querySelectorAll('#device-list > .col-md-4');
 
             cards.forEach(card => {
-                const text = card.textContent.toLowerCase();
+                const text = card.dataset.search || card.textContent.toLowerCase();
                 card.style.display = text.includes(query) ? '' : 'none';
             });
         }
@@ -2324,28 +2390,31 @@
             const query = document.getElementById('profile-search').value.toLowerCase();
             const container = document.getElementById('eep-tree');
             const allItems = container.querySelectorAll('.eep-item');
-            const topDivs = container.querySelectorAll(':scope > div');
 
             if (!query) {
-                // Reset: show all top-level sections, hide items (collapse tree)
-                allItems.forEach(item => item.style.display = '');
-                topDivs.forEach(div => div.style.display = '');
-                // Re-collapse standard tree nodes (leave custom section expanded)
+                // Reset: show all elements, then re-collapse standard tree nodes
+                container.querySelectorAll('*').forEach(el => el.style.display = '');
                 container.querySelectorAll('[id^="rorg-"], [id^="func-"]').forEach(el => {
                     el.style.display = 'none';
                 });
                 return;
             }
 
-            // Search: iterate all eep-items, show matches and expand parents
+            // Hide everything inside the container first
+            Array.from(container.children).forEach(child => child.style.display = 'none');
             allItems.forEach(item => item.style.display = 'none');
-            topDivs.forEach(div => div.style.display = 'none');
+            container.querySelectorAll('[id^="rorg-"], [id^="func-"]').forEach(el => {
+                el.style.display = 'none';
+            });
 
+            // Show matching items and expand their parent chain
+            let matchCount = 0;
             allItems.forEach(item => {
-                const text = item.textContent.toLowerCase();
+                const text = item.dataset.search || item.textContent.toLowerCase();
                 if (text.includes(query)) {
+                    matchCount++;
                     item.style.display = '';
-                    // Expand all parent nodes up to the container
+                    // Walk up and show all ancestor nodes up to the container
                     let parent = item.parentElement;
                     while (parent && parent !== container) {
                         parent.style.display = '';
