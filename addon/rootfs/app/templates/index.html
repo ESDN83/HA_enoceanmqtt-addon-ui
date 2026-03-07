@@ -838,31 +838,37 @@
             let dark = false;
             let haParentDoc = null;
 
-            // Method 1: Check HA Ingress iframe — parent window has HA theme info
+            // Method 1: Check HA Ingress iframe — read parent's <html> inline background
             try {
                 if (window.parent !== window && window.parent.document) {
                     const parentDoc = window.parent.document;
-                    const haTheme = parentDoc.querySelector('html')?.getAttribute('data-theme') ||
-                                    parentDoc.querySelector('home-assistant')?.getAttribute('hass-theme') || '';
-                    if (haTheme.toLowerCase().includes('dark')) {
-                        dark = true;
-                    }
-                    if (!dark) {
-                        const bgColor = getComputedStyle(parentDoc.body).backgroundColor;
-                        const m = bgColor.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+                    haParentDoc = parentDoc;
+
+                    // HA sets inline background-color on parent <html> element
+                    const htmlBg = parentDoc.documentElement.style.backgroundColor;
+                    if (htmlBg) {
+                        const m = htmlBg.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
                         if (m) {
                             const avg = (parseInt(m[1]) + parseInt(m[2]) + parseInt(m[3])) / 3;
                             if (avg < 128) dark = true;
                         }
                     }
-                    haParentDoc = parentDoc;
+
+                    // Fallback: check HA theme attributes
+                    if (!dark && !htmlBg) {
+                        const haEl = parentDoc.querySelector('home-assistant');
+                        const haTheme = parentDoc.documentElement.getAttribute('data-theme') ||
+                                        (haEl && haEl.getAttribute('hass-theme')) || '';
+                        if (haTheme.toLowerCase().includes('dark')) {
+                            dark = true;
+                        }
+                    }
                 }
             } catch (e) {
                 // Cross-origin — not in HA Ingress iframe
             }
 
-            // Method 2: Check HA inline background on <html> (HA Ingress direct /app/ route)
-            // HA injects inline background-color on documentElement when serving addons
+            // Method 2: Check own <html> inline background (HA direct /app/ route)
             if (!dark && !haParentDoc) {
                 const htmlBg = document.documentElement.style.backgroundColor;
                 if (htmlBg) {
@@ -931,10 +937,18 @@
 
         // Watch for HA changing inline background-color on <html> (theme switch in HA UI)
         let _themeDebounce = null;
-        new MutationObserver(() => {
+        const _themeObserver = new MutationObserver(() => {
             clearTimeout(_themeDebounce);
             _themeDebounce = setTimeout(detectAndApplyTheme, 50);
-        }).observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+        });
+        // Observe parent <html> if in iframe, else own <html>
+        try {
+            const target = (window.parent !== window && window.parent.document)
+                ? window.parent.document.documentElement : document.documentElement;
+            _themeObserver.observe(target, { attributes: true, attributeFilter: ['style'] });
+        } catch (e) {
+            _themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+        }
 
         // Apply theme immediately (before DOMContentLoaded to prevent flash)
         detectAndApplyTheme();
