@@ -28,12 +28,15 @@ from core.telegram_buffer import TelegramBuffer
 
 # Configure logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "info").upper()
+_log_level = getattr(logging, LOG_LEVEL, logging.INFO)
 logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    level=_log_level,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-# Apply log level to all loggers (including uvicorn, paho.mqtt, etc.)
-logging.getLogger().setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
+# Apply log level to root and all third-party loggers
+logging.getLogger().setLevel(_log_level)
+for _name in ("uvicorn", "uvicorn.access", "uvicorn.error", "paho.mqtt", "paho.mqtt.client"):
+    logging.getLogger(_name).setLevel(_log_level)
 logger = logging.getLogger(__name__)
 
 # Configuration
@@ -399,5 +402,6 @@ if __name__ == "__main__":
         app,
         host="0.0.0.0",
         port=8099,
-        log_level=LOG_LEVEL.lower()
+        log_level=LOG_LEVEL.lower(),
+        log_config=None
     )

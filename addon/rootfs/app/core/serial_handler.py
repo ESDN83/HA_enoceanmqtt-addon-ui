@@ -321,11 +321,14 @@ class SerialHandler:
         payload = data[1:-5]
 
         # Get signal strength from optional data
-        # ESP3: optional[4] = dBm value. 0xFF means "not available" (USB300 always sends 0xFF)
+        # ESP3: optional[4] = dBm value (negated). 0xFF = not available (USB300).
+        # Valid EnOcean RSSI: roughly -20 to -120 dBm.
         dbm = 0
         if len(optional) >= 5:
             raw_dbm = optional[4]
-            dbm = 0 if raw_dbm == 0xFF else -raw_dbm
+            if 20 <= raw_dbm <= 120:
+                dbm = -raw_dbm
+            # else: 0 = not available (0xFF, 0x00, or out-of-range)
 
         telegram = RadioTelegram(
             rorg=rorg,
@@ -448,8 +451,11 @@ class SerialHandler:
             sw = decoded.get("SW", 0)
             edim = decoded.get("EDIM", 0)
             decoded["state"] = "ON" if sw else "OFF"
-            # EDIM is raw 0-255, convert to 0-100 for HA (brightness_scale: 100)
-            decoded["brightness"] = round(float(edim) * 100 / 255) if edim else 0
+            # EDIM: Eltako dimmers report 0-100 as percentage regardless of
+            # EDIMR flag (Eltako quirk: sends EDIMR=0 but uses 0-100 range).
+            # Treat EDIM as 0-100 directly (matches brightness_scale: 100).
+            decoded["brightness"] = round(min(float(edim), 100)) if edim else 0
+            logger.debug(f"Light state: SW={sw}, EDIM={edim}, brightness={decoded['brightness']}%")
 
         logger.debug(f"RX [{telegram.sender_hex}] Device={device.name} EEP={device.eep_id} Decoded={decoded}")
 
