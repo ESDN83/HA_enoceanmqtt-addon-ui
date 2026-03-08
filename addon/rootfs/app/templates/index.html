@@ -289,6 +289,12 @@
         [data-theme="dark"] .eep-item.custom {
             background-color: rgba(241, 196, 15, 0.2);
         }
+        .eep-item.overridden {
+            background-color: #d4edda;
+        }
+        [data-theme="dark"] .eep-item.overridden {
+            background-color: rgba(40, 167, 69, 0.2);
+        }
         .teach-in-indicator {
             animation: pulse 2s infinite;
         }
@@ -1296,17 +1302,17 @@
                 const container = document.getElementById('eep-tree');
                 container.innerHTML = '';
 
-                // Collect custom profiles for a separate section at the top
+                // Collect custom profiles and overridden profiles for separate sections
                 const customProfiles = [];
+                const overriddenProfiles = [];
 
                 for (const [rorg, rorgData] of Object.entries(tree)) {
-                    // Check if this RORG has any custom profiles
-                    let hasCustom = false;
                     for (const [func, funcData] of Object.entries(rorgData.funcs)) {
                         for (const [type, typeData] of Object.entries(funcData.types)) {
                             if (typeData.is_custom) {
                                 customProfiles.push(typeData);
-                                hasCustom = true;
+                            } else if (typeData.has_mapping_override) {
+                                overriddenProfiles.push(typeData);
                             }
                         }
                     }
@@ -1327,6 +1333,23 @@
                         customSection.appendChild(typeDiv);
                     });
                     container.appendChild(customSection);
+                }
+
+                // Show overridden profiles section (always expanded)
+                if (overriddenProfiles.length > 0) {
+                    const overriddenSection = document.createElement('div');
+                    overriddenSection.className = 'mb-3 border-start border-success border-3 ps-2';
+                    overriddenSection.innerHTML = `<strong class="text-success"><i class="bi bi-pencil-square"></i> Customized Mappings (${overriddenProfiles.length})</strong>`;
+                    overriddenProfiles.forEach(typeData => {
+                        const typeDiv = document.createElement('div');
+                        typeDiv.className = 'ms-3 eep-item overridden';
+                        typeDiv.style.cursor = 'pointer';
+                        typeDiv.dataset.search = `${typeData.eep_id} ${typeData.description} customized mapping`.toLowerCase();
+                        typeDiv.innerHTML = `<i class="bi bi-file-earmark-check text-success"></i> ${typeData.eep_id} - ${typeData.description}`;
+                        typeDiv.onclick = () => showProfileDetails(typeData.eep_id);
+                        overriddenSection.appendChild(typeDiv);
+                    });
+                    container.appendChild(overriddenSection);
                 }
 
                 // Standard profiles (collapsed by default)
@@ -1362,11 +1385,13 @@
 
                         for (const [type, typeData] of Object.entries(funcData.types)) {
                             const typeDiv = document.createElement('div');
-                            typeDiv.className = `ms-4 eep-item ${typeData.is_custom ? 'custom' : ''}`;
+                            const itemClass = typeData.is_custom ? 'custom' : typeData.has_mapping_override ? 'overridden' : '';
+                            typeDiv.className = `ms-4 eep-item ${itemClass}`;
                             typeDiv.style.cursor = 'pointer';
                             // Include RORG + FUNC + TYPE descriptions for broader search matches
                             typeDiv.dataset.search = `${rorg} ${rorgData.description} ${func} ${funcData.description || ''} ${typeData.eep_id} ${typeData.description}`.toLowerCase();
-                            typeDiv.innerHTML = `<i class="bi bi-file-earmark"></i> ${typeData.eep_id} - ${typeData.description}`;
+                            const icon = typeData.is_custom ? 'bi-file-earmark-fill text-warning' : typeData.has_mapping_override ? 'bi-file-earmark-check text-success' : 'bi-file-earmark';
+                            typeDiv.innerHTML = `<i class="bi ${icon}"></i> ${typeData.eep_id} - ${typeData.description}`;
                             typeDiv.onclick = (e) => { e.stopPropagation(); showProfileDetails(typeData.eep_id); };
                             funcContent.appendChild(typeDiv);
                         }
