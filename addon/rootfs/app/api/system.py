@@ -12,6 +12,7 @@ import aiofiles
 import zipfile
 import io
 from datetime import datetime
+from lxml import etree
 
 router = APIRouter()
 
@@ -113,6 +114,11 @@ async def export_all(request: Request):
                     filepath = os.path.join(custom_eep_path, filename)
                     zf.write(filepath, f"custom_eep/{filename}")
 
+        # Export user EEP.xml if exists
+        user_eep = os.path.join(config_path, "EEP.xml")
+        if os.path.exists(user_eep):
+            zf.write(user_eep, "EEP.xml")
+
         # Add export metadata
         metadata = {
             "exported_at": datetime.now().isoformat(),
@@ -148,7 +154,8 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
         imported = {
             "devices": False,
             "mappings": False,
-            "custom_profiles": 0
+            "custom_profiles": 0,
+            "eep_xml": False
         }
 
         with zipfile.ZipFile(zip_buffer, 'r') as zf:
@@ -185,12 +192,107 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
                         await f.write(profile_data)
                     imported["custom_profiles"] += 1
 
+                elif filename == "EEP.xml":
+                    # Import user EEP.xml
+                    eep_data = zf.read(filename)
+                    eep_path = os.path.join(config_path, "EEP.xml")
+                    os.makedirs(config_path, exist_ok=True)
+                    async with aiofiles.open(eep_path, 'wb') as f:
+                        await f.write(eep_data)
+                    imported["eep_xml"] = True
+
+        # Reload EEP profiles if EEP.xml was imported
+        if imported.get("eep_xml") and request.app.state.eep_manager:
+            eep_manager = request.app.state.eep_manager
+            eep_manager.profiles.clear()
+            await eep_manager.initialize()
+
         return {"status": "imported", "details": imported}
 
     except zipfile.BadZipFile:
         raise HTTPException(status_code=400, detail="Invalid ZIP file")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Import failed: {e}")
+
+
+@router.get("/eep-info")
+async def get_eep_info(request: Request) -> Dict[str, Any]:
+    """Get EEP.xml status information"""
+    eep_manager = request.app.state.eep_manager
+    if not eep_manager:
+        raise HTTPException(status_code=500, detail="EEP Manager not initialized")
+    return eep_manager.get_eep_info()
+
+
+@router.post("/upload-eep")
+async def upload_eep(file: UploadFile = File(...), request: Request = None) -> Dict[str, Any]:
+    """Upload custom EEP.xml file"""
+    if not request:
+        raise HTTPException(status_code=500, detail="Request context required")
+
+    config_path = request.app.state.config_path
+    eep_manager = request.app.state.eep_manager
+
+    try:
+        content = await file.read()
+
+        # Validate XML
+        try:
+            root = etree.fromstring(content)
+            # Basic structure check - should have telegram elements
+            telegrams = root.findall(".//telegram")
+            if not telegrams:
+                raise HTTPException(status_code=400, detail="Invalid EEP.xml: no telegram elements found")
+        except etree.XMLSyntaxError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid XML: {e}")
+
+        # Save to config path
+        eep_path = os.path.join(config_path, "EEP.xml")
+        os.makedirs(config_path, exist_ok=True)
+        async with aiofiles.open(eep_path, 'wb') as f:
+            await f.write(content)
+
+        # Reload EEP profiles
+        if eep_manager:
+            eep_manager.profiles.clear()
+            await eep_manager.initialize()
+
+        return {
+            "status": "uploaded",
+            "info": eep_manager.get_eep_info() if eep_manager else {}
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
+
+
+@router.delete("/delete-eep")
+async def delete_eep(request: Request) -> Dict[str, Any]:
+    """Delete custom EEP.xml and revert to bundled"""
+    config_path = request.app.state.config_path
+    eep_manager = request.app.state.eep_manager
+
+    eep_path = os.path.join(config_path, "EEP.xml")
+
+    if not os.path.exists(eep_path):
+        raise HTTPException(status_code=404, detail="No custom EEP.xml found")
+
+    try:
+        os.remove(eep_path)
+
+        # Reload EEP profiles (will fall back to bundled)
+        if eep_manager:
+            eep_manager.profiles.clear()
+            await eep_manager.initialize()
+
+        return {
+            "status": "deleted",
+            "info": eep_manager.get_eep_info() if eep_manager else {}
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Delete failed: {e}")
 
 
 @router.post("/restart")

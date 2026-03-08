@@ -59,6 +59,28 @@ class EEPManager:
         """Returns number of loaded profiles"""
         return len(self.profiles)
 
+    def get_eep_info(self) -> Dict[str, Any]:
+        """Get information about loaded EEP.xml"""
+        user_eep = os.path.join(self.config_path, "EEP.xml")
+        bundled_eep = os.path.join(os.path.dirname(__file__), "..", "data", "EEP.xml")
+        user_exists = os.path.exists(user_eep)
+        bundled_exists = os.path.exists(bundled_eep)
+
+        if user_exists:
+            source = "user"
+        elif bundled_exists:
+            source = "bundled"
+        else:
+            source = "minimal"
+
+        return {
+            "source": source,
+            "profile_count": self.profile_count,
+            "user_file_exists": user_exists,
+            "user_file_size": os.path.getsize(user_eep) if user_exists else 0,
+            "bundled_file_size": os.path.getsize(bundled_eep) if bundled_exists else 0,
+        }
+
     async def initialize(self):
         """Initialize EEP manager - load base and custom profiles"""
         # Load base EEP.xml
