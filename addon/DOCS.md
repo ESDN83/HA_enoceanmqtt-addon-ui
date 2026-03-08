@@ -1,14 +1,17 @@
-# EnOcean MQTT
+# EnOcean MQTT UI
+
+<img width="1492" height="874" alt="EnOcean MQTT Dashboard" src="https://github.com/user-attachments/assets/6cc73258-3848-4ee0-9aef-250efa3b9080" />
+
+## About
 
 All-in-One EnOcean to MQTT bridge with a modern web UI for Home Assistant.
-
 This add-on replaces the need for separate EnOcean bridges and YAML configuration.
 Add your EnOcean devices visually, browse EEP profiles, and manage MQTT mappings —
 all from within Home Assistant.
 
-## Key Features
+### Key Features
 
-- **Visual Device Management** — Add, edit and remove EnOcean devices through a web UI
+- **Visual Device Wizard** — Add, edit and remove EnOcean devices through a web UI
 - **Teach-In Mode** — Automatic device detection when pressing the learn button
 - **96+ EEP Profiles** — Built-in EnOcean Equipment Profile browser
 - **Custom Profiles** — Create profiles for non-standard devices (e.g., Kessel Staufix)
@@ -16,8 +19,9 @@ all from within Home Assistant.
 - **MQTT Discovery** — Devices appear automatically in Home Assistant
 - **Live Telegram Monitor** — Debug incoming EnOcean telegrams in real-time
 - **Unknown Device Detection** — Detect and quick-add unconfigured devices
-- **State Persistence** — Restore device states after restart (important for sensors with infrequent updates)
+- **State Persistence** — Restore device states after restart
 - **Actuator Control** — Control Eltako dimmers, switches, and blinds with teach-in support
+- **Local Backups** — Create, list, restore, and delete local backups
 - **Dark Mode** — Automatic light/dark theme based on your Home Assistant settings
 - **Multi-Language UI** — Auto-detects browser language (11 languages supported)
 - **Mobile Friendly** — Responsive UI with sidebar navigation
@@ -45,6 +49,35 @@ all from within Home Assistant.
 3. **Add a device**: Click "Add Device", choose Teach-In, and press the learn button on your EnOcean device
 4. **Done** — The device appears automatically in Home Assistant via MQTT Discovery
 
+## Web UI
+
+<img width="1492" height="874" alt="Devices" src="https://github.com/user-attachments/assets/0e7981a0-9db0-4e63-9bd1-2bd4d20c5c85" />
+
+### Dashboard
+Overview with connection status, device counts, recent telegrams and unknown device detection.
+
+### Devices
+List and manage all configured EnOcean devices. Add, edit, or remove devices.
+
+### EEP Profiles
+Browse the complete EnOcean Equipment Profile tree. View field definitions and
+create custom profiles for unsupported devices.
+
+<img width="1492" height="874" alt="EEP Profiles" src="https://github.com/user-attachments/assets/ca0c5baa-4566-45bb-8150-79c77ca3c48e" />
+
+### Entity Mappings
+Define how EEP profile fields map to Home Assistant entities (sensor, binary_sensor,
+switch, light, cover, etc.).
+
+### Add Device
+Wizard for adding new devices via Teach-In (automatic) or manual entry.
+
+### Settings
+Export/import configuration, upload custom EEP.xml, local backups (create/list/restore/delete),
+view system information, restart services.
+
+<img width="1492" height="874" alt="Settings" src="https://github.com/user-attachments/assets/370072b1-7219-4566-a733-2c9e58b018fa" />
+
 ## Configuration
 
 ### Serial Port
@@ -68,29 +101,6 @@ The add-on automatically connects to Home Assistant's MQTT broker (Mosquitto).
 When enabled (default), the add-on persists the last known state of all devices.
 After a restart, these states are republished so that infrequent sensors (like a
 Kessel Staufix that only reports every 8-10 hours) don't show as "unavailable".
-
-## Web UI Sections
-
-### Dashboard
-Overview with connection status, device counts, recent telegrams and unknown device detection.
-
-### Devices
-List and manage all configured EnOcean devices. Add, edit, or remove devices.
-
-### EEP Profiles
-Browse the complete EnOcean Equipment Profile tree. View field definitions and
-create custom profiles for unsupported devices.
-
-### Entity Mappings
-Define how EEP profile fields map to Home Assistant entities (sensor, binary_sensor,
-switch, light, cover, etc.).
-
-### Add Device
-Wizard for adding new devices via Teach-In (automatic) or manual entry.
-
-### Settings
-Export/import configuration, upload custom EEP.xml, local backups (create/list/restore/delete),
-view system information, restart services.
 
 ## Migration from ChristopheHD Addon
 
