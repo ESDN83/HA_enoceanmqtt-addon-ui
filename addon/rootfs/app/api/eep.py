@@ -37,6 +37,7 @@ async def get_profile_tree(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail="EEP manager not initialized")
 
     tree = {}
+    overrides = await eep_manager.get_all_mapping_overrides()
 
     for profile in eep_manager.profiles.values():
         if profile.rorg not in tree:
@@ -57,7 +58,8 @@ async def get_profile_tree(request: Request) -> Dict[str, Any]:
             "type": profile.type,
             "eep_id": profile.eep_id,
             "description": profile.description,
-            "is_custom": profile.is_custom
+            "is_custom": profile.is_custom,
+            "has_mapping_override": profile.eep_id.upper() in overrides
         }
 
     return tree
