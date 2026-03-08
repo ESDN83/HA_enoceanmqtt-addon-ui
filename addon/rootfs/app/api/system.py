@@ -382,6 +382,11 @@ async def create_backup(request: Request) -> Dict[str, Any]:
         if os.path.exists(user_eep):
             zf.write(user_eep, "EEP.xml")
 
+        # Mapping overrides
+        overrides_file = os.path.join(config_path, "mapping_overrides.json")
+        if os.path.exists(overrides_file):
+            zf.write(overrides_file, "mapping_overrides.json")
+
         # Metadata
         metadata = {
             "exported_at": datetime.now().isoformat(),
@@ -421,6 +426,7 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
     imported = {
         "devices": False,
         "mappings": False,
+        "mapping_overrides": False,
         "custom_profiles": 0,
         "eep_xml": False,
     }
@@ -455,6 +461,12 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
                     async with aiofiles.open(os.path.join(config_path, "EEP.xml"), 'wb') as f:
                         await f.write(data)
                     imported["eep_xml"] = True
+
+                elif name == "mapping_overrides.json":
+                    data = zf.read(name)
+                    async with aiofiles.open(os.path.join(config_path, "mapping_overrides.json"), 'wb') as f:
+                        await f.write(data)
+                    imported["mapping_overrides"] = True
 
         if imported.get("eep_xml") and eep_manager:
             eep_manager.profiles.clear()
