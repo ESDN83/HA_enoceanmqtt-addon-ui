@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.0] - 2026-03-08
+
+### New Features
+- **Multi-Language UI (i18n)** — Auto-detects browser language, supports 11 languages: English, German, Chinese, Hindi, Spanish, French, Arabic, Bengali, Portuguese, Russian, Japanese
+- **EEP.xml Upload** — Upload custom EEP.xml via Settings page, with validation, reload, and delete-to-revert
+- **EEP.xml in Backups** — Custom EEP.xml is included in export/import ZIP backups
+
+### Improvements
+- **Dark Mode Fixes** — Sidebar uses correct grey (#2b3035) instead of blue, removed `bg-light` from profile cards
+- **Consistent dashes** — All feature descriptions use em-dash style
+
 ## [1.0.0] - 2026-03-07
 
 First stable release of **EnOcean MQTT UI** — a complete All-in-One Home Assistant Add-on for EnOcean devices.
