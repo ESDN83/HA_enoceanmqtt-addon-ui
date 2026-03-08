@@ -159,6 +159,8 @@
   "mapping_editor.reset_success": "Маппинг сброшен до значений по умолчанию",
   "mapping_editor.saved": "Маппинг сохранён",
   "mapping_editor.prefilled": "Поля заполнены из профиля EEP",
+  "eep.custom_profiles": "Пользовательские профили",
+  "eep.customized_mappings": "Настроенные сопоставления",
 
   "table.address": "Адрес",
   "table.rorg": "RORG",

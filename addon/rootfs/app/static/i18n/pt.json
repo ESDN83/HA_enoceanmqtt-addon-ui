@@ -159,6 +159,8 @@
   "mapping_editor.reset_success": "Mapeamento redefinido para o padrão",
   "mapping_editor.saved": "Mapeamento salvo",
   "mapping_editor.prefilled": "Campos preenchidos do perfil EEP",
+  "eep.custom_profiles": "Perfis personalizados",
+  "eep.customized_mappings": "Mapeamentos personalizados",
 
   "table.address": "Endereço",
   "table.rorg": "RORG",

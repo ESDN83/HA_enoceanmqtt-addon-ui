@@ -159,6 +159,8 @@
   "mapping_editor.reset_success": "ম্যাপিং ডিফল্টে রিসেট হয়েছে",
   "mapping_editor.saved": "ম্যাপিং সংরক্ষিত",
   "mapping_editor.prefilled": "EEP প্রোফাইল থেকে ফিল্ড পূরণ করা হয়েছে",
+  "eep.custom_profiles": "কাস্টম প্রোফাইল",
+  "eep.customized_mappings": "কাস্টমাইজড ম্যাপিং",
 
   "table.address": "ঠিকানা",
   "table.rorg": "RORG",

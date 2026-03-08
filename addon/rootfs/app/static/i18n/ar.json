@@ -159,6 +159,8 @@
   "mapping_editor.reset_success": "تمت إعادة التعيين إلى الافتراضي",
   "mapping_editor.saved": "تم حفظ التعيين",
   "mapping_editor.prefilled": "تم ملء الحقول مسبقاً من ملف EEP",
+  "eep.custom_profiles": "ملفات تعريف مخصصة",
+  "eep.customized_mappings": "تعيينات مخصصة",
 
   "table.address": "العنوان",
   "table.rorg": "RORG",

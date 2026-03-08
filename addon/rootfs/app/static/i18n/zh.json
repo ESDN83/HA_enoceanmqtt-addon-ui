@@ -159,6 +159,8 @@
   "mapping_editor.reset_success": "映射已重置为默认值",
   "mapping_editor.saved": "映射已保存",
   "mapping_editor.prefilled": "已从EEP配置文件预填充字段",
+  "eep.custom_profiles": "自定义配置文件",
+  "eep.customized_mappings": "自定义映射",
 
   "table.address": "地址",
   "table.rorg": "RORG",

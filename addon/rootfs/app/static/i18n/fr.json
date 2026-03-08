@@ -159,6 +159,8 @@
   "mapping_editor.reset_success": "Mapping réinitialisé aux valeurs par défaut",
   "mapping_editor.saved": "Mapping enregistré",
   "mapping_editor.prefilled": "Champs pré-remplis depuis le profil EEP",
+  "eep.custom_profiles": "Profils personnalisés",
+  "eep.customized_mappings": "Mappages personnalisés",
 
   "table.address": "Adresse",
   "table.rorg": "RORG",

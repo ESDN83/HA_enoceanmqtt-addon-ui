@@ -162,6 +162,8 @@
   "mapping_editor.reset_success": "Mapping auf Standard zurückgesetzt",
   "mapping_editor.saved": "Mapping gespeichert",
   "mapping_editor.prefilled": "Felder aus EEP-Profil vorausgefüllt",
+  "eep.custom_profiles": "Eigene Profile",
+  "eep.customized_mappings": "Angepasste Zuordnungen",
 
   "table.address": "Adresse",
   "table.rorg": "RORG",

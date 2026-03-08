@@ -1322,7 +1322,7 @@
                 if (customProfiles.length > 0) {
                     const customSection = document.createElement('div');
                     customSection.className = 'mb-3 border-start border-warning border-3 ps-2';
-                    customSection.innerHTML = `<strong class="text-warning"><i class="bi bi-star-fill"></i> Custom Profiles (${customProfiles.length})</strong>`;
+                    customSection.innerHTML = `<strong class="text-warning"><i class="bi bi-star-fill"></i> <span data-i18n="eep.custom_profiles">Custom Profiles</span> (${customProfiles.length})</strong>`;
                     customProfiles.forEach(typeData => {
                         const typeDiv = document.createElement('div');
                         typeDiv.className = 'ms-3 eep-item custom';
@@ -1339,7 +1339,7 @@
                 if (overriddenProfiles.length > 0) {
                     const overriddenSection = document.createElement('div');
                     overriddenSection.className = 'mb-3 border-start border-success border-3 ps-2';
-                    overriddenSection.innerHTML = `<strong class="text-success"><i class="bi bi-pencil-square"></i> Customized Mappings (${overriddenProfiles.length})</strong>`;
+                    overriddenSection.innerHTML = `<strong class="text-success"><i class="bi bi-pencil-square"></i> <span data-i18n="eep.customized_mappings">Customized Mappings</span> (${overriddenProfiles.length})</strong>`;
                     overriddenProfiles.forEach(typeData => {
                         const typeDiv = document.createElement('div');
                         typeDiv.className = 'ms-3 eep-item overridden';
@@ -1403,6 +1403,9 @@
                     rorgDiv.appendChild(rorgContent);
                     container.appendChild(rorgDiv);
                 }
+
+                // Re-apply translations for dynamically created elements
+                applyTranslations();
 
                 // Re-apply search filter if query is active
                 const searchQuery = document.getElementById('profile-search').value;
