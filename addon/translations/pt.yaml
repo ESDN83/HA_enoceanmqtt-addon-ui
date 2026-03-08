@@ -1,0 +1,23 @@
+---
+configuration:
+  serial_port:
+    name: Porta serial
+    description: "Porta serial do transceptor USB EnOcean (ex. /dev/ttyUSB0)."
+  log_level:
+    name: "N\u00EDvel de log"
+    description: "N\u00EDvel de detalhe dos registros do aplicativo."
+  cache_device_states:
+    name: Armazenar estados dos dispositivos
+    description: "Salvar e restaurar estados dos dispositivos ap\u00F3s reiniciar. Essencial para sensores com atualiza\u00E7\u00F5es pouco frequentes (ex. Kessel Staufix envia a cada 8-10 horas)."
+  mqtt:
+    name: "Configura\u00E7\u00F5es MQTT"
+    description: "Configura\u00E7\u00E3o do broker MQTT para integra\u00E7\u00E3o com o Home Assistant."
+  mqtt.discovery_prefix:
+    name: Prefixo de descoberta
+    description: "Prefixo de t\u00F3pico MQTT para descoberta autom\u00E1tica do Home Assistant (geralmente 'homeassistant')."
+  mqtt.prefix:
+    name: "Prefixo de t\u00F3pico"
+    description: "Prefixo de t\u00F3pico MQTT para dispositivos EnOcean (ex. 'enocean' cria t\u00F3picos como enocean/dispositivo/state)."
+  mqtt.client_id:
+    name: ID do cliente
+    description: Identificador de cliente MQTT para este complemento.
