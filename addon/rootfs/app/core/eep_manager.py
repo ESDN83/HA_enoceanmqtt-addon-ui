@@ -6,6 +6,7 @@ The EEP.xml is bundled with the addon - no external downloads required.
 """
 
 import os
+import json
 import logging
 from typing import Dict, List, Optional, Any
 from pathlib import Path
@@ -458,3 +459,59 @@ class EEPManager:
         except Exception as e:
             logger.error(f"Failed to delete custom profile: {e}")
             return False
+
+    # === Mapping Overrides ===
+
+    def _overrides_file(self) -> str:
+        return os.path.join(self.config_path, "mapping_overrides.json")
+
+    async def _load_overrides(self) -> Dict[str, Any]:
+        path = self._overrides_file()
+        if not os.path.exists(path):
+            return {}
+        try:
+            async with aiofiles.open(path, 'r') as f:
+                return json.loads(await f.read())
+        except Exception:
+            return {}
+
+    async def _save_overrides(self, overrides: Dict[str, Any]):
+        path = self._overrides_file()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        async with aiofiles.open(path, 'w') as f:
+            await f.write(json.dumps(overrides, indent=2))
+
+    async def get_mapping_override(self, eep_id: str) -> Optional[Dict[str, Any]]:
+        """Get mapping override for an EEP profile (None if no override)"""
+        overrides = await self._load_overrides()
+        return overrides.get(eep_id.upper())
+
+    async def save_mapping_override(self, eep_id: str, mapping: Dict[str, Dict[str, Any]]) -> bool:
+        """Save a mapping override for an EEP profile"""
+        try:
+            overrides = await self._load_overrides()
+            overrides[eep_id.upper()] = mapping
+            await self._save_overrides(overrides)
+            logger.info(f"Saved mapping override for {eep_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save mapping override for {eep_id}: {e}")
+            return False
+
+    async def delete_mapping_override(self, eep_id: str) -> bool:
+        """Delete a mapping override, reverting to EEP.xml default"""
+        try:
+            overrides = await self._load_overrides()
+            if eep_id.upper() not in overrides:
+                return False
+            del overrides[eep_id.upper()]
+            await self._save_overrides(overrides)
+            logger.info(f"Deleted mapping override for {eep_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete mapping override for {eep_id}: {e}")
+            return False
+
+    async def get_all_mapping_overrides(self) -> Dict[str, Any]:
+        """Get all mapping overrides"""
+        return await self._load_overrides()
