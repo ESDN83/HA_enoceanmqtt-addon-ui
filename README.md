@@ -290,15 +290,21 @@ Access the web UI via Home Assistant sidebar (EnOcean icon).
 - Recent telegram activity
 - Unknown device detection with quick-add buttons
 
+<img width="1492" height="874" alt="Dashboard" src="https://github.com/user-attachments/assets/6cc73258-3848-4ee0-9aef-250efa3b9080" />
+
 ### Devices
 - List all configured devices with EEP info
 - Add, edit, delete devices
 - View device detail with recent telegrams and MQTT topics
 
+<img width="1492" height="874" alt="Devices" src="https://github.com/user-attachments/assets/0e7981a0-9db0-4e63-9bd1-2bd4d20c5c85" />
+
 ### EEP Profiles
 - Browse profile tree by RORG/FUNC/TYPE
 - View field definitions with bit offsets
 - Create custom profiles with HA entity mapping
+
+<img width="1492" height="874" alt="EEP Profiles" src="https://github.com/user-attachments/assets/ca0c5baa-4566-45bb-8150-79c77ca3c48e" />
 
 ### Teach-In
 - Automatic device detection via teach-in mode
@@ -310,6 +316,8 @@ Access the web UI via Home Assistant sidebar (EnOcean icon).
 - Local Backup: create, list, restore, delete (with confirmation popups)
 - EEP.xml management: upload custom, view source info, delete to revert
 - Restart services
+
+<img width="1492" height="874" alt="Settings" src="https://github.com/user-attachments/assets/370072b1-7219-4566-a733-2c9e58b018fa" />
 
 ## API Reference
 
