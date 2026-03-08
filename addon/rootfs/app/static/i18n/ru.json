@@ -161,6 +161,9 @@
   "mapping_editor.prefilled": "Поля заполнены из профиля EEP",
   "eep.custom_profiles": "Пользовательские профили",
   "eep.customized_mappings": "Настроенные сопоставления",
+  "eep.orphaned_mappings": "Осиротевшие сопоставления",
+  "eep.orphaned_hint": "Эти сопоставления ссылаются на профили EEP, которые больше не существуют в текущем EEP.xml. Рекомендуется удалить их.",
+  "eep.orphaned_profile_missing": "профиль не найден",
 
   "table.address": "Адрес",
   "table.rorg": "RORG",

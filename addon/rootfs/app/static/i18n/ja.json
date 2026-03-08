@@ -161,6 +161,9 @@
   "mapping_editor.prefilled": "EEPプロファイルからフィールドを自動入力しました",
   "eep.custom_profiles": "カスタムプロファイル",
   "eep.customized_mappings": "カスタマイズされたマッピング",
+  "eep.orphaned_mappings": "孤立したマッピング",
+  "eep.orphaned_hint": "これらのマッピングは、現在の EEP.xml に存在しない EEP プロファイルを参照しています。削除を検討してください。",
+  "eep.orphaned_profile_missing": "プロファイルが見つかりません",
 
   "table.address": "アドレス",
   "table.rorg": "RORG",

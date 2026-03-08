@@ -161,6 +161,9 @@
   "mapping_editor.prefilled": "تم ملء الحقول مسبقاً من ملف EEP",
   "eep.custom_profiles": "ملفات تعريف مخصصة",
   "eep.customized_mappings": "تعيينات مخصصة",
+  "eep.orphaned_mappings": "تعيينات يتيمة",
+  "eep.orphaned_hint": "تشير هذه التعيينات إلى ملفات تعريف EEP لم تعد موجودة في ملف EEP.xml الحالي. يرجى إزالتها.",
+  "eep.orphaned_profile_missing": "الملف الشخصي غير موجود",
 
   "table.address": "العنوان",
   "table.rorg": "RORG",

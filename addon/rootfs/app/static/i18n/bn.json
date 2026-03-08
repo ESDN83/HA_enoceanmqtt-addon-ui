@@ -161,6 +161,9 @@
   "mapping_editor.prefilled": "EEP প্রোফাইল থেকে ফিল্ড পূরণ করা হয়েছে",
   "eep.custom_profiles": "কাস্টম প্রোফাইল",
   "eep.customized_mappings": "কাস্টমাইজড ম্যাপিং",
+  "eep.orphaned_mappings": "এতিম ম্যাপিং",
+  "eep.orphaned_hint": "এই ম্যাপিংগুলি এমন EEP প্রোফাইলের রেফারেন্স দেয় যা বর্তমান EEP.xml-এ আর বিদ্যমান নেই। অনুগ্রহ করে এগুলি সরানোর কথা বিবেচনা করুন।",
+  "eep.orphaned_profile_missing": "প্রোফাইল পাওয়া যায়নি",
 
   "table.address": "ঠিকানা",
   "table.rorg": "RORG",

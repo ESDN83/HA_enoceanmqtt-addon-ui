@@ -161,6 +161,9 @@
   "mapping_editor.prefilled": "Campos rellenados desde el perfil EEP",
   "eep.custom_profiles": "Perfiles personalizados",
   "eep.customized_mappings": "Mapeos personalizados",
+  "eep.orphaned_mappings": "Mapeos huérfanos",
+  "eep.orphaned_hint": "Estos mapeos hacen referencia a perfiles EEP que ya no existen en el EEP.xml actual. Considere eliminarlos.",
+  "eep.orphaned_profile_missing": "perfil no encontrado",
 
   "table.address": "Dirección",
   "table.rorg": "RORG",
