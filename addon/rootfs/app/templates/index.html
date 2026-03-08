@@ -1418,34 +1418,68 @@
                         </div>`;
                 }
 
+                // Determine effective mapping: override > ha_mapping > none
+                const effectiveMapping = profile.mapping_override || profile.ha_mapping || {};
+                const hasOverride = profile.has_mapping_override === true;
+                const hasMapping = Object.keys(effectiveMapping).length > 0;
+
                 // Build HA mapping display
-                let haMappingHtml = '';
-                if (profile.ha_mapping && Object.keys(profile.ha_mapping).length > 0) {
-                    haMappingHtml = `
-                        <hr>
-                        <h6><i class="bi bi-house-gear"></i> HA Entity Mapping</h6>
-                        ${Object.entries(profile.ha_mapping).map(([shortcut, config]) => `
-                            <div class="border rounded p-2 mb-2 bg-body-secondary">
-                                <div class="d-flex justify-content-between">
-                                    <strong>${shortcut}</strong>
-                                    <span class="badge bg-primary">${config.component || 'sensor'}</span>
-                                </div>
-                                <small>
-                                    ${config.name ? `Name: ${config.name}` : ''}
-                                    ${config.device_class ? ` | Class: ${config.device_class}` : ''}
-                                    ${config.icon ? ` | Icon: ${config.icon}` : ''}
-                                    ${config.unit_of_measurement ? ` | Unit: ${config.unit_of_measurement}` : ''}
-                                </small>
+                let haMappingHtml = '<hr>';
+                haMappingHtml += `<div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0"><i class="bi bi-house-gear"></i> HA Entity Mapping
+                        ${hasOverride ? '<span class="badge bg-info ms-2">Customized</span>' : ''}
+                    </h6>
+                    <div>
+                        ${hasOverride && !profile.is_custom ? `<button class="btn btn-sm btn-outline-warning me-1" onclick="resetMappingOverride('${profile.eep_id}')" title="Reset to EEP.xml default">
+                            <i class="bi bi-arrow-counterclockwise"></i> Reset
+                        </button>` : ''}
+                        <button class="btn btn-sm btn-outline-primary" onclick="openMappingEditor('${profile.eep_id}')">
+                            <i class="bi bi-pencil"></i> Customize
+                        </button>
+                    </div>
+                </div>`;
+
+                if (hasMapping) {
+                    haMappingHtml += Object.entries(effectiveMapping).map(([shortcut, config]) => `
+                        <div class="border rounded p-2 mb-2 bg-body-secondary">
+                            <div class="d-flex justify-content-between">
+                                <strong>${shortcut}</strong>
+                                <span class="badge bg-primary">${config.component || 'sensor'}</span>
                             </div>
-                        `).join('')}
-                    `;
-                } else if (profile.is_custom) {
-                    haMappingHtml = `
-                        <hr>
-                        <h6><i class="bi bi-house-gear"></i> HA Entity Mapping</h6>
-                        <p class="text-muted small"><i class="bi bi-info-circle"></i> No custom HA mapping defined. Default EEP mapping will be used. Click "Edit" to add one.</p>
-                    `;
+                            <small>
+                                ${config.name ? `Name: ${config.name}` : ''}
+                                ${config.device_class ? ` | Class: ${config.device_class}` : ''}
+                                ${config.icon ? ` | Icon: ${config.icon}` : ''}
+                                ${config.unit_of_measurement ? ` | Unit: ${config.unit_of_measurement}` : ''}
+                            </small>
+                        </div>
+                    `).join('');
+                } else {
+                    haMappingHtml += '<p class="text-muted small"><i class="bi bi-info-circle"></i> No HA mapping defined. Click "Customize" to create one.</p>';
                 }
+
+                // Inline mapping editor (hidden by default)
+                haMappingHtml += `
+                <div id="inline-mapping-editor" style="display:none;" class="mt-3 border rounded p-3 bg-body-tertiary">
+                    <h6><i class="bi bi-sliders"></i> Mapping Editor</h6>
+                    <p class="text-muted small mb-2">Define how EEP fields map to Home Assistant entities. Shortcut must match a telegram field name.</p>
+                    <div id="inline-mapping-rows"></div>
+                    <div id="inline-mapping-empty" class="text-muted small mb-2" style="display:none;">No mappings defined. Click "Add Row" to start.</div>
+                    <div class="d-flex gap-2 mt-2">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="addInlineMappingRow()">
+                            <i class="bi bi-plus"></i> Add Row
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="prefillMappingFromFields('${profile.eep_id}')">
+                            <i class="bi bi-magic"></i> Auto-fill from Fields
+                        </button>
+                        <div class="ms-auto">
+                            <button class="btn btn-sm btn-outline-secondary me-1" onclick="closeMappingEditor()">Cancel</button>
+                            <button class="btn btn-sm btn-primary" onclick="saveMappingOverride('${profile.eep_id}')">
+                                <i class="bi bi-check-lg"></i> Save Mapping
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
 
                 container.innerHTML = `
                     <h5>${profile.eep_id}</h5>
@@ -1464,6 +1498,227 @@
                 `;
             } catch (error) {
                 showToast('Failed to load profile details', 'danger');
+            }
+        }
+
+        // Store current profile data for inline editor
+        let _currentEditorProfile = null;
+
+        async function openMappingEditor(eepId) {
+            try {
+                const resp = await fetch(getApiUrl(`/api/eep/${eepId}/mapping`));
+                const data = await resp.json();
+                _currentEditorProfile = data;
+
+                const editor = document.getElementById('inline-mapping-editor');
+                const container = document.getElementById('inline-mapping-rows');
+                const emptyMsg = document.getElementById('inline-mapping-empty');
+                container.innerHTML = '';
+
+                const mapping = data.mapping || {};
+                if (Object.keys(mapping).length > 0) {
+                    emptyMsg.style.display = 'none';
+                    for (const [shortcut, config] of Object.entries(mapping)) {
+                        addInlineMappingRow(shortcut, config.component || 'sensor', config.name || '', config.device_class || '', config.icon || '', config.unit_of_measurement || '');
+                    }
+                } else {
+                    emptyMsg.style.display = '';
+                }
+
+                editor.style.display = '';
+            } catch (e) {
+                showToast('Failed to load mapping', 'danger');
+            }
+        }
+
+        function closeMappingEditor() {
+            document.getElementById('inline-mapping-editor').style.display = 'none';
+        }
+
+        function addInlineMappingRow(shortcut = '', component = 'sensor', name = '', deviceClass = '', icon = '', unit = '') {
+            const container = document.getElementById('inline-mapping-rows');
+            const emptyMsg = document.getElementById('inline-mapping-empty');
+            if (emptyMsg) emptyMsg.style.display = 'none';
+
+            const row = document.createElement('div');
+            row.className = 'inline-mapping-row border rounded p-2 mb-2 bg-body-secondary';
+            row.innerHTML = `
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-2">
+                        <label class="form-label small">Shortcut</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="TMP" value="${shortcut}" data-field="shortcut">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Component</label>
+                        <select class="form-select form-select-sm" data-field="component" onchange="onInlineComponentChange(this)">
+                            <option value="binary_sensor" ${component === 'binary_sensor' ? 'selected' : ''}>binary_sensor</option>
+                            <option value="sensor" ${component === 'sensor' ? 'selected' : ''}>sensor</option>
+                            <option value="switch" ${component === 'switch' ? 'selected' : ''}>switch</option>
+                            <option value="light" ${component === 'light' ? 'selected' : ''}>light</option>
+                            <option value="cover" ${component === 'cover' ? 'selected' : ''}>cover</option>
+                            <option value="climate" ${component === 'climate' ? 'selected' : ''}>climate</option>
+                            <option value="fan" ${component === 'fan' ? 'selected' : ''}>fan</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Name</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="Temperature" value="${name}" data-field="name">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Device Class</label>
+                        <select class="form-select form-select-sm" data-field="device_class">
+                            ${getDeviceClassOptions(component, deviceClass)}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Icon</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="mdi:thermometer" value="${icon}" data-field="icon">
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label small">Unit</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="" value="${unit}" data-field="unit_of_measurement">
+                    </div>
+                    <div class="col-md-1">
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeInlineMappingRow(this)" title="Remove">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            container.appendChild(row);
+        }
+
+        function removeInlineMappingRow(btn) {
+            btn.closest('.inline-mapping-row').remove();
+            const container = document.getElementById('inline-mapping-rows');
+            if (container.children.length === 0) {
+                document.getElementById('inline-mapping-empty').style.display = '';
+            }
+        }
+
+        function onInlineComponentChange(select) {
+            const row = select.closest('.inline-mapping-row');
+            const dcSelect = row.querySelector('[data-field="device_class"]');
+            dcSelect.innerHTML = getDeviceClassOptions(select.value, '');
+        }
+
+        function collectInlineMapping() {
+            const rows = document.querySelectorAll('.inline-mapping-row');
+            if (rows.length === 0) return {};
+
+            const mapping = {};
+            let valid = true;
+            rows.forEach(row => {
+                const shortcut = (row.querySelector('[data-field="shortcut"]').value || '').trim();
+                if (!shortcut) { valid = false; return; }
+                const entry = { component: row.querySelector('[data-field="component"]').value };
+                const name = row.querySelector('[data-field="name"]').value.trim();
+                if (name) entry.name = name;
+                const dc = row.querySelector('[data-field="device_class"]').value;
+                if (dc) entry.device_class = dc;
+                const icon = row.querySelector('[data-field="icon"]').value.trim();
+                if (icon) entry.icon = icon;
+                const unit = row.querySelector('[data-field="unit_of_measurement"]').value.trim();
+                if (unit) entry.unit_of_measurement = unit;
+                mapping[shortcut] = entry;
+            });
+            if (!valid) return undefined;
+            return mapping;
+        }
+
+        async function prefillMappingFromFields(eepId) {
+            try {
+                const resp = await fetch(getApiUrl(`/api/eep/${eepId}`));
+                const profile = await resp.json();
+
+                const container = document.getElementById('inline-mapping-rows');
+                container.innerHTML = '';
+                document.getElementById('inline-mapping-empty').style.display = 'none';
+
+                if (profile.fields && profile.fields.length > 0) {
+                    for (const field of profile.fields) {
+                        const shortcut = field.shortcut || '';
+                        if (!shortcut) continue;
+                        // Guess component from field description/type
+                        let component = 'sensor';
+                        const desc = (field.description || '').toLowerCase();
+                        if (desc.includes('switch') || desc.includes('button') || desc.includes('rocker')) component = 'binary_sensor';
+                        if (desc.includes('alarm') || desc.includes('contact') || desc.includes('occupancy')) component = 'binary_sensor';
+                        // Guess device class
+                        let dc = '';
+                        if (desc.includes('temperature') || desc.includes('temp')) dc = 'temperature';
+                        else if (desc.includes('humidity')) dc = 'humidity';
+                        else if (desc.includes('illumina') || desc.includes('lux')) dc = 'illuminance';
+                        else if (desc.includes('voltage')) dc = 'voltage';
+                        else if (desc.includes('current') && !desc.includes('currently')) dc = 'current';
+                        else if (desc.includes('power') || desc.includes('watt')) dc = 'power';
+                        else if (desc.includes('energy')) dc = 'energy';
+                        else if (desc.includes('pressure')) dc = 'pressure';
+                        else if (desc.includes('battery')) dc = 'battery';
+                        else if (desc.includes('motion')) { dc = 'motion'; component = 'binary_sensor'; }
+                        else if (desc.includes('window')) { dc = 'window'; component = 'binary_sensor'; }
+                        else if (desc.includes('door')) { dc = 'door'; component = 'binary_sensor'; }
+                        // Guess unit
+                        let unit = '';
+                        if (dc === 'temperature') unit = '°C';
+                        else if (dc === 'humidity') unit = '%';
+                        else if (dc === 'illuminance') unit = 'lx';
+                        else if (dc === 'voltage') unit = 'V';
+                        else if (dc === 'current') unit = 'A';
+                        else if (dc === 'power') unit = 'W';
+                        else if (dc === 'energy') unit = 'kWh';
+                        else if (dc === 'pressure') unit = 'hPa';
+                        else if (dc === 'battery') unit = '%';
+
+                        addInlineMappingRow(shortcut, component, field.description || '', dc, '', unit);
+                    }
+                    showToast('Fields pre-filled from EEP profile', 'success');
+                } else {
+                    document.getElementById('inline-mapping-empty').style.display = '';
+                    showToast('No fields found in profile', 'warning');
+                }
+            } catch (e) {
+                showToast('Failed to load profile fields', 'danger');
+            }
+        }
+
+        async function saveMappingOverride(eepId) {
+            const mapping = collectInlineMapping();
+            if (mapping === undefined) {
+                showToast('All rows must have a shortcut name', 'warning');
+                return;
+            }
+
+            try {
+                const resp = await fetch(getApiUrl(`/api/eep/${eepId}/mapping`), {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(mapping)
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => null);
+                    throw new Error(err?.detail || 'Save failed');
+                }
+                showToast('Mapping saved', 'success');
+                closeMappingEditor();
+                showProfileDetails(eepId);
+            } catch (e) {
+                showToast(e.message, 'danger');
+            }
+        }
+
+        async function resetMappingOverride(eepId) {
+            if (!confirm('Reset mapping to EEP.xml default? Your customization will be removed.')) return;
+            try {
+                const resp = await fetch(getApiUrl(`/api/eep/${eepId}/mapping`), { method: 'DELETE' });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => null);
+                    throw new Error(err?.detail || 'Reset failed');
+                }
+                showToast('Mapping reset to default', 'success');
+                showProfileDetails(eepId);
+            } catch (e) {
+                showToast(e.message, 'danger');
             }
         }
 

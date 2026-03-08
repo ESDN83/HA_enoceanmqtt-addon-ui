@@ -87,7 +87,7 @@ async def get_profiles_by_rorg(rorg: str, request: Request) -> List[Dict[str, An
 
 @router.get("/{eep_id}")
 async def get_profile(eep_id: str, request: Request) -> Dict[str, Any]:
-    """Get a specific EEP profile"""
+    """Get a specific EEP profile, including any mapping override"""
     eep_manager = request.app.state.eep_manager
     if not eep_manager:
         raise HTTPException(status_code=500, detail="EEP manager not initialized")
@@ -96,7 +96,104 @@ async def get_profile(eep_id: str, request: Request) -> Dict[str, Any]:
     if not profile:
         raise HTTPException(status_code=404, detail=f"Profile '{eep_id}' not found")
 
-    return profile.to_dict()
+    result = profile.to_dict()
+
+    # Include mapping override info for non-custom profiles
+    if not profile.is_custom:
+        override = await eep_manager.get_mapping_override(eep_id)
+        if override:
+            result["mapping_override"] = override
+            result["has_mapping_override"] = True
+        else:
+            result["has_mapping_override"] = False
+
+    return result
+
+
+@router.get("/{eep_id}/mapping")
+async def get_profile_mapping(eep_id: str, request: Request) -> Dict[str, Any]:
+    """Get the effective HA mapping for a profile (override or default)"""
+    eep_manager = request.app.state.eep_manager
+    if not eep_manager:
+        raise HTTPException(status_code=500, detail="EEP manager not initialized")
+
+    profile = eep_manager.get_profile(eep_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail=f"Profile '{eep_id}' not found")
+
+    override = await eep_manager.get_mapping_override(eep_id)
+
+    return {
+        "eep_id": eep_id.upper(),
+        "mapping": override if override else profile.ha_mapping,
+        "is_override": override is not None,
+        "is_custom_profile": profile.is_custom,
+    }
+
+
+@router.put("/{eep_id}/mapping")
+async def save_profile_mapping(eep_id: str, request: Request) -> Dict[str, Any]:
+    """Save a mapping override for any EEP profile"""
+    eep_manager = request.app.state.eep_manager
+    if not eep_manager:
+        raise HTTPException(status_code=500, detail="EEP manager not initialized")
+
+    profile = eep_manager.get_profile(eep_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail=f"Profile '{eep_id}' not found")
+
+    body = await request.json()
+
+    # For custom profiles, save directly into the profile
+    if profile.is_custom:
+        profile_data = {
+            "rorg": profile.rorg,
+            "func": profile.func,
+            "type": profile.type,
+            "description": profile.description,
+            "fields": profile.fields,
+        }
+        success = await eep_manager.save_custom_profile(profile_data, ha_mapping=body)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to save")
+        return {"status": "saved", "is_override": False}
+
+    # For standard profiles, save as an override
+    success = await eep_manager.save_mapping_override(eep_id, body)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save mapping override")
+
+    return {"status": "saved", "is_override": True}
+
+
+@router.delete("/{eep_id}/mapping")
+async def delete_profile_mapping(eep_id: str, request: Request) -> Dict[str, Any]:
+    """Delete mapping override for a standard profile (revert to EEP.xml default)"""
+    eep_manager = request.app.state.eep_manager
+    if not eep_manager:
+        raise HTTPException(status_code=500, detail="EEP manager not initialized")
+
+    profile = eep_manager.get_profile(eep_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail=f"Profile '{eep_id}' not found")
+
+    if profile.is_custom:
+        # For custom profiles, clear the ha_mapping
+        profile_data = {
+            "rorg": profile.rorg,
+            "func": profile.func,
+            "type": profile.type,
+            "description": profile.description,
+            "fields": profile.fields,
+        }
+        await eep_manager.save_custom_profile(profile_data, ha_mapping={})
+        return {"status": "cleared"}
+
+    success = await eep_manager.delete_mapping_override(eep_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="No mapping override found")
+
+    return {"status": "deleted"}
 
 
 @router.post("/custom")
