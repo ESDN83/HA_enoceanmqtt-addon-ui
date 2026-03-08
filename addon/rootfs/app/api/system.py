@@ -17,7 +17,7 @@ from lxml import etree
 router = APIRouter()
 
 # Version should match config.yaml
-VERSION = "2.0.2"
+VERSION = "1.1.0"
 
 
 @router.get("/status")
@@ -293,6 +293,192 @@ async def delete_eep(request: Request) -> Dict[str, Any]:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {e}")
+
+
+BACKUP_DIR = "backups"
+
+
+def _get_backup_dir(config_path: str) -> str:
+    """Get backup directory path, creating it if needed"""
+    backup_dir = os.path.join(config_path, BACKUP_DIR)
+    os.makedirs(backup_dir, exist_ok=True)
+    return backup_dir
+
+
+@router.get("/backups")
+async def list_backups(request: Request):
+    """List all local backups"""
+    config_path = request.app.state.config_path
+    backup_dir = _get_backup_dir(config_path)
+    backups = []
+
+    for filename in sorted(os.listdir(backup_dir), reverse=True):
+        if not filename.endswith(".zip"):
+            continue
+        filepath = os.path.join(backup_dir, filename)
+        stat = os.stat(filepath)
+
+        # Try to read metadata from ZIP
+        devices = 0
+        version = "?"
+        try:
+            with zipfile.ZipFile(filepath, 'r') as zf:
+                if "export_info.json" in zf.namelist():
+                    meta = json.loads(zf.read("export_info.json"))
+                    devices = meta.get("device_manager", 0)
+                    version = meta.get("version", "?")
+        except Exception:
+            pass
+
+        backups.append({
+            "filename": filename,
+            "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            "size": stat.st_size,
+            "devices": devices,
+            "version": version,
+        })
+
+    return backups
+
+
+@router.post("/backup")
+async def create_backup(request: Request) -> Dict[str, Any]:
+    """Create a local backup ZIP"""
+    config_path = request.app.state.config_path
+    backup_dir = _get_backup_dir(config_path)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"backup_{timestamp}.zip"
+    filepath = os.path.join(backup_dir, filename)
+
+    device_manager = request.app.state.device_manager
+    eep_manager = request.app.state.eep_manager
+
+    with zipfile.ZipFile(filepath, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Devices
+        devices_file = os.path.join(config_path, "devices.json")
+        if os.path.exists(devices_file):
+            zf.write(devices_file, "devices.json")
+
+        # Legacy devices
+        legacy_devices = os.path.join(config_path, "enoceanmqtt.devices")
+        if os.path.exists(legacy_devices):
+            zf.write(legacy_devices, "enoceanmqtt.devices")
+
+        # Mappings
+        mappings_file = os.path.join(config_path, "mapping.yaml")
+        if os.path.exists(mappings_file):
+            zf.write(mappings_file, "mapping.yaml")
+
+        # Custom EEP profiles
+        custom_eep_path = os.path.join(config_path, "custom_eep")
+        if os.path.exists(custom_eep_path):
+            for fname in os.listdir(custom_eep_path):
+                if fname.endswith(".yaml"):
+                    zf.write(os.path.join(custom_eep_path, fname), f"custom_eep/{fname}")
+
+        # User EEP.xml
+        user_eep = os.path.join(config_path, "EEP.xml")
+        if os.path.exists(user_eep):
+            zf.write(user_eep, "EEP.xml")
+
+        # Metadata
+        metadata = {
+            "exported_at": datetime.now().isoformat(),
+            "version": VERSION,
+            "device_manager": device_manager.device_count if device_manager else 0,
+            "eep_manager": eep_manager.profile_count if eep_manager else 0
+        }
+        zf.writestr("export_info.json", json.dumps(metadata, indent=2))
+
+    return {"filename": filename, "status": "created"}
+
+
+@router.get("/backup/download/{filename}")
+async def download_backup(filename: str, request: Request):
+    """Download a backup file"""
+    config_path = request.app.state.config_path
+    filepath = os.path.join(_get_backup_dir(config_path), filename)
+
+    if not os.path.exists(filepath) or not filename.endswith(".zip"):
+        raise HTTPException(status_code=404, detail="Backup not found")
+
+    return FileResponse(filepath, filename=filename, media_type="application/zip")
+
+
+@router.post("/backup/restore/{filename}")
+async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
+    """Restore from a backup file"""
+    config_path = request.app.state.config_path
+    filepath = os.path.join(_get_backup_dir(config_path), filename)
+
+    if not os.path.exists(filepath) or not filename.endswith(".zip"):
+        raise HTTPException(status_code=404, detail="Backup not found")
+
+    device_manager = request.app.state.device_manager
+    eep_manager = request.app.state.eep_manager
+
+    imported = {
+        "devices": False,
+        "mappings": False,
+        "custom_profiles": 0,
+        "eep_xml": False,
+    }
+
+    try:
+        with zipfile.ZipFile(filepath, 'r') as zf:
+            for name in zf.namelist():
+                if name == "devices.json":
+                    data = zf.read(name)
+                    async with aiofiles.open(os.path.join(config_path, "devices.json"), 'wb') as f:
+                        await f.write(data)
+                    imported["devices"] = True
+                    if device_manager:
+                        await device_manager.load_devices()
+
+                elif name == "mapping.yaml":
+                    data = zf.read(name)
+                    async with aiofiles.open(os.path.join(config_path, "mapping.yaml"), 'wb') as f:
+                        await f.write(data)
+                    imported["mappings"] = True
+
+                elif name.startswith("custom_eep/") and name.endswith(".yaml"):
+                    data = zf.read(name)
+                    custom_path = os.path.join(config_path, "custom_eep")
+                    os.makedirs(custom_path, exist_ok=True)
+                    async with aiofiles.open(os.path.join(custom_path, os.path.basename(name)), 'wb') as f:
+                        await f.write(data)
+                    imported["custom_profiles"] += 1
+
+                elif name == "EEP.xml":
+                    data = zf.read(name)
+                    async with aiofiles.open(os.path.join(config_path, "EEP.xml"), 'wb') as f:
+                        await f.write(data)
+                    imported["eep_xml"] = True
+
+        if imported.get("eep_xml") and eep_manager:
+            eep_manager.profiles.clear()
+            await eep_manager.initialize()
+
+        return {"status": "restored", "details": imported}
+
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Corrupt backup file")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Restore failed: {e}")
+
+
+@router.delete("/backup/{filename}")
+async def delete_backup(filename: str, request: Request) -> Dict[str, str]:
+    """Delete a backup file"""
+    config_path = request.app.state.config_path
+    filepath = os.path.join(_get_backup_dir(config_path), filename)
+
+    if not os.path.exists(filepath) or not filename.endswith(".zip"):
+        raise HTTPException(status_code=404, detail="Backup not found")
+
+    os.remove(filepath)
+    return {"status": "deleted"}
 
 
 @router.post("/restart")
