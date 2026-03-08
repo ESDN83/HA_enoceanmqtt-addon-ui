@@ -295,6 +295,12 @@
         [data-theme="dark"] .eep-item.overridden {
             background-color: rgba(40, 167, 69, 0.2);
         }
+        .eep-item.orphaned {
+            background-color: #f8d7da;
+        }
+        [data-theme="dark"] .eep-item.orphaned {
+            background-color: rgba(244, 67, 54, 0.2);
+        }
         .teach-in-indicator {
             animation: pulse 2s infinite;
         }
@@ -1297,7 +1303,9 @@
                     console.error('EEP tree API error:', response.status, errorText);
                     throw new Error(`HTTP ${response.status}: ${errorText}`);
                 }
-                const tree = await response.json();
+                const treeResponse = await response.json();
+                const tree = treeResponse.tree || treeResponse;
+                const orphanedOverrides = treeResponse.orphaned_overrides || [];
 
                 const container = document.getElementById('eep-tree');
                 container.innerHTML = '';
@@ -1350,6 +1358,22 @@
                         overriddenSection.appendChild(typeDiv);
                     });
                     container.appendChild(overriddenSection);
+                }
+
+                // Show orphaned overrides warning (mappings for profiles that no longer exist)
+                if (orphanedOverrides.length > 0) {
+                    const orphanedSection = document.createElement('div');
+                    orphanedSection.className = 'mb-3 border-start border-danger border-3 ps-2';
+                    orphanedSection.innerHTML = `<strong class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> <span data-i18n="eep.orphaned_mappings">Orphaned Mappings</span> (${orphanedOverrides.length})</strong>
+                        <div class="text-danger small ms-3" data-i18n="eep.orphaned_hint">These mapping overrides reference EEP profiles that no longer exist in the current EEP.xml. Consider removing them.</div>`;
+                    orphanedOverrides.forEach(item => {
+                        const typeDiv = document.createElement('div');
+                        typeDiv.className = 'ms-3 eep-item orphaned';
+                        typeDiv.dataset.search = `${item.eep_id} orphaned`.toLowerCase();
+                        typeDiv.innerHTML = `<i class="bi bi-file-earmark-x text-danger"></i> ${item.eep_id} <span class="text-danger small">(${t('eep.orphaned_profile_missing', 'profile not found')})</span>`;
+                        orphanedSection.appendChild(typeDiv);
+                    });
+                    container.appendChild(orphanedSection);
                 }
 
                 // Standard profiles (collapsed by default)
@@ -2948,6 +2972,7 @@
                 showToast(t('settings.eep_upload_success', 'EEP.xml uploaded successfully'), 'success');
                 loadEepInfo();
                 loadStatus();
+                loadProfiles(); // Refresh tree to detect orphaned mappings
             } catch (error) {
                 showToast(t('settings.eep_upload_failed', 'EEP.xml upload failed'), 'danger');
             }
@@ -2971,6 +2996,7 @@
                 showToast(t('settings.eep_delete_success', 'Custom EEP.xml deleted, reverted to bundled'), 'success');
                 loadEepInfo();
                 loadStatus();
+                loadProfiles(); // Refresh tree to detect orphaned mappings
             } catch (error) {
                 showToast(t('settings.eep_delete_failed', 'Failed to delete custom EEP.xml'), 'danger');
             }

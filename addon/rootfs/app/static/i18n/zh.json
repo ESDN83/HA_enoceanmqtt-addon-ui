@@ -161,6 +161,9 @@
   "mapping_editor.prefilled": "已从EEP配置文件预填充字段",
   "eep.custom_profiles": "自定义配置文件",
   "eep.customized_mappings": "自定义映射",
+  "eep.orphaned_mappings": "孤立映射",
+  "eep.orphaned_hint": "这些映射引用了当前 EEP.xml 中不再存在的 EEP 配置文件。请考虑删除它们。",
+  "eep.orphaned_profile_missing": "配置文件未找到",
 
   "table.address": "地址",
   "table.rorg": "RORG",

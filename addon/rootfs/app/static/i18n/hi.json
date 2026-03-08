@@ -161,6 +161,9 @@
   "mapping_editor.prefilled": "EEP प्रोफ़ाइल से फ़ील्ड भरे गए",
   "eep.custom_profiles": "कस्टम प्रोफाइल",
   "eep.customized_mappings": "अनुकूलित मैपिंग",
+  "eep.orphaned_mappings": "अनाथ मैपिंग",
+  "eep.orphaned_hint": "ये मैपिंग ऐसे EEP प्रोफाइल का संदर्भ देती हैं जो वर्तमान EEP.xml में मौजूद नहीं हैं। कृपया इन्हें हटाने पर विचार करें।",
+  "eep.orphaned_profile_missing": "प्रोफाइल नहीं मिला",
 
   "table.address": "पता",
   "table.rorg": "RORG",

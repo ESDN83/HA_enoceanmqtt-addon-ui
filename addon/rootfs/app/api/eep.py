@@ -39,6 +39,9 @@ async def get_profile_tree(request: Request) -> Dict[str, Any]:
     tree = {}
     overrides = await eep_manager.get_all_mapping_overrides()
 
+    # Track which override keys are matched to existing profiles
+    matched_override_keys = set()
+
     for profile in eep_manager.profiles.values():
         if profile.rorg not in tree:
             tree[profile.rorg] = {
@@ -54,15 +57,25 @@ async def get_profile_tree(request: Request) -> Dict[str, Any]:
                 "types": {}
             }
 
+        eep_upper = profile.eep_id.upper()
+        if eep_upper in overrides:
+            matched_override_keys.add(eep_upper)
+
         tree[profile.rorg]["funcs"][profile.func]["types"][profile.type] = {
             "type": profile.type,
             "eep_id": profile.eep_id,
             "description": profile.description,
             "is_custom": profile.is_custom,
-            "has_mapping_override": profile.eep_id.upper() in overrides
+            "has_mapping_override": eep_upper in overrides
         }
 
-    return tree
+    # Find orphaned overrides (keys in mapping_overrides.json that don't match any loaded profile)
+    orphaned = []
+    for key in overrides:
+        if key not in matched_override_keys:
+            orphaned.append({"eep_id": key, "mapping": overrides[key]})
+
+    return {"tree": tree, "orphaned_overrides": orphaned}
 
 
 @router.get("/search/{query}")

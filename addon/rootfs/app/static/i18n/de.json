@@ -164,6 +164,9 @@
   "mapping_editor.prefilled": "Felder aus EEP-Profil vorausgefüllt",
   "eep.custom_profiles": "Eigene Profile",
   "eep.customized_mappings": "Angepasste Zuordnungen",
+  "eep.orphaned_mappings": "Verwaiste Zuordnungen",
+  "eep.orphaned_hint": "Diese Zuordnungen verweisen auf EEP-Profile, die in der aktuellen EEP.xml nicht mehr existieren. Bitte entfernen Sie diese.",
+  "eep.orphaned_profile_missing": "Profil nicht gefunden",
 
   "table.address": "Adresse",
   "table.rorg": "RORG",

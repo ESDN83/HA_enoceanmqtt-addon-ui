@@ -161,6 +161,9 @@
   "mapping_editor.prefilled": "Champs pré-remplis depuis le profil EEP",
   "eep.custom_profiles": "Profils personnalisés",
   "eep.customized_mappings": "Mappages personnalisés",
+  "eep.orphaned_mappings": "Mappages orphelins",
+  "eep.orphaned_hint": "Ces mappages font référence à des profils EEP qui n'existent plus dans le fichier EEP.xml actuel. Envisagez de les supprimer.",
+  "eep.orphaned_profile_missing": "profil introuvable",
 
   "table.address": "Adresse",
   "table.rorg": "RORG",
