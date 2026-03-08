@@ -1,6 +1,6 @@
 # EnOcean MQTT UI
 
-<img width="1492" height="874" alt="EnOcean MQTT Dashboard" src="https://github.com/user-attachments/assets/6cc73258-3848-4ee0-9aef-250efa3b9080" />
+![EnOcean MQTT Dashboard](https://github.com/user-attachments/assets/6cc73258-3848-4ee0-9aef-250efa3b9080)
 
 ## About
 
@@ -51,7 +51,7 @@ all from within Home Assistant.
 
 ## Web UI
 
-<img width="1492" height="874" alt="Devices" src="https://github.com/user-attachments/assets/0e7981a0-9db0-4e63-9bd1-2bd4d20c5c85" />
+![Devices](https://github.com/user-attachments/assets/0e7981a0-9db0-4e63-9bd1-2bd4d20c5c85)
 
 ### Dashboard
 Overview with connection status, device counts, recent telegrams and unknown device detection.
@@ -63,7 +63,7 @@ List and manage all configured EnOcean devices. Add, edit, or remove devices.
 Browse the complete EnOcean Equipment Profile tree. View field definitions and
 create custom profiles for unsupported devices.
 
-<img width="1492" height="874" alt="EEP Profiles" src="https://github.com/user-attachments/assets/ca0c5baa-4566-45bb-8150-79c77ca3c48e" />
+![EEP Profiles](https://github.com/user-attachments/assets/ca0c5baa-4566-45bb-8150-79c77ca3c48e)
 
 ### Entity Mappings
 Define how EEP profile fields map to Home Assistant entities (sensor, binary_sensor,
@@ -76,7 +76,7 @@ Wizard for adding new devices via Teach-In (automatic) or manual entry.
 Export/import configuration, upload custom EEP.xml, local backups (create/list/restore/delete),
 view system information, restart services.
 
-<img width="1492" height="874" alt="Settings" src="https://github.com/user-attachments/assets/370072b1-7219-4566-a733-2c9e58b018fa" />
+![Settings](https://github.com/user-attachments/assets/370072b1-7219-4566-a733-2c9e58b018fa)
 
 ## Configuration
 
