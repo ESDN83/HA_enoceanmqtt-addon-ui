@@ -6,10 +6,14 @@
 - **Multi-Language UI (i18n)** — Auto-detects browser language, supports 11 languages: English, German, Chinese, Hindi, Spanish, French, Arabic, Bengali, Portuguese, Russian, Japanese
 - **EEP.xml Upload** — Upload custom EEP.xml via Settings page, with validation, reload, and delete-to-revert
 - **EEP.xml in Backups** — Custom EEP.xml is included in export/import ZIP backups
+- **HA Entity Mapping Overrides** — Customize HA entity mappings per EEP profile directly from the profile detail view, with inline editor, auto-fill from EEP.xml fields, and save/reset functionality
 
 ### Improvements
 - **Dark Mode Fixes** — Sidebar uses correct grey (#2b3035) instead of blue, removed `bg-light` from profile cards
 - **Consistent dashes** — All feature descriptions use em-dash style
+
+### Bug Fixes
+- **Mapping Overrides in Backups** — `mapping_overrides.json` is now included in backup export/import
 
 ## [1.0.0] - 2026-03-07
 

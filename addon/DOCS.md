@@ -21,7 +21,8 @@ all from within Home Assistant.
 - **Unknown Device Detection** — Detect and quick-add unconfigured devices
 - **State Persistence** — Restore device states after restart
 - **Actuator Control** — Control Eltako dimmers, switches, and blinds with teach-in support
-- **Local Backups** — Create, list, restore, and delete local backups
+- **HA Entity Mapping Overrides** — Customize HA mappings per EEP profile with inline editor and auto-fill
+- **Local Backups** — Create, list, restore, and delete local backups (includes mapping overrides)
 - **Dark Mode** — Automatic light/dark theme based on your Home Assistant settings
 - **Multi-Language UI** — Auto-detects browser language (11 languages supported)
 - **Mobile Friendly** — Responsive UI with sidebar navigation
@@ -67,7 +68,9 @@ create custom profiles for unsupported devices.
 
 ### Entity Mappings
 Define how EEP profile fields map to Home Assistant entities (sensor, binary_sensor,
-switch, light, cover, etc.).
+switch, light, cover, etc.). Each EEP profile detail view includes a "Customize" button
+to override the default mapping — with auto-fill from EEP.xml field definitions and
+per-profile save/reset.
 
 ### Add Device
 Wizard for adding new devices via Teach-In (automatic) or manual entry.
