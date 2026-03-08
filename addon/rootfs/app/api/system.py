@@ -119,6 +119,11 @@ async def export_all(request: Request):
         if os.path.exists(user_eep):
             zf.write(user_eep, "EEP.xml")
 
+        # Export mapping overrides
+        overrides_file = os.path.join(config_path, "mapping_overrides.json")
+        if os.path.exists(overrides_file):
+            zf.write(overrides_file, "mapping_overrides.json")
+
         # Add export metadata
         metadata = {
             "exported_at": datetime.now().isoformat(),
@@ -154,6 +159,7 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
         imported = {
             "devices": False,
             "mappings": False,
+            "mapping_overrides": False,
             "custom_profiles": 0,
             "eep_xml": False
         }
@@ -200,6 +206,15 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
                     async with aiofiles.open(eep_path, 'wb') as f:
                         await f.write(eep_data)
                     imported["eep_xml"] = True
+
+                elif filename == "mapping_overrides.json":
+                    # Import mapping overrides
+                    overrides_data = zf.read(filename)
+                    overrides_path = os.path.join(config_path, "mapping_overrides.json")
+                    os.makedirs(config_path, exist_ok=True)
+                    async with aiofiles.open(overrides_path, 'wb') as f:
+                        await f.write(overrides_data)
+                    imported["mapping_overrides"] = True
 
         # Reload EEP profiles if EEP.xml was imported
         if imported.get("eep_xml") and request.app.state.eep_manager:
