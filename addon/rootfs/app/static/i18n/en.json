@@ -162,6 +162,8 @@
   "mapping_editor.saved": "Mapping saved",
   "mapping_editor.reset_success": "Mapping reset to default",
   "mapping_editor.prefilled": "Fields pre-filled from EEP profile",
+  "eep.custom_profiles": "Custom Profiles",
+  "eep.customized_mappings": "Customized Mappings",
 
   "table.address": "Address",
   "table.rorg": "RORG",

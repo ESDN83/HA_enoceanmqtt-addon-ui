@@ -159,6 +159,8 @@
   "mapping_editor.reset_success": "मैपिंग डिफ़ॉल्ट पर रीसेट",
   "mapping_editor.saved": "मैपिंग सहेजी गई",
   "mapping_editor.prefilled": "EEP प्रोफ़ाइल से फ़ील्ड भरे गए",
+  "eep.custom_profiles": "कस्टम प्रोफाइल",
+  "eep.customized_mappings": "अनुकूलित मैपिंग",
 
   "table.address": "पता",
   "table.rorg": "RORG",

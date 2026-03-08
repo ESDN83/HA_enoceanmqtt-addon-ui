@@ -159,6 +159,8 @@
   "mapping_editor.reset_success": "Mapeo restablecido al predeterminado",
   "mapping_editor.saved": "Mapeo guardado",
   "mapping_editor.prefilled": "Campos rellenados desde el perfil EEP",
+  "eep.custom_profiles": "Perfiles personalizados",
+  "eep.customized_mappings": "Mapeos personalizados",
 
   "table.address": "Dirección",
   "table.rorg": "RORG",
