@@ -342,32 +342,27 @@
             <ul class="nav flex-column">
                 <li class="nav-item">
                     <a class="nav-link active" href="#" data-page="dashboard">
-                        <i class="bi bi-speedometer2"></i> Dashboard
+                        <i class="bi bi-speedometer2"></i> <span data-i18n="nav.dashboard">Dashboard</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#" data-page="devices">
-                        <i class="bi bi-cpu"></i> Devices
+                        <i class="bi bi-cpu"></i> <span data-i18n="nav.devices">Devices</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#" data-page="profiles">
-                        <i class="bi bi-file-earmark-code"></i> EEP Profiles
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#" data-page="mappings">
-                        <i class="bi bi-diagram-3"></i> Mappings
+                        <i class="bi bi-file-earmark-code"></i> <span data-i18n="nav.profiles">EEP Profiles</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#" data-page="teach-in">
-                        <i class="bi bi-plus-circle"></i> Add Device
+                        <i class="bi bi-plus-circle"></i> <span data-i18n="nav.add_device">Add Device</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#" data-page="settings">
-                        <i class="bi bi-gear"></i> Settings
+                        <i class="bi bi-gear"></i> <span data-i18n="nav.settings">Settings</span>
                     </a>
                 </li>
             </ul>
@@ -382,13 +377,13 @@
     <main class="main-content">
         <!-- Dashboard Page -->
         <div id="page-dashboard" class="page-content">
-            <h2 class="mb-4">Dashboard</h2>
+            <h2 class="mb-4" data-i18n="dashboard.title">Dashboard</h2>
 
             <div class="row mb-4">
                 <div class="col-md-3">
                     <div class="card status-card" id="card-mqtt">
                         <div class="card-body">
-                            <h6 class="card-subtitle mb-2 text-muted">MQTT Broker</h6>
+                            <h6 class="card-subtitle mb-2 text-muted" data-i18n="dashboard.mqtt_broker">MQTT Broker</h6>
                             <h4 class="card-title" id="mqtt-host">-</h4>
                             <span class="badge bg-secondary" id="mqtt-connection">Checking...</span>
                         </div>
@@ -397,27 +392,27 @@
                 <div class="col-md-3">
                     <div class="card status-card" id="card-enocean">
                         <div class="card-body">
-                            <h6 class="card-subtitle mb-2 text-muted">EnOcean Gateway</h6>
+                            <h6 class="card-subtitle mb-2 text-muted" data-i18n="dashboard.enocean_gateway">EnOcean Gateway</h6>
                             <h4 class="card-title" id="enocean-port">-</h4>
-                            <span class="badge bg-secondary" id="enocean-connection">Checking...</span>
+                            <span class="badge bg-secondary" id="enocean-connection" data-i18n="status.checking">Checking...</span>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card status-card connected">
                         <div class="card-body">
-                            <h6 class="card-subtitle mb-2 text-muted">Devices</h6>
+                            <h6 class="card-subtitle mb-2 text-muted" data-i18n="dashboard.devices">Devices</h6>
                             <h4 class="card-title" id="device-count">0</h4>
-                            <span class="badge bg-success">Configured</span>
+                            <span class="badge bg-success" data-i18n="dashboard.configured">Configured</span>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card status-card connected">
                         <div class="card-body">
-                            <h6 class="card-subtitle mb-2 text-muted">EEP Profiles</h6>
+                            <h6 class="card-subtitle mb-2 text-muted" data-i18n="dashboard.profiles">EEP Profiles</h6>
                             <h4 class="card-title" id="profile-count">0</h4>
-                            <span class="badge bg-success">Loaded</span>
+                            <span class="badge bg-success" data-i18n="dashboard.loaded">Loaded</span>
                         </div>
                     </div>
                 </div>
@@ -427,17 +422,17 @@
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header">
-                            <i class="bi bi-lightning"></i> Quick Actions
+                            <i class="bi bi-lightning"></i> <span data-i18n="dashboard.quick_actions">Quick Actions</span>
                         </div>
                         <div class="card-body">
                             <button class="btn btn-primary me-2" onclick="navigateTo('teach-in')">
-                                <i class="bi bi-plus-circle"></i> Add Device
+                                <i class="bi bi-plus-circle"></i> <span data-i18n="dashboard.add_device">Add Device</span>
                             </button>
                             <button class="btn btn-outline-primary me-2" onclick="navigateTo('profiles')">
-                                <i class="bi bi-file-earmark-code"></i> Browse Profiles
+                                <i class="bi bi-file-earmark-code"></i> <span data-i18n="dashboard.browse_profiles">Browse Profiles</span>
                             </button>
                             <button class="btn btn-outline-secondary" onclick="exportConfig()">
-                                <i class="bi bi-download"></i> Export Config
+                                <i class="bi bi-download"></i> <span data-i18n="dashboard.export_config">Export Config</span>
                             </button>
                         </div>
                     </div>
@@ -445,7 +440,7 @@
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <span><i class="bi bi-clock-history"></i> Recent Telegrams</span>
+                            <span><i class="bi bi-clock-history"></i> <span data-i18n="dashboard.recent_telegrams">Recent Telegrams</span></span>
                             <div>
                                 <button class="btn btn-sm btn-outline-danger me-1" onclick="clearTelegrams()" title="Clear all">
                                     <i class="bi bi-trash"></i>
@@ -466,8 +461,8 @@
                 <div class="col-12">
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <span><i class="bi bi-question-circle"></i> Unknown Devices</span>
-                            <small class="text-muted">Devices sending telegrams but not yet configured</small>
+                            <span><i class="bi bi-question-circle"></i> <span data-i18n="dashboard.unknown_devices">Unknown Devices</span></span>
+                            <small class="text-muted" data-i18n="dashboard.unknown_devices_desc">Devices sending telegrams but not yet configured</small>
                         </div>
                         <div class="card-body">
                             <div id="unknown-devices-list">
@@ -482,14 +477,14 @@
         <!-- Devices Page -->
         <div id="page-devices" class="page-content" style="display: none;">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>Devices</h2>
+                <h2 data-i18n="devices.title">Devices</h2>
                 <button class="btn btn-primary" onclick="navigateTo('teach-in')">
                     <i class="bi bi-plus-circle"></i> Add Device
                 </button>
             </div>
 
             <div class="mb-3">
-                <input type="text" class="form-control" id="device-search" placeholder="Search devices...">
+                <input type="text" class="form-control" id="device-search" placeholder="Search devices..." data-i18n-placeholder="devices.search_placeholder">
             </div>
 
             <div id="device-list" class="row">
@@ -500,14 +495,14 @@
         <!-- EEP Profiles Page -->
         <div id="page-profiles" class="page-content" style="display: none;">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>EEP Profiles</h2>
+                <h2 data-i18n="profiles.title">EEP Profiles</h2>
                 <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#customProfileModal">
                     <i class="bi bi-plus-circle"></i> Create Custom Profile
                 </button>
             </div>
 
             <div class="mb-3">
-                <input type="text" class="form-control" id="profile-search" placeholder="Search profiles (e.g., temperature, A5-02, switch)...">
+                <input type="text" class="form-control" id="profile-search" placeholder="Search profiles (e.g., temperature, A5-02, switch)..." data-i18n-placeholder="profiles.search_placeholder">
             </div>
 
             <div class="row">
@@ -532,7 +527,7 @@
 
         <!-- Teach-In / Add Device Page -->
         <div id="page-teach-in" class="page-content" style="display: none;">
-            <h2 class="mb-4">Add New Device</h2>
+            <h2 class="mb-4" data-i18n="teach_in.title">Add New Device</h2>
 
             <div class="card">
                 <div class="card-body">
@@ -768,18 +763,18 @@
 
         <!-- Settings Page -->
         <div id="page-settings" class="page-content" style="display: none;">
-            <h2 class="mb-4">Settings</h2>
+            <h2 class="mb-4" data-i18n="settings.title">Settings</h2>
 
             <div class="row">
                 <div class="col-md-6">
                     <div class="card mb-4">
-                        <div class="card-header">Import / Export</div>
+                        <div class="card-header" data-i18n="settings.import_export">Import / Export</div>
                         <div class="card-body">
                             <button class="btn btn-outline-primary me-2" onclick="exportConfig()">
-                                <i class="bi bi-download"></i> Export All
+                                <i class="bi bi-download"></i> <span data-i18n="settings.export_all">Export All</span>
                             </button>
                             <label class="btn btn-outline-secondary">
-                                <i class="bi bi-upload"></i> Import
+                                <i class="bi bi-upload"></i> <span data-i18n="settings.import">Import</span>
                                 <input type="file" id="import-file" style="display: none;" accept=".zip" onchange="importConfig(this)">
                             </label>
                         </div>
@@ -787,10 +782,10 @@
                 </div>
                 <div class="col-md-6">
                     <div class="card mb-4">
-                        <div class="card-header">System</div>
+                        <div class="card-header" data-i18n="settings.system">System</div>
                         <div class="card-body">
                             <button class="btn btn-warning" onclick="restartServices()">
-                                <i class="bi bi-arrow-clockwise"></i> Restart Services
+                                <i class="bi bi-arrow-clockwise"></i> <span data-i18n="settings.restart_services">Restart Services</span>
                             </button>
                         </div>
                     </div>
@@ -800,9 +795,9 @@
             <!-- Local Backups -->
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-archive"></i> Local Backups</span>
+                    <span><i class="bi bi-archive"></i> <span data-i18n="settings.local_backups">Local Backups</span></span>
                     <button class="btn btn-sm btn-success" onclick="createBackup()">
-                        <i class="bi bi-plus-circle"></i> Create Backup
+                        <i class="bi bi-plus-circle"></i> <span data-i18n="settings.create_backup">Create Backup</span>
                     </button>
                 </div>
                 <div class="card-body">
@@ -814,7 +809,7 @@
 
             <!-- EEP.xml Profile Database -->
             <div class="card mb-4">
-                <div class="card-header">EEP.xml Profile Database</div>
+                <div class="card-header" data-i18n="settings.eep_title">EEP.xml Profile Database</div>
                 <div class="card-body">
                     <div id="eep-info" class="mb-3">
                         <table class="table table-sm mb-0" style="max-width: 400px;">
@@ -843,80 +838,6 @@
             </div>
         </div>
 
-        <!-- Mappings Page -->
-        <div id="page-mappings" class="page-content" style="display: none;">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>Entity Mappings</h2>
-                <div>
-                    <button class="btn btn-outline-secondary me-2" onclick="showMappingHelp()">
-                        <i class="bi bi-question-circle"></i> Help
-                    </button>
-                    <button class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#templatesModal">
-                        <i class="bi bi-file-earmark-text"></i> Templates
-                    </button>
-                    <button class="btn btn-primary" onclick="saveMappings()">
-                        <i class="bi bi-save"></i> Save
-                    </button>
-                </div>
-            </div>
-
-            <!-- Metadata Row -->
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <small class="text-muted">
-                        <i class="bi bi-clock"></i> Last modified: <span id="mapping-last-modified">Never</span>
-                    </small>
-                </div>
-                <div class="col-md-6 text-end">
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" id="restore-dropdown">
-                            <i class="bi bi-arrow-counterclockwise"></i> Restore
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end" id="restore-versions">
-                            <li><span class="dropdown-item text-muted">No backups available</span></li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>YAML Editor</span>
-                    <small class="text-muted">Define how EEP fields map to Home Assistant entities</small>
-                </div>
-                <div class="card-body">
-                    <textarea id="mapping-editor" class="form-control font-monospace" rows="20" placeholder="# Mapping configuration (YAML format)
-#
-# Example for a temperature sensor:
-# A5-02-05:
-#   TMP:
-#     component: sensor
-#     name: Temperature
-#     device_class: temperature
-#     unit_of_measurement: °C
-#     icon: mdi:thermometer
-"></textarea>
-                </div>
-            </div>
-        </div>
-
-        <!-- Templates Modal -->
-        <div class="modal fade" id="templatesModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Mapping Templates</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p class="text-muted">Click a template to insert it into the editor:</p>
-                        <div id="templates-list" class="row">
-                            <!-- Templates loaded here -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </main>
 
     <!-- Toast Container -->
@@ -1243,7 +1164,6 @@
             // Load page-specific data
             if (page === 'devices') loadDevices();
             if (page === 'profiles') loadProfiles();
-            if (page === 'mappings') loadMappings();
             if (page === 'settings') { loadBackups(); loadEepInfo(); }
             if (page === 'teach-in') resetTeachInPage();
         }
@@ -1505,7 +1425,7 @@
                         <hr>
                         <h6><i class="bi bi-house-gear"></i> HA Entity Mapping</h6>
                         ${Object.entries(profile.ha_mapping).map(([shortcut, config]) => `
-                            <div class="border rounded p-2 mb-2 bg-light">
+                            <div class="border rounded p-2 mb-2 bg-body-secondary">
                                 <div class="d-flex justify-content-between">
                                     <strong>${shortcut}</strong>
                                     <span class="badge bg-primary">${config.component || 'sensor'}</span>
@@ -2771,159 +2691,6 @@
             } catch (error) {
                 showToast(t('settings.eep_delete_failed', 'Failed to delete custom EEP.xml'), 'danger');
             }
-        }
-
-        // === Mappings Page ===
-        async function loadMappings() {
-            try {
-                const response = await fetch(getApiUrl('/api/mappings'));
-                const data = await response.json();
-
-                if (data.mappings && Object.keys(data.mappings).length > 0) {
-                    document.getElementById('mapping-editor').value = JSON.stringify(data.mappings, null, 2);
-                } else {
-                    document.getElementById('mapping-editor').value = '';
-                }
-
-                if (data.metadata) {
-                    const lastMod = data.metadata.last_modified;
-                    document.getElementById('mapping-last-modified').textContent =
-                        lastMod ? new Date(lastMod).toLocaleString() : 'Never';
-
-                    const dropdown = document.getElementById('restore-versions');
-                    if (data.metadata.versions_available && data.metadata.versions_available.length > 0) {
-                        dropdown.innerHTML = data.metadata.versions_available.map(v =>
-                            `<li><a class="dropdown-item" href="#" onclick="restoreMapping(${v.version})">
-                                Version ${v.version} - ${new Date(v.date).toLocaleString()}
-                            </a></li>`
-                        ).join('');
-                    } else {
-                        dropdown.innerHTML = '<li><span class="dropdown-item text-muted">No backups available</span></li>';
-                    }
-                }
-
-                loadMappingTemplates();
-            } catch (error) {
-                showToast('Failed to load mappings', 'danger');
-            }
-        }
-
-        async function saveMappings() {
-            try {
-                const text = document.getElementById('mapping-editor').value;
-                let data = {};
-
-                if (text.trim()) {
-                    data = JSON.parse(text);
-                }
-
-                const response = await fetch(getApiUrl('/api/mappings/save'), {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(data)
-                });
-
-                if (!response.ok) throw new Error('Save failed');
-
-                showToast('Mappings saved', 'success');
-                loadMappings();
-            } catch (error) {
-                showToast('Failed to save mappings: ' + error.message, 'danger');
-            }
-        }
-
-        async function restoreMapping(version) {
-            if (!confirm(`Restore mapping from version ${version}? Current mappings will be backed up.`)) return;
-
-            try {
-                const response = await fetch(getApiUrl(`/api/mappings/restore/${version}`), {
-                    method: 'POST'
-                });
-
-                if (!response.ok) throw new Error('Restore failed');
-
-                showToast(`Restored from version ${version}`, 'success');
-                loadMappings();
-            } catch (error) {
-                showToast('Failed to restore: ' + error.message, 'danger');
-            }
-        }
-
-        async function loadMappingTemplates() {
-            try {
-                const response = await fetch(getApiUrl('/api/mappings/templates'));
-                const templates = await response.json();
-
-                const container = document.getElementById('templates-list');
-                container.innerHTML = Object.entries(templates).map(([name, mapping]) => `
-                    <div class="col-md-6 mb-3">
-                        <div class="card h-100">
-                            <div class="card-body">
-                                <h6 class="card-title">${name.replace(/_/g, ' ')}</h6>
-                                <pre class="small bg-body-secondary p-2 mb-2" style="max-height: 100px; overflow: auto;">${JSON.stringify(mapping, null, 2)}</pre>
-                                <button class="btn btn-sm btn-outline-primary" onclick="insertTemplate('${name}', ${JSON.stringify(JSON.stringify(mapping))})">
-                                    <i class="bi bi-plus"></i> Insert
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-            } catch (error) {
-                console.error('Failed to load templates:', error);
-            }
-        }
-
-        function insertTemplate(name, mappingJson) {
-            const editor = document.getElementById('mapping-editor');
-            let current = {};
-
-            try {
-                if (editor.value.trim()) {
-                    current = JSON.parse(editor.value);
-                }
-            } catch (e) {
-                // Start fresh if invalid
-            }
-
-            current[name] = JSON.parse(mappingJson);
-            editor.value = JSON.stringify(current, null, 2);
-
-            bootstrap.Modal.getInstance(document.getElementById('templatesModal'))?.hide();
-            showToast(`Template inserted: ${name}`, 'success');
-        }
-
-        function showMappingHelp() {
-            alert(`Mapping Configuration Help:
-
-Mappings define how EnOcean EEP fields are converted to Home Assistant entities.
-
-Format (JSON):
-{
-  "EEP-ID": {
-    "FIELD": {
-      "component": "sensor|binary_sensor|switch|light|cover",
-      "name": "Display Name",
-      "device_class": "temperature|humidity|door|...",
-      "unit_of_measurement": "°C|%|...",
-      "icon": "mdi:icon-name"
-    }
-  }
-}
-
-Example for temperature sensor (A5-02-05):
-{
-  "A5-02-05": {
-    "TMP": {
-      "component": "sensor",
-      "name": "Temperature",
-      "device_class": "temperature",
-      "unit_of_measurement": "°C"
-    }
-  }
-}
-
-Use Templates button to insert common configurations.
-Use Restore to roll back to previous versions.`);
         }
 
         function showToast(message, type = 'info') {
