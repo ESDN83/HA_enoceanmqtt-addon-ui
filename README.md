@@ -16,6 +16,8 @@
 
 ---
 
+![EnOcean MQTT Web UI](images/screenshot-dashboard.png)
+
 Modern web-based EnOcean to MQTT bridge for Home Assistant with visual device configuration.
 
 **This is an All-in-One solution** - it completely replaces the ChristopheHD enocean-mqtt addon. No separate addon required!

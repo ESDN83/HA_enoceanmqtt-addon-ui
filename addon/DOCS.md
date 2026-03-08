@@ -1,7 +1,6 @@
 # EnOcean MQTT
 
-<!-- TODO: Add screenshot after pushing to Git -->
-<!-- ![EnOcean MQTT Web UI](https://raw.githubusercontent.com/ESDN83/HA_enoceanmqtt-addon-ui/main/images/screenshot.png) -->
+![Dashboard](https://raw.githubusercontent.com/ESDN83/HA_enoceanmqtt-addon-ui/main/images/screenshot-dashboard.png)
 
 All-in-One EnOcean to MQTT bridge with a modern web UI for Home Assistant.
 
@@ -73,12 +72,18 @@ Kessel Staufix that only reports every 8-10 hours) don't show as "unavailable".
 ### Dashboard
 Overview with connection status, device counts, recent telegrams and unknown device detection.
 
+![Dashboard](https://raw.githubusercontent.com/ESDN83/HA_enoceanmqtt-addon-ui/main/images/screenshot-dashboard.png)
+
 ### Devices
 List and manage all configured EnOcean devices. Add, edit, or remove devices.
+
+![Devices](https://raw.githubusercontent.com/ESDN83/HA_enoceanmqtt-addon-ui/main/images/screenshot-devices.png)
 
 ### EEP Profiles
 Browse the complete EnOcean Equipment Profile tree. View field definitions and
 create custom profiles for unsupported devices.
+
+![EEP Profiles](https://raw.githubusercontent.com/ESDN83/HA_enoceanmqtt-addon-ui/main/images/screenshot-profiles.png)
 
 ### Entity Mappings
 Define how EEP profile fields map to Home Assistant entities (sensor, binary_sensor,
@@ -88,7 +93,9 @@ switch, light, cover, etc.).
 Wizard for adding new devices via Teach-In (automatic) or manual entry.
 
 ### Settings
-Export/import configuration, view system information, restart services.
+Export/import configuration, upload custom EEP.xml, view system information, restart services.
+
+![Settings](https://raw.githubusercontent.com/ESDN83/HA_enoceanmqtt-addon-ui/main/images/screenshot-settings.png)
 
 ## Migration from ChristopheHD Addon
 
