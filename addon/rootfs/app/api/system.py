@@ -224,11 +224,15 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
                         await f.write(yaml.dump(overrides_data, default_flow_style=False, allow_unicode=True))
                     imported["mapping_overrides"] = True
 
-        # Reload EEP profiles if EEP.xml was imported
-        if imported.get("eep_xml") and request.app.state.eep_manager:
-            eep_manager = request.app.state.eep_manager
+        # Reinitialize EEP manager if any EEP-related data was imported
+        eep_manager = request.app.state.eep_manager
+        if eep_manager and (imported.get("eep_xml") or imported.get("custom_profiles", 0) > 0):
             eep_manager.profiles.clear()
             await eep_manager.initialize()
+
+        # Reload mapping overrides into cache after import
+        if imported.get("mapping_overrides") and eep_manager:
+            await eep_manager._load_overrides()
 
         return {"status": "imported", "details": imported}
 
