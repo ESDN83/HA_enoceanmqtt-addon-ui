@@ -959,7 +959,16 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/static/js/js-yaml.min.js"></script>
+    <script>
+    // Load js-yaml dynamically with Ingress-aware path
+    (function() {
+        var base = window.location.pathname.replace(/\/$/, '');
+        if (base === '/') base = '';
+        var s = document.createElement('script');
+        s.src = base + '/static/js/js-yaml.min.js';
+        document.head.appendChild(s);
+    })();
+    </script>
     <script>
         // === i18n Translation System ===
         let currentLang = 'en';
@@ -1138,6 +1147,8 @@
                 // Clear HA mapping builder
                 document.getElementById('ha-mapping-rows').innerHTML = '';
                 document.getElementById('ha-mapping-empty').style.display = '';
+                // Reset text mode when modal closes
+                _resetHaTextMode();
             });
         });
 
@@ -1474,10 +1485,17 @@
                     actionsHtml = `
                         <div class="mt-2">
                             <button class="btn btn-sm btn-outline-primary me-2" onclick="editCustomProfile('${profile.eep_id}')">
-                                <i class="bi bi-pencil"></i> Edit
+                                <i class="bi bi-pencil"></i> Edit Profile
                             </button>
                             <button class="btn btn-sm btn-outline-danger" onclick="deleteCustomProfile('${profile.eep_id}')">
                                 <i class="bi bi-trash"></i> Delete
+                            </button>
+                        </div>`;
+                } else {
+                    actionsHtml = `
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="forkStandardProfile('${profile.eep_id}')" title="Create a custom copy to edit fields and mapping">
+                                <i class="bi bi-copy"></i> Fork as Custom Profile
                             </button>
                         </div>`;
                 }
@@ -1504,20 +1522,29 @@
                 </div>`;
 
                 if (hasMapping) {
-                    haMappingHtml += Object.entries(effectiveMapping).map(([shortcut, config]) => `
-                        <div class="border rounded p-2 mb-2 bg-body-secondary">
+                    haMappingHtml += Object.entries(effectiveMapping).map(([shortcut, config]) => {
+                        const mainFields = [];
+                        if (config.name) mainFields.push(`Name: ${config.name}`);
+                        if (config.device_class) mainFields.push(`Class: ${config.device_class}`);
+                        if (config.icon) mainFields.push(`Icon: ${config.icon}`);
+                        if (config.unit_of_measurement) mainFields.push(`Unit: ${config.unit_of_measurement}`);
+
+                        const advancedFields = [];
+                        if (config.state_class) advancedFields.push(`State: ${config.state_class}`);
+                        if (config.entity_category) advancedFields.push(`Category: ${config.entity_category}`);
+                        if (config.expire_after) advancedFields.push(`Expire: ${config.expire_after}s`);
+                        if (config.force_update) advancedFields.push(`Force Update`);
+                        if (config.suggested_display_precision != null) advancedFields.push(`Precision: ${config.suggested_display_precision}`);
+
+                        return `<div class="border rounded p-2 mb-2 bg-body-secondary">
                             <div class="d-flex justify-content-between">
                                 <strong>${shortcut}</strong>
                                 <span class="badge bg-primary">${config.component || 'sensor'}</span>
                             </div>
-                            <small>
-                                ${config.name ? `Name: ${config.name}` : ''}
-                                ${config.device_class ? ` | Class: ${config.device_class}` : ''}
-                                ${config.icon ? ` | Icon: ${config.icon}` : ''}
-                                ${config.unit_of_measurement ? ` | Unit: ${config.unit_of_measurement}` : ''}
-                            </small>
-                        </div>
-                    `).join('');
+                            <small>${mainFields.join(' | ')}</small>
+                            ${advancedFields.length ? `<br><small class="text-info">${advancedFields.join(' | ')}</small>` : ''}
+                        </div>`;
+                    }).join('');
                 } else {
                     haMappingHtml += '<p class="text-muted small"><i class="bi bi-info-circle"></i> No HA mapping defined. Click "Customize" to create one.</p>';
                 }
@@ -1587,6 +1614,9 @@
                 const data = await resp.json();
                 _currentEditorProfile = data;
 
+                // Reset text mode state when opening editor
+                _resetInlineTextMode();
+
                 const editor = document.getElementById('inline-mapping-editor');
                 const container = document.getElementById('inline-mapping-rows');
                 const emptyMsg = document.getElementById('inline-mapping-empty');
@@ -1617,7 +1647,7 @@
 
         function closeMappingEditor() {
             document.getElementById('inline-mapping-editor').style.display = 'none';
-            _inlineTextMode = false;
+            _resetInlineTextMode();
         }
 
         // ===== Text Mode Toggle (Visual ↔ YAML) =====
@@ -1625,7 +1655,37 @@
         let _inlineTextMode = false;
         let _haTextMode = false;
 
+        function _isJsYamlAvailable() {
+            return typeof jsyaml !== 'undefined' && jsyaml.dump && jsyaml.load;
+        }
+
+        function _resetInlineTextMode() {
+            _inlineTextMode = false;
+            const visual = document.getElementById('inline-mapping-visual');
+            const text = document.getElementById('inline-mapping-text');
+            const btn = document.getElementById('inline-mode-toggle');
+            if (visual) visual.style.display = '';
+            if (text) text.style.display = 'none';
+            if (btn) btn.innerHTML = '<i class="bi bi-code-slash"></i> Text Mode';
+        }
+
+        function _resetHaTextMode() {
+            _haTextMode = false;
+            const visual = document.getElementById('ha-mapping-visual');
+            const text = document.getElementById('ha-mapping-text');
+            const btn = document.getElementById('ha-mode-toggle');
+            const addBtn = document.getElementById('ha-add-row-btn');
+            if (visual) visual.style.display = '';
+            if (text) text.style.display = 'none';
+            if (btn) btn.innerHTML = '<i class="bi bi-code-slash"></i> Text Mode';
+            if (addBtn) addBtn.style.display = '';
+        }
+
         function toggleInlineMappingMode() {
+            if (!_isJsYamlAvailable()) {
+                showToast('YAML library not loaded. Please reload the page.', 'warning');
+                return;
+            }
             const visual = document.getElementById('inline-mapping-visual');
             const text = document.getElementById('inline-mapping-text');
             const btn = document.getElementById('inline-mode-toggle');
@@ -1637,8 +1697,13 @@
                     showToast('Fix validation errors before switching to text mode', 'warning');
                     return;
                 }
-                const yamlStr = (mapping && Object.keys(mapping).length > 0) ? jsyaml.dump(mapping, { lineWidth: -1 }) : '';
-                document.getElementById('inline-mapping-yaml').value = yamlStr;
+                try {
+                    const yamlStr = (mapping && Object.keys(mapping).length > 0) ? jsyaml.dump(mapping, { lineWidth: -1 }) : '';
+                    document.getElementById('inline-mapping-yaml').value = yamlStr;
+                } catch (e) {
+                    showToast('Failed to serialize to YAML: ' + e.message, 'danger');
+                    return;
+                }
                 visual.style.display = 'none';
                 text.style.display = '';
                 btn.innerHTML = '<i class="bi bi-ui-checks-grid"></i> Visual Mode';
@@ -1680,6 +1745,10 @@
         }
 
         function toggleHaMappingMode() {
+            if (!_isJsYamlAvailable()) {
+                showToast('YAML library not loaded. Please reload the page.', 'warning');
+                return;
+            }
             const visual = document.getElementById('ha-mapping-visual');
             const text = document.getElementById('ha-mapping-text');
             const btn = document.getElementById('ha-mode-toggle');
@@ -1692,8 +1761,13 @@
                     showToast('Fix validation errors before switching to text mode', 'warning');
                     return;
                 }
-                const yamlStr = (mapping && Object.keys(mapping).length > 0) ? jsyaml.dump(mapping, { lineWidth: -1 }) : '';
-                document.getElementById('ha-mapping-yaml').value = yamlStr;
+                try {
+                    const yamlStr = (mapping && Object.keys(mapping).length > 0) ? jsyaml.dump(mapping, { lineWidth: -1 }) : '';
+                    document.getElementById('ha-mapping-yaml').value = yamlStr;
+                } catch (e) {
+                    showToast('Failed to serialize to YAML: ' + e.message, 'danger');
+                    return;
+                }
                 visual.style.display = 'none';
                 text.style.display = '';
                 btn.innerHTML = '<i class="bi bi-ui-checks-grid"></i> Visual';
@@ -1739,6 +1813,10 @@
         function getInlineMappingData() {
             /** Get mapping data from either visual or text mode (inline editor) */
             if (_inlineTextMode) {
+                if (!_isJsYamlAvailable()) {
+                    showToast('YAML library not loaded. Please reload the page.', 'warning');
+                    return undefined;
+                }
                 const yamlStr = document.getElementById('inline-mapping-yaml').value.trim();
                 if (!yamlStr) return {};
                 try {
@@ -1755,6 +1833,10 @@
         function getHaMappingData() {
             /** Get mapping data from either visual or text mode (HA mapping editor) */
             if (_haTextMode) {
+                if (!_isJsYamlAvailable()) {
+                    showToast('YAML library not loaded. Please reload the page.', 'warning');
+                    return undefined;
+                }
                 const yamlStr = document.getElementById('ha-mapping-yaml').value.trim();
                 if (!yamlStr) return null;
                 try {
@@ -2016,6 +2098,8 @@
                 showToast('Mapping saved', 'success');
                 closeMappingEditor();
                 showProfileDetails(eepId);
+                // Refresh the profile tree to update "Customized" indicators
+                loadProfiles();
             } catch (e) {
                 showToast(e.message, 'danger');
             }
@@ -2031,6 +2115,8 @@
                 }
                 showToast('Mapping reset to default', 'success');
                 showProfileDetails(eepId);
+                // Refresh the profile tree to update indicators
+                loadProfiles();
             } catch (e) {
                 showToast(e.message, 'danger');
             }
@@ -2063,6 +2149,9 @@
                     return;
                 }
 
+                // Reset text mode before populating
+                _resetHaTextMode();
+
                 // Populate the modal form with existing data
                 const form = document.getElementById('custom-profile-form');
                 form.querySelector('[name="rorg"]').value = profile.rorg;
@@ -2086,6 +2175,44 @@
                 new bootstrap.Modal(document.getElementById('customProfileModal')).show();
             } catch (error) {
                 showToast('Failed to load profile for editing', 'danger');
+            }
+        }
+
+        async function forkStandardProfile(eepId) {
+            try {
+                const response = await fetch(getApiUrl(`/api/eep/${eepId}`));
+                const profile = await response.json();
+
+                // Also fetch mapping override if exists
+                const mappingResp = await fetch(getApiUrl(`/api/eep/${eepId}/mapping`));
+                const mappingData = await mappingResp.json();
+
+                // Reset text mode before populating
+                _resetHaTextMode();
+
+                // Populate the modal form with standard profile data
+                const form = document.getElementById('custom-profile-form');
+                form.reset();
+                delete form.dataset.editEepId;
+                form.querySelector('[name="rorg"]').value = profile.rorg;
+                form.querySelector('[name="func"]').value = profile.func;
+                form.querySelector('[name="type"]').value = profile.type;
+                form.querySelector('[name="description"]').value = profile.description;
+                form.querySelector('[name="fields"]').value = profile.fields.length
+                    ? JSON.stringify(profile.fields, null, 2)
+                    : '';
+
+                // Populate HA mapping from override or default
+                const effectiveMapping = mappingData.mapping || {};
+                populateHaMapping(effectiveMapping);
+
+                // Update modal title
+                document.querySelector('#customProfileModal .modal-title').textContent = `Fork Standard Profile: ${eepId}`;
+
+                // Show modal
+                new bootstrap.Modal(document.getElementById('customProfileModal')).show();
+            } catch (error) {
+                showToast('Failed to load profile for forking', 'danger');
             }
         }
 
@@ -3124,7 +3251,9 @@
                 document.getElementById('ha-mapping-empty').style.display = '';
                 loadProfiles();
                 showToast(editEepId ? 'Custom profile updated' : 'Custom profile created', 'success');
-                if (editEepId) showProfileDetails(editEepId);
+                // Show the profile details (use editEepId for updates, compute from form for new)
+                const showEepId = editEepId || `${rorg.toUpperCase().replace('0X','')}-${func.toUpperCase().replace('0X','').padStart(2,'0')}-${type.toUpperCase().replace('0X','').padStart(2,'0')}`;
+                showProfileDetails(showEepId);
             } catch (error) {
                 showToast(error.message, 'danger');
             }
