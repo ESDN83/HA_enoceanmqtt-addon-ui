@@ -230,9 +230,11 @@ async def test_actuator(req: TestActuatorRequest, request: Request) -> Dict[str,
     command = req.command.strip().upper()
 
     # Dimmers use A5-38-08 Central Command Dimming
+    # Use DIM mode (dim_mode=1) with explicit brightness, not ON (dim_mode=0/stored).
+    # Eltako FD62NPN and similar dimmers respond more reliably to explicit DIM values.
     if device.actuator_type == "light":
         if command == "ON":
-            await serial_handler.send_a5_dimmer_command(sender_id, "ON", dim_value=255)
+            await serial_handler.send_a5_dimmer_command(sender_id, "DIM", dim_value=100)
         elif command == "OFF":
             await serial_handler.send_a5_dimmer_command(sender_id, "OFF")
         else:
