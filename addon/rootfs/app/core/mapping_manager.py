@@ -93,14 +93,16 @@ DEFAULT_MAPPINGS = {
     # RPS Rocker Switch (F6-02-01)
     "F6-02-01": {
         "R1": {
-            "component": "binary_sensor",
-            "name": "Rocker 1",
-            "device_class": "power"
+            "component": "sensor",
+            "name": "Rocker A",
+            "icon": "mdi:gesture-tap-button",
+            "value_template": "{{ value_json.R1_text }}"
         },
         "R2": {
-            "component": "binary_sensor",
-            "name": "Rocker 2",
-            "device_class": "power"
+            "component": "sensor",
+            "name": "Rocker B",
+            "icon": "mdi:gesture-tap-button",
+            "value_template": "{{ value_json.R2_text }}"
         },
         "EB": {
             "component": "binary_sensor",

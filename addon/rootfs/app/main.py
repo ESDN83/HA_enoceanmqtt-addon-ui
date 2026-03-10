@@ -31,7 +31,7 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "info").upper()
 _log_level = getattr(logging, LOG_LEVEL, logging.INFO)
 logging.basicConfig(
     level=_log_level,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s'
 )
 # Apply log level to root and all third-party loggers
 logging.getLogger().setLevel(_log_level)
@@ -143,7 +143,7 @@ async def lifespan(app: FastAPI):
     app.state.telegram_buffer = telegram_buffer
     app.state.config_path = CONFIG_PATH
 
-    logger.info("EnOcean MQTT Add-on started successfully")
+    logger.info("EnOcean MQTT Add-on started successfully — Web UI running on port 8099")
 
     yield
 
@@ -399,10 +399,13 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
+    # Suppress uvicorn's own startup messages ("Uvicorn running on http://0.0.0.0:8099",
+    # "Application startup complete") which confuse users.
+    # Our own "started successfully" message in the lifespan is clearer.
     uvicorn.run(
         app,
         host="0.0.0.0",
         port=8099,
-        log_level=LOG_LEVEL.lower(),
+        log_level="warning",
         log_config=None
     )
