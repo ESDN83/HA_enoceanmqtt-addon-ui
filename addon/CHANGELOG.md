@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.2.0] - 2026-03-10
+
+### New Features
+- **Advanced Mapping Fields** — state_class, entity_category, expire_after, force_update, suggested_display_precision, and value_template support in mapping editor
+- **Visual & Text Mode Editor** — Toggle between visual form and YAML text editor for mapping overrides (inline and modal)
+- **Fork Standard Profiles** — Create custom copies of standard EEP profiles to edit Telegram Fields and HA mappings together
+- **YAML-Based Config** — All configuration files migrated from JSON to YAML (devices, mapping overrides) with automatic migration of existing JSON files
+- **YAML Export/Import** — Full configuration export/import as YAML files
+- **Pass-Through Fields** — Support for pass-through field mappings in the mapping editor
+
+### Improvements
+- **Profile Tree Sections** — Dedicated sections for Custom Profiles and Customized Mappings at the top of the EEP tree
+- **Orphaned Override Warnings** — Visual warning for mapping overrides that reference non-existent EEP profiles
+- **Enhanced Mapping Display** — Profile detail view now shows advanced mapping fields (state_class, expire_after, etc.)
+- **Tree Auto-Refresh** — Profile tree refreshes automatically after saving or resetting mapping overrides
+- **Text Mode State Reset** — Proper cleanup of text/visual mode state when opening/closing editors
+
+### Bug Fixes
+- **HA Ingress Compatibility** — Fixed js-yaml library loading through HA Ingress proxy (dynamic path resolution instead of absolute `/static/` path)
+- **Text Mode 400 Error** — Fixed form submission when clicking Text Mode button in Custom Profile modal (missing `type="button"`)
+- **Backup Restore** — Custom profiles (custom_eep/) now properly reloaded after restore (EEP manager re-initialization)
+- **Version Display** — Fixed version shown in UI sidebar (was stuck at 1.1.0)
+- **jsyaml Error Handling** — Added availability checks and try-catch around YAML serialization calls
+
 ## [1.1.0] - 2026-03-08
 
 ### New Features

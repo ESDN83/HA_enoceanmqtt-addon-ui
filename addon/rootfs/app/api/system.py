@@ -507,7 +507,8 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
                         await f.write(yaml.dump(overrides_data, default_flow_style=False, allow_unicode=True))
                     imported["mapping_overrides"] = True
 
-        if imported.get("eep_xml") and eep_manager:
+        # Reinitialize EEP manager if any EEP-related data was restored
+        if eep_manager and (imported.get("eep_xml") or imported.get("custom_profiles", 0) > 0):
             eep_manager.profiles.clear()
             await eep_manager.initialize()
 
