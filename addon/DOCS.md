@@ -22,7 +22,12 @@ all from within Home Assistant.
 - **State Persistence** — Restore device states after restart
 - **Actuator Control** — Control Eltako dimmers, switches, and blinds with teach-in support
 - **HA Entity Mapping Overrides** — Customize HA mappings per EEP profile with inline editor and auto-fill
-- **Local Backups** — Create, list, restore, and delete local backups (includes mapping overrides)
+- **Advanced Mapping Fields** — state_class, entity_category, expire_after, force_update, display precision, value_template
+- **Visual & Text Mode Editor** — Toggle between visual form and YAML text editor for mapping overrides
+- **Fork Standard Profiles** — Create custom copies of standard EEP profiles to edit fields and mappings
+- **YAML-Based Config** — All configuration files (devices, mappings, overrides) stored as YAML
+- **Export/Import YAML** — Full configuration export/import as YAML files
+- **Local Backups** — Create, list, restore, and delete local backups (devices, mappings, custom profiles, overrides)
 - **Dark Mode** — Automatic light/dark theme based on your Home Assistant settings
 - **Multi-Language UI** — Auto-detects browser language (11 languages supported)
 - **Mobile Friendly** — Responsive UI with sidebar navigation
@@ -61,22 +66,35 @@ Overview with connection status, device counts, recent telegrams and unknown dev
 List and manage all configured EnOcean devices. Add, edit, or remove devices.
 
 ### EEP Profiles
-Browse the complete EnOcean Equipment Profile tree. View field definitions and
-create custom profiles for unsupported devices.
+Browse the complete EnOcean Equipment Profile tree with dedicated sections for
+Custom Profiles, Customized Mappings, and the standard EEP tree. Search across
+all profiles and view field definitions.
 
-![EEP Profiles](https://github.com/user-attachments/assets/ca0c5baa-4566-45bb-8150-79c77ca3c48e)
+![EEP Profiles](https://github.com/user-attachments/assets/fa4d4142-b873-4862-823e-815bec9fc7ac)
 
 ### Entity Mappings
 Define how EEP profile fields map to Home Assistant entities (sensor, binary_sensor,
 switch, light, cover, etc.). Each EEP profile detail view includes a "Customize" button
 to override the default mapping — with auto-fill from EEP.xml field definitions and
-per-profile save/reset.
+per-profile save/reset. Advanced fields like `state_class`, `entity_category`,
+`expire_after`, `force_update`, and `value_template` are supported.
+
+Toggle between Visual and Text (YAML) editing modes for full control:
+
+![Text Mode](https://github.com/user-attachments/assets/d6b188da-a61e-4ec1-aae3-c01bb805b45e)
+
+### Custom & Forked Profiles
+Create fully custom EEP profiles for non-standard devices, or "fork" a standard
+profile to customize its Telegram Fields and HA mappings together.
+
+![Custom Profile](https://github.com/user-attachments/assets/8da98b5c-14cf-4e4e-a26a-cc31aac98e67)
 
 ### Add Device
 Wizard for adding new devices via Teach-In (automatic) or manual entry.
 
 ### Settings
-Export/import configuration, upload custom EEP.xml, local backups (create/list/restore/delete),
+Export/import full configuration as YAML, upload custom EEP.xml, local backups
+(create/list/restore/delete — includes devices, mappings, custom profiles, and overrides),
 view system information, restart services.
 
 ![Settings](https://github.com/user-attachments/assets/370072b1-7219-4566-a733-2c9e58b018fa)
