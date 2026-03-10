@@ -2350,7 +2350,13 @@
             }
         }
 
+        let _testActuatorBusy = false;
         async function testActuator(deviceName, command) {
+            // Debounce: prevent double-send from rapid clicks
+            if (_testActuatorBusy) return;
+            _testActuatorBusy = true;
+            setTimeout(() => { _testActuatorBusy = false; }, 1500);
+
             const resultSpan = document.getElementById('test-actuator-result');
             resultSpan.innerHTML = '<span class="text-info"><i class="bi bi-hourglass-split"></i> Sending...</span>';
 
