@@ -919,21 +919,32 @@
                         <div class="card border-primary mb-3">
                             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                                 <span><i class="bi bi-house-gear"></i> HA Entity Mapping</span>
-                                <button type="button" class="btn btn-sm btn-light" onclick="addHaMappingRow()">
-                                    <i class="bi bi-plus-circle"></i> Add Mapping
-                                </button>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-light me-1" id="ha-mode-toggle" onclick="toggleHaMappingMode()">
+                                        <i class="bi bi-code-slash"></i> Text Mode
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-light" id="ha-add-row-btn" onclick="addHaMappingRow()">
+                                        <i class="bi bi-plus-circle"></i> Add Mapping
+                                    </button>
+                                </div>
                             </div>
                             <div class="card-body">
-                                <p class="text-muted small mb-2">
-                                    Define how each decoded field becomes a Home Assistant entity.
-                                    The <strong>Shortcut</strong> must match a field shortcut above (e.g., AL, DI0).
-                                </p>
-                                <div id="ha-mapping-rows">
-                                    <!-- Dynamic mapping rows will be added here -->
+                                <div id="ha-mapping-visual">
+                                    <p class="text-muted small mb-2">
+                                        Define how each decoded field becomes a Home Assistant entity.
+                                        The <strong>Shortcut</strong> must match a field shortcut above (e.g., AL, DI0).
+                                    </p>
+                                    <div id="ha-mapping-rows">
+                                        <!-- Dynamic mapping rows will be added here -->
+                                    </div>
+                                    <div id="ha-mapping-empty" class="text-muted text-center py-3">
+                                        <i class="bi bi-info-circle"></i> No HA mappings defined. Click "Add Mapping" to create one.
+                                        <br><small>Without mappings, default EEP mappings will be used.</small>
+                                    </div>
                                 </div>
-                                <div id="ha-mapping-empty" class="text-muted text-center py-3">
-                                    <i class="bi bi-info-circle"></i> No HA mappings defined. Click "Add Mapping" to create one.
-                                    <br><small>Without mappings, default EEP mappings will be used.</small>
+                                <div id="ha-mapping-text" style="display:none;">
+                                    <p class="text-muted small mb-2">Edit mapping as YAML. Any valid MQTT discovery field can be used.</p>
+                                    <textarea id="ha-mapping-yaml" class="form-control form-control-sm font-monospace" rows="14" spellcheck="false"></textarea>
                                 </div>
                             </div>
                         </div>
@@ -948,6 +959,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/js-yaml.min.js"></script>
     <script>
         // === i18n Translation System ===
         let currentLang = 'en';
@@ -1513,17 +1525,30 @@
                 // Inline mapping editor (hidden by default)
                 haMappingHtml += `
                 <div id="inline-mapping-editor" style="display:none;" class="mt-3 border rounded p-3 bg-body-tertiary">
-                    <h6><i class="bi bi-sliders"></i> Mapping Editor</h6>
-                    <p class="text-muted small mb-2">Define how EEP fields map to Home Assistant entities. Shortcut must match a telegram field name.</p>
-                    <div id="inline-mapping-rows"></div>
-                    <div id="inline-mapping-empty" class="text-muted small mb-2" style="display:none;">No mappings defined. Click "Add Row" to start.</div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0"><i class="bi bi-sliders"></i> Mapping Editor</h6>
+                        <button class="btn btn-sm btn-outline-secondary" id="inline-mode-toggle" onclick="toggleInlineMappingMode()">
+                            <i class="bi bi-code-slash"></i> Text Mode
+                        </button>
+                    </div>
+                    <div id="inline-mapping-visual">
+                        <p class="text-muted small mb-2">Define how EEP fields map to Home Assistant entities. Shortcut must match a telegram field name.</p>
+                        <div id="inline-mapping-rows"></div>
+                        <div id="inline-mapping-empty" class="text-muted small mb-2" style="display:none;">No mappings defined. Click "Add Row" to start.</div>
+                        <div class="d-flex gap-2 mt-2">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="addInlineMappingRow()">
+                                <i class="bi bi-plus"></i> Add Row
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="prefillMappingFromFields('${profile.eep_id}')">
+                                <i class="bi bi-magic"></i> Auto-fill from Fields
+                            </button>
+                        </div>
+                    </div>
+                    <div id="inline-mapping-text" style="display:none;">
+                        <p class="text-muted small mb-2">Edit mapping as YAML. Any valid MQTT discovery field can be used (state_class, expire_after, etc.).</p>
+                        <textarea id="inline-mapping-yaml" class="form-control form-control-sm font-monospace" rows="14" spellcheck="false"></textarea>
+                    </div>
                     <div class="d-flex gap-2 mt-2">
-                        <button class="btn btn-sm btn-outline-secondary" onclick="addInlineMappingRow()">
-                            <i class="bi bi-plus"></i> Add Row
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="prefillMappingFromFields('${profile.eep_id}')">
-                            <i class="bi bi-magic"></i> Auto-fill from Fields
-                        </button>
                         <div class="ms-auto">
                             <button class="btn btn-sm btn-outline-secondary me-1" onclick="closeMappingEditor()">Cancel</button>
                             <button class="btn btn-sm btn-primary" onclick="saveMappingOverride('${profile.eep_id}')">
@@ -1571,7 +1596,14 @@
                 if (Object.keys(mapping).length > 0) {
                     emptyMsg.style.display = 'none';
                     for (const [shortcut, config] of Object.entries(mapping)) {
-                        addInlineMappingRow(shortcut, config.component || 'sensor', config.name || '', config.device_class || '', config.icon || '', config.unit_of_measurement || '');
+                        addInlineMappingRow(shortcut, config.component || 'sensor', config.name || '', config.device_class || '', config.icon || '', config.unit_of_measurement || '', {
+                            state_class: config.state_class,
+                            entity_category: config.entity_category,
+                            expire_after: config.expire_after,
+                            force_update: config.force_update,
+                            suggested_display_precision: config.suggested_display_precision,
+                            value_template: config.value_template
+                        });
                     }
                 } else {
                     emptyMsg.style.display = '';
@@ -1585,12 +1617,171 @@
 
         function closeMappingEditor() {
             document.getElementById('inline-mapping-editor').style.display = 'none';
+            _inlineTextMode = false;
         }
 
-        function addInlineMappingRow(shortcut = '', component = 'sensor', name = '', deviceClass = '', icon = '', unit = '') {
+        // ===== Text Mode Toggle (Visual ↔ YAML) =====
+
+        let _inlineTextMode = false;
+        let _haTextMode = false;
+
+        function toggleInlineMappingMode() {
+            const visual = document.getElementById('inline-mapping-visual');
+            const text = document.getElementById('inline-mapping-text');
+            const btn = document.getElementById('inline-mode-toggle');
+
+            if (!_inlineTextMode) {
+                // Visual → Text: collect mapping and serialize to YAML
+                const mapping = collectInlineMapping();
+                if (mapping === undefined) {
+                    showToast('Fix validation errors before switching to text mode', 'warning');
+                    return;
+                }
+                const yamlStr = (mapping && Object.keys(mapping).length > 0) ? jsyaml.dump(mapping, { lineWidth: -1 }) : '';
+                document.getElementById('inline-mapping-yaml').value = yamlStr;
+                visual.style.display = 'none';
+                text.style.display = '';
+                btn.innerHTML = '<i class="bi bi-ui-checks-grid"></i> Visual Mode';
+                _inlineTextMode = true;
+            } else {
+                // Text → Visual: parse YAML and rebuild rows
+                const yamlStr = document.getElementById('inline-mapping-yaml').value.trim();
+                if (yamlStr) {
+                    try {
+                        const mapping = jsyaml.load(yamlStr);
+                        if (mapping && typeof mapping === 'object') {
+                            const container = document.getElementById('inline-mapping-rows');
+                            container.innerHTML = '';
+                            for (const [shortcut, config] of Object.entries(mapping)) {
+                                addInlineMappingRow(shortcut, config.component || 'sensor', config.name || '', config.device_class || '', config.icon || '', config.unit_of_measurement || '', {
+                                    state_class: config.state_class,
+                                    entity_category: config.entity_category,
+                                    expire_after: config.expire_after,
+                                    force_update: config.force_update,
+                                    suggested_display_precision: config.suggested_display_precision,
+                                    value_template: config.value_template
+                                });
+                            }
+                            document.getElementById('inline-mapping-empty').style.display = 'none';
+                        }
+                    } catch (e) {
+                        showToast('YAML parse error: ' + e.message, 'danger');
+                        return; // stay in text mode
+                    }
+                } else {
+                    document.getElementById('inline-mapping-rows').innerHTML = '';
+                    document.getElementById('inline-mapping-empty').style.display = '';
+                }
+                visual.style.display = '';
+                text.style.display = 'none';
+                btn.innerHTML = '<i class="bi bi-code-slash"></i> Text Mode';
+                _inlineTextMode = false;
+            }
+        }
+
+        function toggleHaMappingMode() {
+            const visual = document.getElementById('ha-mapping-visual');
+            const text = document.getElementById('ha-mapping-text');
+            const btn = document.getElementById('ha-mode-toggle');
+            const addBtn = document.getElementById('ha-add-row-btn');
+
+            if (!_haTextMode) {
+                // Visual → Text
+                const mapping = collectHaMapping();
+                if (mapping === undefined) {
+                    showToast('Fix validation errors before switching to text mode', 'warning');
+                    return;
+                }
+                const yamlStr = (mapping && Object.keys(mapping).length > 0) ? jsyaml.dump(mapping, { lineWidth: -1 }) : '';
+                document.getElementById('ha-mapping-yaml').value = yamlStr;
+                visual.style.display = 'none';
+                text.style.display = '';
+                btn.innerHTML = '<i class="bi bi-ui-checks-grid"></i> Visual';
+                addBtn.style.display = 'none';
+                _haTextMode = true;
+            } else {
+                // Text → Visual
+                const yamlStr = document.getElementById('ha-mapping-yaml').value.trim();
+                if (yamlStr) {
+                    try {
+                        const mapping = jsyaml.load(yamlStr);
+                        if (mapping && typeof mapping === 'object') {
+                            const container = document.getElementById('ha-mapping-rows');
+                            container.innerHTML = '';
+                            for (const [shortcut, config] of Object.entries(mapping)) {
+                                addHaMappingRow(shortcut, config.component || 'binary_sensor', config.name || '', config.device_class || '', config.icon || '', config.unit_of_measurement || '', {
+                                    state_class: config.state_class,
+                                    entity_category: config.entity_category,
+                                    expire_after: config.expire_after,
+                                    force_update: config.force_update,
+                                    suggested_display_precision: config.suggested_display_precision,
+                                    value_template: config.value_template
+                                });
+                            }
+                            document.getElementById('ha-mapping-empty').style.display = 'none';
+                        }
+                    } catch (e) {
+                        showToast('YAML parse error: ' + e.message, 'danger');
+                        return; // stay in text mode
+                    }
+                } else {
+                    document.getElementById('ha-mapping-rows').innerHTML = '';
+                    document.getElementById('ha-mapping-empty').style.display = '';
+                }
+                visual.style.display = '';
+                text.style.display = 'none';
+                btn.innerHTML = '<i class="bi bi-code-slash"></i> Text Mode';
+                addBtn.style.display = '';
+                _haTextMode = false;
+            }
+        }
+
+        function getInlineMappingData() {
+            /** Get mapping data from either visual or text mode (inline editor) */
+            if (_inlineTextMode) {
+                const yamlStr = document.getElementById('inline-mapping-yaml').value.trim();
+                if (!yamlStr) return {};
+                try {
+                    const mapping = jsyaml.load(yamlStr);
+                    return (mapping && typeof mapping === 'object') ? mapping : {};
+                } catch (e) {
+                    showToast('YAML parse error: ' + e.message, 'danger');
+                    return undefined; // signal error
+                }
+            }
+            return collectInlineMapping();
+        }
+
+        function getHaMappingData() {
+            /** Get mapping data from either visual or text mode (HA mapping editor) */
+            if (_haTextMode) {
+                const yamlStr = document.getElementById('ha-mapping-yaml').value.trim();
+                if (!yamlStr) return null;
+                try {
+                    const mapping = jsyaml.load(yamlStr);
+                    return (mapping && typeof mapping === 'object' && Object.keys(mapping).length > 0) ? mapping : null;
+                } catch (e) {
+                    showToast('YAML parse error: ' + e.message, 'danger');
+                    return undefined; // signal error
+                }
+            }
+            return collectHaMapping();
+        }
+
+        let _inlineRowCounter = 0;
+
+        function addInlineMappingRow(shortcut = '', component = 'sensor', name = '', deviceClass = '', icon = '', unit = '', opts = {}) {
             const container = document.getElementById('inline-mapping-rows');
             const emptyMsg = document.getElementById('inline-mapping-empty');
             if (emptyMsg) emptyMsg.style.display = 'none';
+
+            const rowId = _inlineRowCounter++;
+            const stateClass = opts.state_class || '';
+            const entityCategory = opts.entity_category || '';
+            const expireAfter = opts.expire_after != null ? opts.expire_after : '';
+            const forceUpdate = opts.force_update || false;
+            const precision = opts.suggested_display_precision != null ? opts.suggested_display_precision : '';
+            const valueTemplate = opts.value_template || '';
 
             const row = document.createElement('div');
             row.className = 'inline-mapping-row border rounded p-2 mb-2 bg-body-secondary';
@@ -1636,7 +1827,63 @@
                         </button>
                     </div>
                 </div>
+                <div class="mt-1">
+                    <a class="small text-muted text-decoration-none" data-bs-toggle="collapse" href="#inline-adv-${rowId}" role="button" aria-expanded="false">
+                        <i class="bi bi-chevron-right"></i> Advanced
+                    </a>
+                    <div class="collapse" id="inline-adv-${rowId}">
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-2">
+                                <label class="form-label small">State Class</label>
+                                <select class="form-select form-select-sm" data-field="state_class">
+                                    <option value="" ${!stateClass ? 'selected' : ''}>(none)</option>
+                                    <option value="measurement" ${stateClass === 'measurement' ? 'selected' : ''}>measurement</option>
+                                    <option value="total" ${stateClass === 'total' ? 'selected' : ''}>total</option>
+                                    <option value="total_increasing" ${stateClass === 'total_increasing' ? 'selected' : ''}>total_increasing</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Entity Category</label>
+                                <select class="form-select form-select-sm" data-field="entity_category">
+                                    <option value="" ${!entityCategory ? 'selected' : ''}>(none)</option>
+                                    <option value="diagnostic" ${entityCategory === 'diagnostic' ? 'selected' : ''}>diagnostic</option>
+                                    <option value="config" ${entityCategory === 'config' ? 'selected' : ''}>config</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Expire After (s)</label>
+                                <input type="number" class="form-control form-control-sm" placeholder="" value="${expireAfter}" data-field="expire_after" min="0">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Precision</label>
+                                <input type="number" class="form-control form-control-sm" placeholder="" value="${precision}" data-field="suggested_display_precision" min="0" max="10">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" data-field="force_update" ${forceUpdate ? 'checked' : ''}>
+                                    <label class="form-check-label small">Force Update</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-6">
+                                <label class="form-label small">Value Template</label>
+                                <input type="text" class="form-control form-control-sm font-monospace" placeholder="auto-generated" value="${valueTemplate.replace(/"/g, '&quot;')}" data-field="value_template">
+                            </div>
+                        </div>
+                    </div>
+                </div>
             `;
+
+            // Rotate chevron on collapse toggle
+            const collapseEl = row.querySelector('.collapse');
+            collapseEl.addEventListener('show.bs.collapse', () => {
+                row.querySelector('.bi-chevron-right')?.classList.replace('bi-chevron-right', 'bi-chevron-down');
+            });
+            collapseEl.addEventListener('hide.bs.collapse', () => {
+                row.querySelector('.bi-chevron-down')?.classList.replace('bi-chevron-down', 'bi-chevron-right');
+            });
+
             container.appendChild(row);
         }
 
@@ -1672,6 +1919,21 @@
                 if (icon) entry.icon = icon;
                 const unit = row.querySelector('[data-field="unit_of_measurement"]').value.trim();
                 if (unit) entry.unit_of_measurement = unit;
+
+                // Advanced fields
+                const stateClass = row.querySelector('[data-field="state_class"]')?.value || '';
+                if (stateClass) entry.state_class = stateClass;
+                const entityCat = row.querySelector('[data-field="entity_category"]')?.value || '';
+                if (entityCat) entry.entity_category = entityCat;
+                const expireStr = row.querySelector('[data-field="expire_after"]')?.value || '';
+                if (expireStr !== '') entry.expire_after = parseInt(expireStr);
+                const precisionStr = row.querySelector('[data-field="suggested_display_precision"]')?.value || '';
+                if (precisionStr !== '') entry.suggested_display_precision = parseInt(precisionStr);
+                const forceUpdate = row.querySelector('[data-field="force_update"]')?.checked || false;
+                if (forceUpdate) entry.force_update = true;
+                const valTpl = row.querySelector('[data-field="value_template"]')?.value?.trim() || '';
+                if (valTpl) entry.value_template = valTpl;
+
                 mapping[shortcut] = entry;
             });
             if (!valid) return undefined;
@@ -1735,9 +1997,9 @@
         }
 
         async function saveMappingOverride(eepId) {
-            const mapping = collectInlineMapping();
+            const mapping = getInlineMappingData();
             if (mapping === undefined) {
-                showToast('All rows must have a shortcut name', 'warning');
+                showToast('All rows must have a shortcut name (or fix YAML errors)', 'warning');
                 return;
             }
 
@@ -2547,10 +2809,20 @@
 
         // ===== HA Mapping Builder =====
 
-        function addHaMappingRow(shortcut = '', component = 'binary_sensor', name = '', deviceClass = '', icon = '', unit = '') {
+        let _haRowCounter = 0;
+
+        function addHaMappingRow(shortcut = '', component = 'binary_sensor', name = '', deviceClass = '', icon = '', unit = '', opts = {}) {
             const container = document.getElementById('ha-mapping-rows');
             const emptyMsg = document.getElementById('ha-mapping-empty');
             if (emptyMsg) emptyMsg.style.display = 'none';
+
+            const rowId = _haRowCounter++;
+            const stateClass = opts.state_class || '';
+            const entityCategory = opts.entity_category || '';
+            const expireAfter = opts.expire_after != null ? opts.expire_after : '';
+            const forceUpdate = opts.force_update || false;
+            const precision = opts.suggested_display_precision != null ? opts.suggested_display_precision : '';
+            const valueTemplate = opts.value_template || '';
 
             const row = document.createElement('div');
             row.className = 'ha-mapping-row border rounded p-2 mb-2';
@@ -2600,7 +2872,63 @@
                         </button>
                     </div>
                 </div>
+                <div class="mt-1">
+                    <a class="small text-muted text-decoration-none" data-bs-toggle="collapse" href="#ha-adv-${rowId}" role="button" aria-expanded="false">
+                        <i class="bi bi-chevron-right"></i> Advanced
+                    </a>
+                    <div class="collapse" id="ha-adv-${rowId}">
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-2">
+                                <label class="form-label small">State Class</label>
+                                <select class="form-select form-select-sm" data-field="state_class">
+                                    <option value="" ${!stateClass ? 'selected' : ''}>(none)</option>
+                                    <option value="measurement" ${stateClass === 'measurement' ? 'selected' : ''}>measurement</option>
+                                    <option value="total" ${stateClass === 'total' ? 'selected' : ''}>total</option>
+                                    <option value="total_increasing" ${stateClass === 'total_increasing' ? 'selected' : ''}>total_increasing</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Entity Category</label>
+                                <select class="form-select form-select-sm" data-field="entity_category">
+                                    <option value="" ${!entityCategory ? 'selected' : ''}>(none)</option>
+                                    <option value="diagnostic" ${entityCategory === 'diagnostic' ? 'selected' : ''}>diagnostic</option>
+                                    <option value="config" ${entityCategory === 'config' ? 'selected' : ''}>config</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Expire After (s)</label>
+                                <input type="number" class="form-control form-control-sm" placeholder="" value="${expireAfter}" data-field="expire_after" min="0">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Precision</label>
+                                <input type="number" class="form-control form-control-sm" placeholder="" value="${precision}" data-field="suggested_display_precision" min="0" max="10">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" data-field="force_update" ${forceUpdate ? 'checked' : ''}>
+                                    <label class="form-check-label small">Force Update</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-6">
+                                <label class="form-label small">Value Template</label>
+                                <input type="text" class="form-control form-control-sm font-monospace" placeholder="auto-generated" value="${valueTemplate.replace(/"/g, '&quot;')}" data-field="value_template">
+                            </div>
+                        </div>
+                    </div>
+                </div>
             `;
+
+            // Rotate chevron on collapse toggle
+            const collapseEl = row.querySelector('.collapse');
+            collapseEl.addEventListener('show.bs.collapse', () => {
+                row.querySelector('.bi-chevron-right')?.classList.replace('bi-chevron-right', 'bi-chevron-down');
+            });
+            collapseEl.addEventListener('hide.bs.collapse', () => {
+                row.querySelector('.bi-chevron-down')?.classList.replace('bi-chevron-down', 'bi-chevron-right');
+            });
+
             container.appendChild(row);
         }
 
@@ -2666,6 +2994,20 @@
                 const unit = row.querySelector('[data-field="unit_of_measurement"]').value.trim();
                 if (unit) entry.unit_of_measurement = unit;
 
+                // Advanced fields
+                const stateClass = row.querySelector('[data-field="state_class"]')?.value || '';
+                if (stateClass) entry.state_class = stateClass;
+                const entityCat = row.querySelector('[data-field="entity_category"]')?.value || '';
+                if (entityCat) entry.entity_category = entityCat;
+                const expireStr = row.querySelector('[data-field="expire_after"]')?.value || '';
+                if (expireStr !== '') entry.expire_after = parseInt(expireStr);
+                const precisionStr = row.querySelector('[data-field="suggested_display_precision"]')?.value || '';
+                if (precisionStr !== '') entry.suggested_display_precision = parseInt(precisionStr);
+                const forceUpdate = row.querySelector('[data-field="force_update"]')?.checked || false;
+                if (forceUpdate) entry.force_update = true;
+                const valTpl = row.querySelector('[data-field="value_template"]')?.value?.trim() || '';
+                if (valTpl) entry.value_template = valTpl;
+
                 mapping[shortcut] = entry;
             });
 
@@ -2691,7 +3033,15 @@
                     config.name || '',
                     config.device_class || '',
                     config.icon || '',
-                    config.unit_of_measurement || ''
+                    config.unit_of_measurement || '',
+                    {
+                        state_class: config.state_class,
+                        entity_category: config.entity_category,
+                        expire_after: config.expire_after,
+                        force_update: config.force_update,
+                        suggested_display_precision: config.suggested_display_precision,
+                        value_template: config.value_template
+                    }
                 );
             }
         }
@@ -2728,10 +3078,10 @@
                     }
                 }
 
-                // Collect HA mapping from builder
-                const haMapping = collectHaMapping();
+                // Collect HA mapping from builder (visual or text mode)
+                const haMapping = getHaMappingData();
                 if (haMapping === undefined) {
-                    showToast('HA Mapping: All rows need a Shortcut', 'danger');
+                    showToast('HA Mapping: All rows need a Shortcut (or fix YAML errors)', 'danger');
                     return;
                 }
 

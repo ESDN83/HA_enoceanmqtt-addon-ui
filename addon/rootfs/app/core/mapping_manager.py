@@ -202,22 +202,32 @@ class MappingManager:
 
         Priority:
         1. Custom EEP profile ha_mapping (from custom_eep YAML)
-        2. Custom EEP mapping (from mapping.yaml)
-        3. Default EEP mapping
-        4. Empty dict
+        2. Mapping overrides (from inline mapping editor)
+        3. Custom EEP mapping (from mapping.yaml)
+        4. Default EEP mapping
+        5. Empty dict
         """
         eep_id = eep_id.upper()
 
-        # Check custom EEP profile ha_mapping
+        # 1. Check custom EEP profile ha_mapping
         if self.eep_manager:
             profile = self.eep_manager.get_profile(eep_id)
             if profile and profile.ha_mapping:
                 logger.debug(f"Using ha_mapping from custom EEP profile {eep_id}")
                 return profile.ha_mapping
 
+        # 2. Check mapping overrides (from inline editor, cached in memory)
+        if self.eep_manager:
+            override = self.eep_manager.get_mapping_override_sync(eep_id)
+            if override:
+                logger.debug(f"Using mapping override for {eep_id}")
+                return override
+
+        # 3. Custom mappings from mapping.yaml
         if eep_id in self.custom_mappings:
             return self.custom_mappings[eep_id]
 
+        # 4. Default mappings
         if eep_id in DEFAULT_MAPPINGS:
             return DEFAULT_MAPPINGS[eep_id]
 
@@ -372,13 +382,12 @@ class MappingManager:
                     )
                 }
 
-                # Add optional fields
-                if "device_class" in field_config:
-                    config["device_class"] = field_config["device_class"]
-                if "unit_of_measurement" in field_config:
-                    config["unit_of_measurement"] = field_config["unit_of_measurement"]
-                if "icon" in field_config:
-                    config["icon"] = field_config["icon"]
+                # Pass through all mapping fields to discovery config
+                # Internal keys are already handled above or are not HA discovery fields
+                _INTERNAL_KEYS = {"component", "name", "value_template"}
+                for key, value in field_config.items():
+                    if key not in _INTERNAL_KEYS and key not in config:
+                        config[key] = value
 
                 # Binary sensor: HA expects "ON"/"OFF" by default, but EEP values are 0/1
                 if component == "binary_sensor":

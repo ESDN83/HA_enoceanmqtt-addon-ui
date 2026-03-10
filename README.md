@@ -13,6 +13,7 @@ Modern web-based EnOcean to MQTT bridge for Home Assistant with visual device co
 - **Visual Device Wizard** — Add EnOcean devices via teach-in or manual entry
 - **EEP Profile Browser** — Browse 96+ EnOcean Equipment Profiles with detailed field information
 - **Custom EEP Profiles** — Create and edit custom profiles for non-standard devices, with built-in HA Entity Mapping
+- **HA Entity Mapping Editor** — Visual editor with advanced MQTT discovery fields (state_class, expire_after, entity_category, force_update, etc.) plus YAML text mode for power users
 - **EEP.xml Upload** — Upload your own EEP.xml profile database or use the bundled one
 - **Home Assistant MQTT Discovery** — Automatic entity creation in Home Assistant
 - **Live Telegram Monitor** — Debug incoming EnOcean telegrams in real-time
@@ -215,6 +216,21 @@ A rocker switch sends button press events as enum values.
 ]
 ```
 
+### HA Entity Mapping — Advanced Fields
+
+The mapping editor supports all MQTT discovery fields for Home Assistant. In addition to the basic fields (Component, Name, Device Class, Icon, Unit), each mapping row has a collapsible **Advanced** section:
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `state_class` | HA statistics classification | `measurement`, `total`, `total_increasing` |
+| `entity_category` | HA entity category | `diagnostic`, `config` |
+| `expire_after` | Seconds after which the sensor value expires | `3600` (1 hour) |
+| `force_update` | Fire state update even if value unchanged | `true` |
+| `suggested_display_precision` | Decimal places in HA UI | `1` |
+| `value_template` | Custom Jinja2 template for value extraction | `{{ value_json.TMP }}` |
+
+**Text Mode:** Click the "Text Mode" button to switch to a YAML editor where you can set any MQTT discovery field, including fields not available in the visual editor. The YAML text mode supports round-trip editing (Visual → Text → Visual).
+
 ### Tips
 
 - **Find bit offsets**: Check the [EnOcean EEP Viewer](https://www.enocean-alliance.org/eep/) or the manufacturer documentation
@@ -222,6 +238,7 @@ A rocker switch sends button press events as enum values.
 - **Enum values**: For binary fields (size=1), use values `"0"` and `"1"`
 - **HA Device Classes**: Common classes: `temperature`, `humidity`, `safety`, `problem`, `motion`, `door`, `window`, `battery`
 - **Override standard profiles**: Create a custom profile with the same RORG-FUNC-TYPE as a built-in profile to override it
+- **Override standard mappings**: Use the inline mapping editor on any standard EEP profile to customize how fields map to HA entities
 
 ## Usage Examples
 
@@ -353,6 +370,24 @@ The add-on provides a REST API for automation:
 | `/api/system/backup/{filename}` | DELETE | Delete backup |
 | `/api/system/backup/download/{filename}` | GET | Download backup |
 | `/api/system/restart` | POST | Restart services |
+
+## Configuration Files
+
+All configuration files are stored in YAML format in the addon's `/data` directory:
+
+| File | Description |
+|------|-------------|
+| `devices.yaml` | Device list with addresses, EEP profiles, and settings |
+| `mapping.yaml` | Custom EEP-to-HA entity mappings |
+| `mapping_overrides.yaml` | Per-profile mapping overrides from the inline editor |
+| `last_states.yaml` | Cached device states for persistence across restarts |
+| `custom_eep/*.yaml` | Custom EEP profile definitions |
+| `enoceanmqtt.devices` | Legacy INI format (auto-generated for enocean-mqtt compatibility) |
+| `EEP.xml` | Optional user-uploaded EEP profile database |
+
+The `mapping_overrides.yaml` and `mapping.yaml` files can be edited manually if needed. Changes take effect after restarting the addon.
+
+**Backup format:** Export and backup ZIP files contain YAML files. Old backups with JSON files (from versions before 1.2.0) are automatically converted on import/restore.
 
 ## Architecture
 
