@@ -17,7 +17,7 @@ from lxml import etree
 router = APIRouter()
 
 # Version should match config.yaml
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 
 @router.get("/status")
@@ -92,9 +92,9 @@ async def export_all(request: Request):
 
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
         # Export devices
-        devices_file = os.path.join(config_path, "devices.json")
+        devices_file = os.path.join(config_path, "devices.yaml")
         if os.path.exists(devices_file):
-            zf.write(devices_file, "devices.json")
+            zf.write(devices_file, "devices.yaml")
 
         # Export legacy devices format
         legacy_devices = os.path.join(config_path, "enoceanmqtt.devices")
@@ -120,9 +120,9 @@ async def export_all(request: Request):
             zf.write(user_eep, "EEP.xml")
 
         # Export mapping overrides
-        overrides_file = os.path.join(config_path, "mapping_overrides.json")
+        overrides_file = os.path.join(config_path, "mapping_overrides.yaml")
         if os.path.exists(overrides_file):
-            zf.write(overrides_file, "mapping_overrides.json")
+            zf.write(overrides_file, "mapping_overrides.yaml")
 
         # Add export metadata
         metadata = {
@@ -131,7 +131,7 @@ async def export_all(request: Request):
             "device_manager": request.app.state.device_manager.device_count if request.app.state.device_manager else 0,
             "eep_manager": request.app.state.eep_manager.profile_count if request.app.state.eep_manager else 0
         }
-        zf.writestr("export_info.json", json.dumps(metadata, indent=2))
+        zf.writestr("export_info.yaml", yaml.dump(metadata, default_flow_style=False, allow_unicode=True))
 
     zip_buffer.seek(0)
 
@@ -166,13 +166,17 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
 
         with zipfile.ZipFile(zip_buffer, 'r') as zf:
             for filename in zf.namelist():
-                if filename == "devices.json":
-                    # Import devices
-                    devices_data = json.loads(zf.read(filename))
-                    devices_file = os.path.join(config_path, "devices.json")
+                if filename in ("devices.json", "devices.yaml"):
+                    # Import devices (support both old JSON and new YAML)
+                    raw = zf.read(filename)
+                    if filename.endswith(".json"):
+                        devices_data = json.loads(raw)
+                    else:
+                        devices_data = yaml.safe_load(raw) or {}
+                    devices_file = os.path.join(config_path, "devices.yaml")
                     os.makedirs(config_path, exist_ok=True)
                     async with aiofiles.open(devices_file, 'w') as f:
-                        await f.write(json.dumps(devices_data, indent=2))
+                        await f.write(yaml.dump(devices_data, default_flow_style=False, allow_unicode=True))
                     imported["devices"] = True
 
                     # Reload devices
@@ -207,13 +211,17 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
                         await f.write(eep_data)
                     imported["eep_xml"] = True
 
-                elif filename == "mapping_overrides.json":
-                    # Import mapping overrides
-                    overrides_data = zf.read(filename)
-                    overrides_path = os.path.join(config_path, "mapping_overrides.json")
+                elif filename in ("mapping_overrides.json", "mapping_overrides.yaml"):
+                    # Import mapping overrides (support both old JSON and new YAML)
+                    raw = zf.read(filename)
+                    if filename.endswith(".json"):
+                        overrides_data = json.loads(raw)
+                    else:
+                        overrides_data = yaml.safe_load(raw) or {}
+                    overrides_path = os.path.join(config_path, "mapping_overrides.yaml")
                     os.makedirs(config_path, exist_ok=True)
-                    async with aiofiles.open(overrides_path, 'wb') as f:
-                        await f.write(overrides_data)
+                    async with aiofiles.open(overrides_path, 'w') as f:
+                        await f.write(yaml.dump(overrides_data, default_flow_style=False, allow_unicode=True))
                     imported["mapping_overrides"] = True
 
         # Reload EEP profiles if EEP.xml was imported
@@ -338,7 +346,11 @@ async def list_backups(request: Request):
         version = "?"
         try:
             with zipfile.ZipFile(filepath, 'r') as zf:
-                if "export_info.json" in zf.namelist():
+                if "export_info.yaml" in zf.namelist():
+                    meta = yaml.safe_load(zf.read("export_info.yaml"))
+                    devices = meta.get("device_manager", 0)
+                    version = meta.get("version", "?")
+                elif "export_info.json" in zf.namelist():
                     meta = json.loads(zf.read("export_info.json"))
                     devices = meta.get("device_manager", 0)
                     version = meta.get("version", "?")
@@ -371,9 +383,9 @@ async def create_backup(request: Request) -> Dict[str, Any]:
 
     with zipfile.ZipFile(filepath, 'w', zipfile.ZIP_DEFLATED) as zf:
         # Devices
-        devices_file = os.path.join(config_path, "devices.json")
+        devices_file = os.path.join(config_path, "devices.yaml")
         if os.path.exists(devices_file):
-            zf.write(devices_file, "devices.json")
+            zf.write(devices_file, "devices.yaml")
 
         # Legacy devices
         legacy_devices = os.path.join(config_path, "enoceanmqtt.devices")
@@ -398,9 +410,9 @@ async def create_backup(request: Request) -> Dict[str, Any]:
             zf.write(user_eep, "EEP.xml")
 
         # Mapping overrides
-        overrides_file = os.path.join(config_path, "mapping_overrides.json")
+        overrides_file = os.path.join(config_path, "mapping_overrides.yaml")
         if os.path.exists(overrides_file):
-            zf.write(overrides_file, "mapping_overrides.json")
+            zf.write(overrides_file, "mapping_overrides.yaml")
 
         # Metadata
         metadata = {
@@ -409,7 +421,7 @@ async def create_backup(request: Request) -> Dict[str, Any]:
             "device_manager": device_manager.device_count if device_manager else 0,
             "eep_manager": eep_manager.profile_count if eep_manager else 0
         }
-        zf.writestr("export_info.json", json.dumps(metadata, indent=2))
+        zf.writestr("export_info.yaml", yaml.dump(metadata, default_flow_style=False, allow_unicode=True))
 
     return {"filename": filename, "status": "created"}
 
@@ -449,10 +461,16 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
     try:
         with zipfile.ZipFile(filepath, 'r') as zf:
             for name in zf.namelist():
-                if name == "devices.json":
-                    data = zf.read(name)
-                    async with aiofiles.open(os.path.join(config_path, "devices.json"), 'wb') as f:
-                        await f.write(data)
+                if name in ("devices.json", "devices.yaml"):
+                    # Restore devices (support both old JSON and new YAML backups)
+                    raw = zf.read(name)
+                    if name.endswith(".json"):
+                        devices_data = json.loads(raw)
+                    else:
+                        devices_data = yaml.safe_load(raw) or {}
+                    devices_file = os.path.join(config_path, "devices.yaml")
+                    async with aiofiles.open(devices_file, 'w') as f:
+                        await f.write(yaml.dump(devices_data, default_flow_style=False, allow_unicode=True))
                     imported["devices"] = True
                     if device_manager:
                         await device_manager.load_devices()
@@ -477,15 +495,25 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
                         await f.write(data)
                     imported["eep_xml"] = True
 
-                elif name == "mapping_overrides.json":
-                    data = zf.read(name)
-                    async with aiofiles.open(os.path.join(config_path, "mapping_overrides.json"), 'wb') as f:
-                        await f.write(data)
+                elif name in ("mapping_overrides.json", "mapping_overrides.yaml"):
+                    # Restore overrides (support both old JSON and new YAML backups)
+                    raw = zf.read(name)
+                    if name.endswith(".json"):
+                        overrides_data = json.loads(raw)
+                    else:
+                        overrides_data = yaml.safe_load(raw) or {}
+                    overrides_path = os.path.join(config_path, "mapping_overrides.yaml")
+                    async with aiofiles.open(overrides_path, 'w') as f:
+                        await f.write(yaml.dump(overrides_data, default_flow_style=False, allow_unicode=True))
                     imported["mapping_overrides"] = True
 
         if imported.get("eep_xml") and eep_manager:
             eep_manager.profiles.clear()
             await eep_manager.initialize()
+
+        # Reload mapping overrides into cache after restore
+        if imported.get("mapping_overrides") and eep_manager:
+            await eep_manager._load_overrides()
 
         return {"status": "restored", "details": imported}
 

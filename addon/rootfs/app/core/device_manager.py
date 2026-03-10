@@ -68,7 +68,8 @@ class DeviceManager:
         self.config_path = config_path
         self.eep_manager = eep_manager
         self.devices: Dict[str, Device] = {}
-        self.devices_file = os.path.join(config_path, "devices.json")
+        self.devices_file = os.path.join(config_path, "devices.yaml")
+        self.legacy_json_file = os.path.join(config_path, "devices.json")
         self.legacy_devices_file = os.path.join(config_path, "enoceanmqtt.devices")
         self._address_map: Dict[str, str] = {}  # normalized_address -> device_name
 
@@ -87,9 +88,14 @@ class DeviceManager:
 
     async def load_devices(self):
         """Load devices from configuration file"""
-        # Try JSON format first (new format)
+        # Try YAML format first (current format)
         if os.path.exists(self.devices_file):
+            await self._load_yaml_devices()
+        # Migrate from JSON format (legacy)
+        elif os.path.exists(self.legacy_json_file):
             await self._load_json_devices()
+            await self.save_devices()
+            logger.info("Migrated devices.json -> devices.yaml")
         # Fallback to INI format (legacy ChristopheHD format)
         elif os.path.exists(self.legacy_devices_file):
             await self._load_ini_devices()
@@ -97,17 +103,32 @@ class DeviceManager:
             logger.info("No device configuration found - starting fresh")
         self._rebuild_address_map()
 
-    async def _load_json_devices(self):
-        """Load devices from JSON file"""
+    async def _load_yaml_devices(self):
+        """Load devices from YAML file"""
         try:
             async with aiofiles.open(self.devices_file, 'r') as f:
+                content = await f.read()
+                data = yaml.safe_load(content) or {}
+
+                for name, device_data in data.items():
+                    self.devices[name] = Device.from_dict(name, device_data)
+
+            logger.info(f"Loaded {len(self.devices)} devices from YAML")
+
+        except Exception as e:
+            logger.error(f"Failed to load devices from YAML: {e}")
+
+    async def _load_json_devices(self):
+        """Load devices from JSON file (legacy)"""
+        try:
+            async with aiofiles.open(self.legacy_json_file, 'r') as f:
                 content = await f.read()
                 data = json.loads(content)
 
                 for name, device_data in data.items():
                     self.devices[name] = Device.from_dict(name, device_data)
 
-            logger.info(f"Loaded {len(self.devices)} devices from JSON")
+            logger.info(f"Loaded {len(self.devices)} devices from JSON (legacy)")
 
         except Exception as e:
             logger.error(f"Failed to load devices from JSON: {e}")
@@ -159,11 +180,11 @@ class DeviceManager:
         try:
             os.makedirs(self.config_path, exist_ok=True)
 
-            # Save as JSON (new format)
+            # Save as YAML (current format)
             data = {name: device.to_dict() for name, device in self.devices.items()}
 
             async with aiofiles.open(self.devices_file, 'w') as f:
-                await f.write(json.dumps(data, indent=2))
+                await f.write(yaml.dump(data, default_flow_style=False, allow_unicode=True))
 
             # Also save as INI for compatibility with enocean-mqtt
             await self._save_ini_devices()

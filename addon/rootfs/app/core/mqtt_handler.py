@@ -14,6 +14,7 @@ MQTT Topic Structure:
 
 import os
 import json
+import yaml
 import logging
 import asyncio
 from datetime import datetime
@@ -64,7 +65,8 @@ class MQTTHandler:
 
         # State persistence for infrequent sensors (like Kessel Staufix)
         self._last_states: Dict[str, Dict[str, Any]] = {}
-        self._states_file = os.path.join(config_path, "last_states.json")
+        self._states_file = os.path.join(config_path, "last_states.yaml")
+        self._legacy_states_file = os.path.join(config_path, "last_states.json")
 
     @property
     def is_connected(self) -> bool:
@@ -284,7 +286,7 @@ class MQTTHandler:
         try:
             os.makedirs(self.config_path, exist_ok=True)
             async with aiofiles.open(self._states_file, 'w') as f:
-                await f.write(json.dumps(self._last_states, indent=2))
+                await f.write(yaml.dump(self._last_states, default_flow_style=False, allow_unicode=True))
         except Exception as e:
             logger.error(f"Failed to save states: {e}")
 
@@ -298,6 +300,17 @@ class MQTTHandler:
         AFTER discovery configs are published to ensure HA evaluates states
         with the correct entity configuration (e.g., payload_on/payload_off).
         """
+        # One-time migration from JSON to YAML
+        if not os.path.exists(self._states_file) and os.path.exists(self._legacy_states_file):
+            try:
+                async with aiofiles.open(self._legacy_states_file, 'r') as f:
+                    self._last_states = json.loads(await f.read())
+                await self._save_states()
+                logger.info("Migrated last_states.json -> last_states.yaml")
+                return
+            except Exception as e:
+                logger.error(f"Failed to migrate last_states.json: {e}")
+
         if not os.path.exists(self._states_file):
             logger.info("No persisted states to restore")
             return
@@ -305,7 +318,7 @@ class MQTTHandler:
         try:
             async with aiofiles.open(self._states_file, 'r') as f:
                 content = await f.read()
-                self._last_states = json.loads(content)
+                self._last_states = yaml.safe_load(content) or {}
 
             logger.info(f"Loaded {len(self._last_states)} persisted device states into memory")
 

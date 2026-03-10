@@ -56,6 +56,7 @@ class EEPManager:
         self.custom_eep_path = os.path.join(config_path, "custom_eep")
         self.profiles: Dict[str, EEPProfile] = {}
         self._xml_root = None
+        self._override_cache: Dict[str, Any] = {}
 
     @property
     def profile_count(self) -> int:
@@ -95,6 +96,9 @@ class EEPManager:
 
         # Load custom overrides from persistent storage
         await self._load_custom_profiles()
+
+        # Load mapping overrides into sync cache (used by mapping_manager)
+        await self._load_overrides()
 
         logger.info(f"EEP Manager initialized with {self.profile_count} profiles")
 
@@ -463,15 +467,34 @@ class EEPManager:
     # === Mapping Overrides ===
 
     def _overrides_file(self) -> str:
+        return os.path.join(self.config_path, "mapping_overrides.yaml")
+
+    def _legacy_overrides_file(self) -> str:
         return os.path.join(self.config_path, "mapping_overrides.json")
 
     async def _load_overrides(self) -> Dict[str, Any]:
         path = self._overrides_file()
+        legacy_path = self._legacy_overrides_file()
+
+        # One-time migration from JSON to YAML
+        if not os.path.exists(path) and os.path.exists(legacy_path):
+            try:
+                async with aiofiles.open(legacy_path, 'r') as f:
+                    data = json.loads(await f.read())
+                await self._save_overrides(data)
+                logger.info("Migrated mapping_overrides.json -> mapping_overrides.yaml")
+                self._override_cache = data
+                return data
+            except Exception:
+                return {}
+
         if not os.path.exists(path):
             return {}
         try:
             async with aiofiles.open(path, 'r') as f:
-                return json.loads(await f.read())
+                data = yaml.safe_load(await f.read()) or {}
+                self._override_cache = data
+                return data
         except Exception:
             return {}
 
@@ -479,7 +502,12 @@ class EEPManager:
         path = self._overrides_file()
         os.makedirs(os.path.dirname(path), exist_ok=True)
         async with aiofiles.open(path, 'w') as f:
-            await f.write(json.dumps(overrides, indent=2))
+            await f.write(yaml.dump(overrides, default_flow_style=False, allow_unicode=True))
+        self._override_cache = overrides
+
+    def get_mapping_override_sync(self, eep_id: str) -> Optional[Dict[str, Any]]:
+        """Get mapping override from in-memory cache (sync, for use by mapping_manager)"""
+        return self._override_cache.get(eep_id.upper())
 
     async def get_mapping_override(self, eep_id: str) -> Optional[Dict[str, Any]]:
         """Get mapping override for an EEP profile (None if no override)"""
