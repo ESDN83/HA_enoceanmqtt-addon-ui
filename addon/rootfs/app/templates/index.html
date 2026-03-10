@@ -397,7 +397,7 @@
                         <div class="card-body">
                             <h6 class="card-subtitle mb-2 text-muted" data-i18n="dashboard.mqtt_broker">MQTT Broker</h6>
                             <h4 class="card-title" id="mqtt-host">-</h4>
-                            <span class="badge bg-secondary" id="mqtt-connection">Checking...</span>
+                            <span class="badge bg-secondary" id="mqtt-connection" data-i18n="status.checking">Checking...</span>
                         </div>
                     </div>
                 </div>
@@ -463,7 +463,7 @@
                             </div>
                         </div>
                         <div class="card-body" id="recent-activity" style="max-height: 300px; overflow-y: auto;">
-                            <p class="text-muted">Loading...</p>
+                            <p class="text-muted" data-i18n="common.loading">Loading...</p>
                         </div>
                     </div>
                 </div>
@@ -478,7 +478,7 @@
                         </div>
                         <div class="card-body">
                             <div id="unknown-devices-list">
-                                <p class="text-muted">No unknown devices detected</p>
+                                <p class="text-muted" data-i18n="dashboard.no_unknown">No unknown devices detected</p>
                             </div>
                         </div>
                     </div>
@@ -520,7 +520,7 @@
             <div class="row">
                 <div class="col-md-4">
                     <div class="card">
-                        <div class="card-header">Profile Tree</div>
+                        <div class="card-header" data-i18n="profiles.tree">Profile Tree</div>
                         <div class="card-body eep-tree" id="eep-tree">
                             <!-- Tree will be loaded here -->
                         </div>
@@ -528,9 +528,9 @@
                 </div>
                 <div class="col-md-8">
                     <div class="card">
-                        <div class="card-header">Profile Details</div>
+                        <div class="card-header" data-i18n="profiles.details">Profile Details</div>
                         <div class="card-body" id="profile-details">
-                            <p class="text-muted">Select a profile to view details</p>
+                            <p class="text-muted" data-i18n="profiles.select_hint">Select a profile to view details</p>
                         </div>
                     </div>
                 </div>
@@ -545,17 +545,17 @@
                 <div class="card-body">
                     <!-- Wizard Steps -->
                     <div class="wizard-step active" id="step-1">
-                        <h4>Step 1: Detect Device</h4>
-                        <p class="text-muted">Choose how to add your device</p>
+                        <h4 data-i18n="teach_in.step1">Step 1: Detect Device</h4>
+                        <p class="text-muted" data-i18n="teach_in.step1_desc">Choose how to add your device</p>
 
                         <div class="row mt-4">
                             <div class="col-md-4">
                                 <div class="card h-100">
                                     <div class="card-body text-center">
                                         <i class="bi bi-broadcast display-4 text-primary"></i>
-                                        <h5 class="mt-3">Automatic (Teach-In)</h5>
-                                        <p>Press the teach-in button on your sensor</p>
-                                        <button class="btn btn-primary" onclick="startTeachIn()">
+                                        <h5 class="mt-3" data-i18n="teach_in.automatic">Automatic (Teach-In)</h5>
+                                        <p data-i18n="teach_in.automatic_desc">Press the teach-in button on your sensor</p>
+                                        <button class="btn btn-primary" onclick="startTeachIn()" data-i18n="teach_in.start">
                                             Start Teach-In
                                         </button>
                                     </div>
@@ -565,9 +565,9 @@
                                 <div class="card h-100">
                                     <div class="card-body text-center">
                                         <i class="bi bi-lightning display-4 text-warning"></i>
-                                        <h5 class="mt-3">Actuator Teach-In</h5>
-                                        <p>Teach-in Eltako dimmers, switches, blinds</p>
-                                        <button class="btn btn-warning" onclick="showActuatorTeachIn()">
+                                        <h5 class="mt-3" data-i18n="teach_in.actuator_teach_in">Actuator Teach-In</h5>
+                                        <p data-i18n="teach_in.actuator_desc">Teach-in Eltako dimmers, switches, blinds</p>
+                                        <button class="btn btn-warning" onclick="showActuatorTeachIn()" data-i18n="teach_in.teach_in_actuator_btn">
                                             Teach-In Actuator
                                         </button>
                                     </div>
@@ -577,9 +577,9 @@
                                 <div class="card h-100">
                                     <div class="card-body text-center">
                                         <i class="bi bi-pencil-square display-4 text-secondary"></i>
-                                        <h5 class="mt-3">Manual Entry</h5>
-                                        <p>Enter device details manually</p>
-                                        <button class="btn btn-outline-secondary" onclick="showManualEntry()">
+                                        <h5 class="mt-3" data-i18n="teach_in.manual">Manual Entry</h5>
+                                        <p data-i18n="teach_in.manual_desc">Enter device details manually</p>
+                                        <button class="btn btn-outline-secondary" onclick="showManualEntry()" data-i18n="teach_in.enter_manually">
                                             Enter Manually
                                         </button>
                                     </div>
@@ -635,28 +635,28 @@
 
                                     <div class="row mb-3">
                                         <div class="col-md-4">
-                                            <label class="form-label">Gateway Base ID</label>
+                                            <label class="form-label" data-i18n="teach_in.gateway_base_id">Gateway Base ID</label>
                                             <div class="input-group">
-                                                <input type="text" class="form-control" id="gateway-base-id" readonly placeholder="Click Read...">
-                                                <button class="btn btn-outline-primary" onclick="readBaseId()">Read</button>
+                                                <input type="text" class="form-control" id="gateway-base-id" readonly data-i18n-placeholder="teach_in.click_read" placeholder="Click Read...">
+                                                <button class="btn btn-outline-primary" onclick="readBaseId()" data-i18n="teach_in.read">Read</button>
                                             </div>
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label">Actuator Address</label>
+                                            <label class="form-label" data-i18n="teach_in.actuator_address">Actuator Address</label>
                                             <input type="text" class="form-control" id="actuator-address" placeholder="0x05834FA4">
                                         </div>
                                         <div class="col-md-2">
-                                            <label class="form-label">Sender Offset</label>
+                                            <label class="form-label" data-i18n="teach_in.sender_offset">Sender Offset</label>
                                             <input type="number" class="form-control" id="sender-offset" value="1" min="1" max="127">
                                         </div>
                                         <div class="col-md-2">
-                                            <label class="form-label">Sender ID</label>
+                                            <label class="form-label" data-i18n="teach_in.sender_id_label">Sender ID</label>
                                             <input type="text" class="form-control" id="derived-sender-id" readonly placeholder="Base + Offset">
                                         </div>
                                     </div>
                                     <div class="row mb-3">
                                         <div class="col-md-4">
-                                            <label class="form-label">Actuator Type</label>
+                                            <label class="form-label" data-i18n="teach_in.actuator_type">Actuator Type</label>
                                             <select class="form-select" id="actuator-type-teach-in">
                                                 <option value="light">Dimmer (FD62NPN, FUD61) → A5-38-08</option>
                                                 <option value="switch">Switch (FSR61, FSR14) → F6 Rocker</option>
@@ -666,12 +666,12 @@
                                     </div>
                                     <div class="d-flex gap-2 flex-wrap">
                                         <button class="btn btn-warning" onclick="sendActuatorTeachIn()">
-                                            <i class="bi bi-lightning"></i> Send Teach-In
+                                            <i class="bi bi-lightning"></i> <span data-i18n="teach_in.send_teach_in">Send Teach-In</span>
                                         </button>
                                         <button class="btn btn-warning" id="btn-repeat-teach-in" onclick="sendRepeatTeachIn()">
-                                            <i class="bi bi-arrow-repeat"></i> Repeat Teach-In (30s)
+                                            <i class="bi bi-arrow-repeat"></i> <span data-i18n="teach_in.repeat_teach_in">Repeat Teach-In (30s)</span>
                                         </button>
-                                        <button class="btn btn-outline-secondary" onclick="hideActuatorTeachIn()">Cancel</button>
+                                        <button class="btn btn-outline-secondary" onclick="hideActuatorTeachIn()" data-i18n="modal.cancel">Cancel</button>
                                     </div>
                                     <div id="actuator-teach-in-result" class="mt-3" style="display: none;"></div>
                                 </div>
@@ -681,81 +681,81 @@
                         <div id="teach-in-status" class="mt-4" style="display: none;">
                             <div class="alert alert-info teach-in-indicator">
                                 <i class="bi bi-broadcast"></i>
-                                Waiting for device... Press the teach-in button now.
+                                <span data-i18n="teach_in.waiting">Waiting for device... Press the teach-in button now.</span>
                                 <span id="teach-in-countdown" class="fw-bold ms-2"></span>
                             </div>
                             <button class="btn btn-outline-secondary btn-sm mt-2" onclick="cancelTeachIn()">
-                                <i class="bi bi-x-circle"></i> Cancel
+                                <i class="bi bi-x-circle"></i> <span data-i18n="modal.cancel">Cancel</span>
                             </button>
                         </div>
                     </div>
 
                     <div class="wizard-step" id="step-2">
-                        <h4>Step 2: Configure Device</h4>
+                        <h4 data-i18n="teach_in.step2">Step 2: Configure Device</h4>
 
                         <form id="device-form">
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">Device Name *</label>
-                                    <input type="text" class="form-control" name="name" required placeholder="e.g., Living Room Temperature">
+                                    <label class="form-label" data-i18n="teach_in.device_name">Device Name *</label>
+                                    <input type="text" class="form-control" name="name" required data-i18n-placeholder="teach_in.device_name_placeholder" placeholder="e.g., Living Room Temperature">
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">Address *</label>
+                                    <label class="form-label" data-i18n="teach_in.address">Address *</label>
                                     <input type="text" class="form-control" name="address" required placeholder="0x05834FA4">
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-md-4 mb-3">
-                                    <label class="form-label">RORG *</label>
+                                    <label class="form-label" data-i18n="modal.rorg">RORG *</label>
                                     <input type="text" class="form-control" name="rorg" required placeholder="A5">
                                 </div>
                                 <div class="col-md-4 mb-3">
-                                    <label class="form-label">FUNC *</label>
+                                    <label class="form-label" data-i18n="modal.func">FUNC *</label>
                                     <input type="text" class="form-control" name="func" required placeholder="02">
                                 </div>
                                 <div class="col-md-4 mb-3">
-                                    <label class="form-label">TYPE *</label>
+                                    <label class="form-label" data-i18n="modal.type">TYPE *</label>
                                     <input type="text" class="form-control" name="type" required placeholder="05">
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">Description</label>
-                                    <input type="text" class="form-control" name="description" placeholder="Optional description">
+                                    <label class="form-label" data-i18n="teach_in.description">Description</label>
+                                    <input type="text" class="form-control" name="description" data-i18n-placeholder="teach_in.description_placeholder" placeholder="Optional description">
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">Room</label>
-                                    <input type="text" class="form-control" name="room" placeholder="e.g., Living Room">
+                                    <label class="form-label" data-i18n="teach_in.room">Room</label>
+                                    <input type="text" class="form-control" name="room" data-i18n-placeholder="teach_in.room_placeholder" placeholder="e.g., Living Room">
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">Sender ID (for bidirectional devices)</label>
+                                    <label class="form-label" data-i18n="teach_in.sender_id">Sender ID (for bidirectional devices)</label>
                                     <input type="text" class="form-control" name="sender_id" placeholder="0xFFBD7480">
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">Device Role</label>
+                                    <label class="form-label" data-i18n="teach_in.device_role">Device Role</label>
                                     <select class="form-select" name="actuator_type">
-                                        <option value="">Sensor (receive only)</option>
-                                        <option value="light">Actuator: Light / Dimmer</option>
-                                        <option value="switch">Actuator: Switch</option>
-                                        <option value="cover">Actuator: Cover / Blind</option>
+                                        <option value="" data-i18n="teach_in.sensor_only">Sensor (receive only)</option>
+                                        <option value="light" data-i18n="teach_in.actuator_light">Actuator: Light / Dimmer</option>
+                                        <option value="switch" data-i18n="teach_in.actuator_switch">Actuator: Switch</option>
+                                        <option value="cover" data-i18n="teach_in.actuator_cover">Actuator: Cover / Blind</option>
                                     </select>
-                                    <small class="text-muted">Actuators create controllable HA entities (requires Sender ID)</small>
+                                    <small class="text-muted" data-i18n="teach_in.actuator_hint">Actuators create controllable HA entities (requires Sender ID)</small>
                                 </div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Manufacturer</label>
-                                <input type="text" class="form-control" name="manufacturer" placeholder="e.g., Eltako, Thermokon, Kessel">
+                                <label class="form-label" data-i18n="teach_in.manufacturer">Manufacturer</label>
+                                <input type="text" class="form-control" name="manufacturer" data-i18n-placeholder="teach_in.manufacturer_placeholder" placeholder="e.g., Eltako, Thermokon, Kessel">
                             </div>
 
                             <div id="profile-suggestion" class="alert alert-info" style="display: none;">
-                                <strong>Suggested Profile:</strong> <span id="suggested-profile"></span>
+                                <strong data-i18n="teach_in.suggested_profile">Suggested Profile:</strong> <span id="suggested-profile"></span>
                             </div>
 
                             <div class="mt-4">
-                                <button type="button" class="btn btn-outline-secondary" onclick="wizardBack()">Back</button>
-                                <button type="submit" class="btn btn-primary">Add Device</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="wizardBack()" data-i18n="teach_in.back">Back</button>
+                                <button type="submit" class="btn btn-primary" data-i18n="teach_in.add_device">Add Device</button>
                             </div>
                         </form>
                     </div>
@@ -763,10 +763,10 @@
                     <div class="wizard-step" id="step-3">
                         <div class="text-center py-5">
                             <i class="bi bi-check-circle display-1 text-success"></i>
-                            <h4 class="mt-3">Device Added Successfully!</h4>
-                            <p class="text-muted">The device will appear in Home Assistant shortly.</p>
-                            <button class="btn btn-primary" onclick="navigateTo('devices')">View Devices</button>
-                            <button class="btn btn-outline-secondary" onclick="resetWizard()">Add Another</button>
+                            <h4 class="mt-3" data-i18n="teach_in.success">Device Added Successfully!</h4>
+                            <p class="text-muted" data-i18n="teach_in.success_desc">The device will appear in Home Assistant shortly.</p>
+                            <button class="btn btn-primary" onclick="navigateTo('devices')" data-i18n="teach_in.view_devices">View Devices</button>
+                            <button class="btn btn-outline-secondary" onclick="resetWizard()" data-i18n="teach_in.add_another">Add Another</button>
                         </div>
                     </div>
                 </div>
@@ -814,7 +814,7 @@
                 </div>
                 <div class="card-body">
                     <div id="backup-list">
-                        <p class="text-muted">Loading backups...</p>
+                        <p class="text-muted" data-i18n="backup.loading">Loading backups...</p>
                     </div>
                 </div>
             </div>
@@ -826,25 +826,25 @@
                     <div id="eep-info" class="mb-3">
                         <table class="table table-sm mb-0" style="max-width: 400px;">
                             <tr>
-                                <td class="fw-bold">Source</td>
+                                <td class="fw-bold" data-i18n="settings.eep_source">Source</td>
                                 <td id="eep-source">-</td>
                             </tr>
                             <tr>
-                                <td class="fw-bold">File size</td>
+                                <td class="fw-bold" data-i18n="settings.eep_file_size">File size</td>
                                 <td id="eep-file-size">-</td>
                             </tr>
                             <tr>
-                                <td class="fw-bold">Profiles loaded</td>
+                                <td class="fw-bold" data-i18n="settings.eep_profiles">Profiles loaded</td>
                                 <td id="eep-profile-count">-</td>
                             </tr>
                         </table>
                     </div>
                     <label class="btn btn-outline-primary me-2">
-                        <i class="bi bi-upload"></i> Upload EEP.xml
+                        <i class="bi bi-upload"></i> <span data-i18n="settings.eep_upload">Upload EEP.xml</span>
                         <input type="file" id="eep-upload-file" style="display: none;" accept=".xml" onchange="uploadEep(this)">
                     </label>
                     <button class="btn btn-outline-danger" id="eep-delete-btn" style="display: none;" onclick="deleteEep()">
-                        <i class="bi bi-trash"></i> Delete Custom
+                        <i class="bi bi-trash"></i> <span data-i18n="settings.eep_delete">Delete Custom</span>
                     </button>
                 </div>
             </div>
@@ -860,15 +860,15 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="confirmModalTitle">Confirm</h5>
+                    <h5 class="modal-title" id="confirmModalTitle" data-i18n="modal.confirm">Confirm</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body" id="confirmModalBody">
+                <div class="modal-body" id="confirmModalBody" data-i18n="modal.are_you_sure">
                     Are you sure?
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn" id="confirmModalAction" onclick="executeConfirmedAction()">Confirm</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="modal.cancel">Cancel</button>
+                    <button type="button" class="btn" id="confirmModalAction" onclick="executeConfirmedAction()" data-i18n="modal.confirm">Confirm</button>
                 </div>
             </div>
         </div>
@@ -879,71 +879,71 @@
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Create Custom EEP Profile</h5>
+                    <h5 class="modal-title" data-i18n="modal.custom_profile_title">Create Custom EEP Profile</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-info small mb-3">
-                        <i class="bi bi-book"></i> <strong>Need help?</strong> See
-                        <a href="https://github.com/ESDN83/HA_enoceanmqtt-addon-ui#custom-eep-profile-guide" target="_blank" rel="noopener">Custom EEP Profile Guide</a>
-                        for step-by-step examples with real devices (bit offsets, field types, HA mappings).
+                        <i class="bi bi-book"></i> <strong data-i18n="modal.need_help">Need help?</strong> <span data-i18n="modal.see_guide">See</span>
+                        <a href="https://github.com/ESDN83/HA_enoceanmqtt-addon-ui#custom-eep-profile-guide" target="_blank" rel="noopener" data-i18n="modal.guide_link">Custom EEP Profile Guide</a>
+                        <span data-i18n="modal.guide_desc">for step-by-step examples with real devices (bit offsets, field types, HA mappings).</span>
                     </div>
                     <form id="custom-profile-form">
                         <!-- EEP Identity -->
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">RORG</label>
+                                <label class="form-label" data-i18n="modal.rorg">RORG</label>
                                 <input type="text" class="form-control" name="rorg" required placeholder="A5">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">FUNC</label>
+                                <label class="form-label" data-i18n="modal.func">FUNC</label>
                                 <input type="text" class="form-control" name="func" required placeholder="30">
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">TYPE</label>
+                                <label class="form-label" data-i18n="modal.type">TYPE</label>
                                 <input type="text" class="form-control" name="type" required placeholder="03">
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Description</label>
-                            <input type="text" class="form-control" name="description" required placeholder="e.g., Kessel Staufix Control">
+                            <label class="form-label" data-i18n="modal.description">Description</label>
+                            <input type="text" class="form-control" name="description" required data-i18n-placeholder="modal.description_placeholder" placeholder="e.g., Kessel Staufix Control">
                         </div>
 
                         <!-- Telegram Fields (bit decoding) -->
                         <div class="mb-3">
-                            <label class="form-label">Telegram Fields (JSON) <small class="text-muted">- how to decode the telegram bits</small></label>
+                            <label class="form-label"><span data-i18n="modal.fields">Fields (JSON)</span> <small class="text-muted">- <span data-i18n="modal.fields_hint">how to decode the telegram bits</span></small></label>
                             <textarea class="form-control font-monospace" name="fields" rows="8" placeholder='[{"shortcut": "AL", "description": "Alarm", "offset": 0, "size": 1, "type": "enum"}]'></textarea>
                         </div>
 
                         <!-- HA Mapping (entity creation) -->
                         <div class="card border-primary mb-3">
                             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                                <span><i class="bi bi-house-gear"></i> HA Entity Mapping</span>
+                                <span><i class="bi bi-house-gear"></i> <span data-i18n="mapping_editor.ha_mapping">HA Entity Mapping</span></span>
                                 <div>
                                     <button type="button" class="btn btn-sm btn-outline-light me-1" id="ha-mode-toggle" onclick="toggleHaMappingMode()">
-                                        <i class="bi bi-code-slash"></i> Text Mode
+                                        <i class="bi bi-code-slash"></i> <span data-i18n="mapping_editor.text_mode">Text Mode</span>
                                     </button>
                                     <button type="button" class="btn btn-sm btn-light" id="ha-add-row-btn" onclick="addHaMappingRow()">
-                                        <i class="bi bi-plus-circle"></i> Add Mapping
+                                        <i class="bi bi-plus-circle"></i> <span data-i18n="mapping_editor.add_mapping">Add Mapping</span>
                                     </button>
                                 </div>
                             </div>
                             <div class="card-body">
                                 <div id="ha-mapping-visual">
-                                    <p class="text-muted small mb-2">
+                                    <p class="text-muted small mb-2" data-i18n="mapping_editor.modal_define_hint">
                                         Define how each decoded field becomes a Home Assistant entity.
-                                        The <strong>Shortcut</strong> must match a field shortcut above (e.g., AL, DI0).
+                                        The Shortcut must match a field shortcut above (e.g., AL, DI0).
                                     </p>
                                     <div id="ha-mapping-rows">
                                         <!-- Dynamic mapping rows will be added here -->
                                     </div>
                                     <div id="ha-mapping-empty" class="text-muted text-center py-3">
-                                        <i class="bi bi-info-circle"></i> No HA mappings defined. Click "Add Mapping" to create one.
-                                        <br><small>Without mappings, default EEP mappings will be used.</small>
+                                        <i class="bi bi-info-circle"></i> <span data-i18n="mapping_editor.no_mapping_modal">No HA mappings defined. Click "Add Mapping" to create one.</span>
+                                        <br><small data-i18n="mapping_editor.no_mapping_default">Without mappings, default EEP mappings will be used.</small>
                                     </div>
                                 </div>
                                 <div id="ha-mapping-text" style="display:none;">
-                                    <p class="text-muted small mb-2">Edit mapping as YAML. Any valid MQTT discovery field can be used.</p>
+                                    <p class="text-muted small mb-2" data-i18n="mapping_editor.modal_text_hint">Edit mapping as YAML. Any valid MQTT discovery field can be used.</p>
                                     <textarea id="ha-mapping-yaml" class="form-control form-control-sm font-monospace" rows="14" spellcheck="false"></textarea>
                                 </div>
                             </div>
@@ -951,8 +951,8 @@
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="saveCustomProfile()">Save Profile</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="modal.cancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveCustomProfile()" data-i18n="modal.save_profile">Save Profile</button>
                 </div>
             </div>
         </div>
@@ -1143,7 +1143,7 @@
                 const form = document.getElementById('custom-profile-form');
                 form.reset();
                 delete form.dataset.editEepId;
-                document.querySelector('#customProfileModal .modal-title').textContent = 'Create Custom EEP Profile';
+                document.querySelector('#customProfileModal .modal-title').textContent = t('modal.custom_profile_title', 'Create Custom EEP Profile');
                 // Clear HA mapping builder
                 document.getElementById('ha-mapping-rows').innerHTML = '';
                 document.getElementById('ha-mapping-empty').style.display = '';
@@ -1216,18 +1216,18 @@
                     mqttBadge.className = 'badge bg-success me-2';
                     mqttBadge.innerHTML = '<i class="bi bi-wifi"></i> MQTT';
                     mqttConn.className = 'badge bg-success';
-                    mqttConn.textContent = 'Connected';
+                    mqttConn.textContent = t('status.connected', 'Connected');
                     mqttCard.classList.add('connected');
                     mqttCard.classList.remove('disconnected');
                 } else {
                     mqttBadge.className = 'badge bg-danger me-2';
                     mqttBadge.innerHTML = '<i class="bi bi-wifi-off"></i> MQTT';
                     mqttConn.className = 'badge bg-danger';
-                    mqttConn.textContent = 'Disconnected';
+                    mqttConn.textContent = t('status.disconnected', 'Disconnected');
                     mqttCard.classList.add('disconnected');
                     mqttCard.classList.remove('connected');
                 }
-                document.getElementById('mqtt-host').textContent = data.mqtt.host || 'Not configured';
+                document.getElementById('mqtt-host').textContent = data.mqtt.host || t('status.not_configured', 'Not configured');
 
                 // Update EnOcean status
                 const enoceanBadge = document.getElementById('enocean-status');
@@ -1237,18 +1237,18 @@
                     enoceanBadge.className = 'badge bg-success';
                     enoceanBadge.innerHTML = '<i class="bi bi-usb-symbol"></i> EnOcean';
                     enoceanConn.className = 'badge bg-success';
-                    enoceanConn.textContent = 'Connected';
+                    enoceanConn.textContent = t('status.connected', 'Connected');
                     enoceanCard.classList.add('connected');
                     enoceanCard.classList.remove('disconnected');
                 } else {
                     enoceanBadge.className = 'badge bg-danger';
                     enoceanBadge.innerHTML = '<i class="bi bi-usb-symbol"></i> EnOcean';
                     enoceanConn.className = 'badge bg-danger';
-                    enoceanConn.textContent = 'Disconnected';
+                    enoceanConn.textContent = t('status.disconnected', 'Disconnected');
                     enoceanCard.classList.add('disconnected');
                     enoceanCard.classList.remove('connected');
                 }
-                document.getElementById('enocean-port').textContent = data.enocean.port || 'Not configured';
+                document.getElementById('enocean-port').textContent = data.enocean.port || t('status.not_configured', 'Not configured');
 
                 // Update counts
                 document.getElementById('device-count').textContent = data.devices.count;
@@ -1268,7 +1268,7 @@
                 container.innerHTML = '';
 
                 if (devices.length === 0) {
-                    container.innerHTML = '<div class="col-12"><p class="text-muted">No devices configured. <a href="#" onclick="navigateTo(\'teach-in\')">Add your first device</a></p></div>';
+                    container.innerHTML = `<div class="col-12"><p class="text-muted">${t('devices.empty', 'Add your first device')} <a href="#" onclick="navigateTo('teach-in')">${t('nav.add_device', 'Add Device')}</a></p></div>`;
                     return;
                 }
 
@@ -1314,7 +1314,7 @@
                 const searchQuery = document.getElementById('device-search').value;
                 if (searchQuery) filterDevices();
             } catch (error) {
-                showToast('Failed to load devices', 'danger');
+                showToast(t('devices.load_failed', 'Failed to load devices'), 'danger');
             }
         }
 
@@ -1458,7 +1458,7 @@
                 const searchQuery = document.getElementById('profile-search').value;
                 if (searchQuery) filterProfiles();
             } catch (error) {
-                showToast('Failed to load profiles', 'danger');
+                showToast(t('profiles.load_failed', 'Failed to load profiles'), 'danger');
             }
         }
 
@@ -1485,17 +1485,17 @@
                     actionsHtml = `
                         <div class="mt-2">
                             <button class="btn btn-sm btn-outline-primary me-2" onclick="editCustomProfile('${profile.eep_id}')">
-                                <i class="bi bi-pencil"></i> Edit Profile
+                                <i class="bi bi-pencil"></i> ${t('profile.edit', 'Edit Profile')}
                             </button>
                             <button class="btn btn-sm btn-outline-danger" onclick="deleteCustomProfile('${profile.eep_id}')">
-                                <i class="bi bi-trash"></i> Delete
+                                <i class="bi bi-trash"></i> ${t('profile.delete', 'Delete')}
                             </button>
                         </div>`;
                 } else {
                     actionsHtml = `
                         <div class="mt-2">
-                            <button class="btn btn-sm btn-outline-secondary" onclick="forkStandardProfile('${profile.eep_id}')" title="Create a custom copy to edit fields and mapping">
-                                <i class="bi bi-copy"></i> Fork as Custom Profile
+                            <button class="btn btn-sm btn-outline-secondary" onclick="forkStandardProfile('${profile.eep_id}')" title="${t('profile.fork_title', 'Create a custom copy to edit fields and mapping')}">
+                                <i class="bi bi-copy"></i> ${t('profile.fork', 'Fork as Custom Profile')}
                             </button>
                         </div>`;
                 }
@@ -1508,15 +1508,15 @@
                 // Build HA mapping display
                 let haMappingHtml = '<hr>';
                 haMappingHtml += `<div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="mb-0"><i class="bi bi-house-gear"></i> HA Entity Mapping
-                        ${hasOverride ? '<span class="badge bg-info ms-2">Customized</span>' : ''}
+                    <h6 class="mb-0"><i class="bi bi-house-gear"></i> ${t('mapping_editor.ha_mapping', 'HA Entity Mapping')}
+                        ${hasOverride ? `<span class="badge bg-info ms-2">${t('mapping_editor.customized_badge', 'Customized')}</span>` : ''}
                     </h6>
                     <div>
-                        ${hasOverride && !profile.is_custom ? `<button class="btn btn-sm btn-outline-warning me-1" onclick="resetMappingOverride('${profile.eep_id}')" title="Reset to EEP.xml default">
-                            <i class="bi bi-arrow-counterclockwise"></i> Reset
+                        ${hasOverride && !profile.is_custom ? `<button class="btn btn-sm btn-outline-warning me-1" onclick="resetMappingOverride('${profile.eep_id}')" title="${t('mapping_editor.reset', 'Reset')}">
+                            <i class="bi bi-arrow-counterclockwise"></i> ${t('mapping_editor.reset', 'Reset')}
                         </button>` : ''}
                         <button class="btn btn-sm btn-outline-primary" onclick="openMappingEditor('${profile.eep_id}')">
-                            <i class="bi bi-pencil"></i> Customize
+                            <i class="bi bi-pencil"></i> ${t('mapping_editor.customize', 'Customize')}
                         </button>
                     </div>
                 </div>`;
@@ -1524,17 +1524,17 @@
                 if (hasMapping) {
                     haMappingHtml += Object.entries(effectiveMapping).map(([shortcut, config]) => {
                         const mainFields = [];
-                        if (config.name) mainFields.push(`Name: ${config.name}`);
-                        if (config.device_class) mainFields.push(`Class: ${config.device_class}`);
-                        if (config.icon) mainFields.push(`Icon: ${config.icon}`);
-                        if (config.unit_of_measurement) mainFields.push(`Unit: ${config.unit_of_measurement}`);
+                        if (config.name) mainFields.push(`${t('label.name', 'Name')}: ${config.name}`);
+                        if (config.device_class) mainFields.push(`${t('label.class', 'Class')}: ${config.device_class}`);
+                        if (config.icon) mainFields.push(`${t('label.icon', 'Icon')}: ${config.icon}`);
+                        if (config.unit_of_measurement) mainFields.push(`${t('label.unit', 'Unit')}: ${config.unit_of_measurement}`);
 
                         const advancedFields = [];
-                        if (config.state_class) advancedFields.push(`State: ${config.state_class}`);
-                        if (config.entity_category) advancedFields.push(`Category: ${config.entity_category}`);
-                        if (config.expire_after) advancedFields.push(`Expire: ${config.expire_after}s`);
-                        if (config.force_update) advancedFields.push(`Force Update`);
-                        if (config.suggested_display_precision != null) advancedFields.push(`Precision: ${config.suggested_display_precision}`);
+                        if (config.state_class) advancedFields.push(`${t('label.state', 'State')}: ${config.state_class}`);
+                        if (config.entity_category) advancedFields.push(`${t('label.category', 'Category')}: ${config.entity_category}`);
+                        if (config.expire_after) advancedFields.push(`${t('label.expire', 'Expire')}: ${config.expire_after}s`);
+                        if (config.force_update) advancedFields.push(t('label.force_update', 'Force Update'));
+                        if (config.suggested_display_precision != null) advancedFields.push(`${t('label.precision', 'Precision')}: ${config.suggested_display_precision}`);
 
                         return `<div class="border rounded p-2 mb-2 bg-body-secondary">
                             <div class="d-flex justify-content-between">
@@ -1546,40 +1546,40 @@
                         </div>`;
                     }).join('');
                 } else {
-                    haMappingHtml += '<p class="text-muted small"><i class="bi bi-info-circle"></i> No HA mapping defined. Click "Customize" to create one.</p>';
+                    haMappingHtml += `<p class="text-muted small"><i class="bi bi-info-circle"></i> ${t('mapping_editor.no_mapping', 'No HA mapping defined. Click "Customize" to create one.')}</p>`;
                 }
 
                 // Inline mapping editor (hidden by default)
                 haMappingHtml += `
                 <div id="inline-mapping-editor" style="display:none;" class="mt-3 border rounded p-3 bg-body-tertiary">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="mb-0"><i class="bi bi-sliders"></i> Mapping Editor</h6>
+                        <h6 class="mb-0"><i class="bi bi-sliders"></i> ${t('mapping_editor.title', 'Mapping Editor')}</h6>
                         <button class="btn btn-sm btn-outline-secondary" id="inline-mode-toggle" onclick="toggleInlineMappingMode()">
-                            <i class="bi bi-code-slash"></i> Text Mode
+                            <i class="bi bi-code-slash"></i> ${t('mapping_editor.text_mode', 'Text Mode')}
                         </button>
                     </div>
                     <div id="inline-mapping-visual">
-                        <p class="text-muted small mb-2">Define how EEP fields map to Home Assistant entities. Shortcut must match a telegram field name.</p>
+                        <p class="text-muted small mb-2">${t('mapping_editor.define_hint', 'Define how EEP fields map to Home Assistant entities. Shortcut must match a telegram field name.')}</p>
                         <div id="inline-mapping-rows"></div>
-                        <div id="inline-mapping-empty" class="text-muted small mb-2" style="display:none;">No mappings defined. Click "Add Row" to start.</div>
+                        <div id="inline-mapping-empty" class="text-muted small mb-2" style="display:none;">${t('mapping_editor.no_rows', 'No mappings defined. Click "Add Row" to start.')}</div>
                         <div class="d-flex gap-2 mt-2">
                             <button class="btn btn-sm btn-outline-secondary" onclick="addInlineMappingRow()">
-                                <i class="bi bi-plus"></i> Add Row
+                                <i class="bi bi-plus"></i> ${t('mapping_editor.add_row', 'Add Row')}
                             </button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="prefillMappingFromFields('${profile.eep_id}')">
-                                <i class="bi bi-magic"></i> Auto-fill from Fields
+                                <i class="bi bi-magic"></i> ${t('mapping_editor.autofill', 'Auto-fill from Fields')}
                             </button>
                         </div>
                     </div>
                     <div id="inline-mapping-text" style="display:none;">
-                        <p class="text-muted small mb-2">Edit mapping as YAML. Any valid MQTT discovery field can be used (state_class, expire_after, etc.).</p>
+                        <p class="text-muted small mb-2">${t('mapping_editor.text_hint', 'Edit mapping as YAML. Any valid MQTT discovery field can be used (state_class, expire_after, etc.).')}</p>
                         <textarea id="inline-mapping-yaml" class="form-control form-control-sm font-monospace" rows="14" spellcheck="false"></textarea>
                     </div>
                     <div class="d-flex gap-2 mt-2">
                         <div class="ms-auto">
-                            <button class="btn btn-sm btn-outline-secondary me-1" onclick="closeMappingEditor()">Cancel</button>
+                            <button class="btn btn-sm btn-outline-secondary me-1" onclick="closeMappingEditor()">${t('mapping_editor.cancel', 'Cancel')}</button>
                             <button class="btn btn-sm btn-primary" onclick="saveMappingOverride('${profile.eep_id}')">
-                                <i class="bi bi-check-lg"></i> Save Mapping
+                                <i class="bi bi-check-lg"></i> ${t('mapping_editor.save', 'Save Mapping')}
                             </button>
                         </div>
                     </div>
@@ -1588,20 +1588,20 @@
                 container.innerHTML = `
                     <h5>${profile.eep_id}</h5>
                     <p>${profile.description}</p>
-                    ${profile.is_custom ? '<span class="badge bg-warning">Custom Profile</span>' : '<span class="badge bg-secondary">Standard Profile</span>'}
+                    ${profile.is_custom ? `<span class="badge bg-warning">${t('profile.custom', 'Custom Profile')}</span>` : `<span class="badge bg-secondary">${t('profile.standard', 'Standard Profile')}</span>`}
                     ${actionsHtml}
                     <hr>
-                    <h6>Telegram Fields</h6>
+                    <h6>${t('profile.telegram_fields', 'Telegram Fields')}</h6>
                     ${profile.fields.length ? profile.fields.map(f => `
                         <div class="border rounded p-2 mb-2">
-                            <strong>${f.shortcut || '?'}</strong> - ${f.description || 'No description'}<br>
-                            <small>Offset: ${f.offset ?? '-'}, Size: ${f.size ?? '-'} bits, Type: ${f.type || '-'}</small>
+                            <strong>${f.shortcut || '?'}</strong> - ${f.description || t('profile.no_description', 'No description')}<br>
+                            <small>${t('profile.field_offset', 'Offset')}: ${f.offset ?? '-'}, ${t('profile.field_size', 'Size')}: ${f.size ?? '-'} bits, ${t('profile.field_type', 'Type')}: ${f.type || '-'}</small>
                         </div>
-                    `).join('') : '<p class="text-muted">No field definitions</p>'}
+                    `).join('') : `<p class="text-muted">${t('profile.no_fields', 'No field definitions')}</p>`}
                     ${haMappingHtml}
                 `;
             } catch (error) {
-                showToast('Failed to load profile details', 'danger');
+                showToast(t('profiles.details_failed', 'Failed to load profile details'), 'danger');
             }
         }
 
@@ -1641,7 +1641,7 @@
 
                 editor.style.display = '';
             } catch (e) {
-                showToast('Failed to load mapping', 'danger');
+                showToast(t('toast.failed_load_mapping', 'Failed to load mapping'), 'danger');
             }
         }
 
@@ -1666,7 +1666,7 @@
             const btn = document.getElementById('inline-mode-toggle');
             if (visual) visual.style.display = '';
             if (text) text.style.display = 'none';
-            if (btn) btn.innerHTML = '<i class="bi bi-code-slash"></i> Text Mode';
+            if (btn) btn.innerHTML = `<i class="bi bi-code-slash"></i> ${t('mapping_editor.text_mode', 'Text Mode')}`;
         }
 
         function _resetHaTextMode() {
@@ -1677,13 +1677,13 @@
             const addBtn = document.getElementById('ha-add-row-btn');
             if (visual) visual.style.display = '';
             if (text) text.style.display = 'none';
-            if (btn) btn.innerHTML = '<i class="bi bi-code-slash"></i> Text Mode';
+            if (btn) btn.innerHTML = `<i class="bi bi-code-slash"></i> ${t('mapping_editor.text_mode', 'Text Mode')}`;
             if (addBtn) addBtn.style.display = '';
         }
 
         function toggleInlineMappingMode() {
             if (!_isJsYamlAvailable()) {
-                showToast('YAML library not loaded. Please reload the page.', 'warning');
+                showToast(t('toast.yaml_not_loaded', 'YAML library not loaded. Please reload the page.'), 'warning');
                 return;
             }
             const visual = document.getElementById('inline-mapping-visual');
@@ -1694,19 +1694,19 @@
                 // Visual → Text: collect mapping and serialize to YAML
                 const mapping = collectInlineMapping();
                 if (mapping === undefined) {
-                    showToast('Fix validation errors before switching to text mode', 'warning');
+                    showToast(t('toast.fix_validation', 'Fix validation errors before switching to text mode'), 'warning');
                     return;
                 }
                 try {
                     const yamlStr = (mapping && Object.keys(mapping).length > 0) ? jsyaml.dump(mapping, { lineWidth: -1 }) : '';
                     document.getElementById('inline-mapping-yaml').value = yamlStr;
                 } catch (e) {
-                    showToast('Failed to serialize to YAML: ' + e.message, 'danger');
+                    showToast(t('toast.yaml_serialize_failed', 'Failed to serialize to YAML') + ': ' + e.message, 'danger');
                     return;
                 }
                 visual.style.display = 'none';
                 text.style.display = '';
-                btn.innerHTML = '<i class="bi bi-ui-checks-grid"></i> Visual Mode';
+                btn.innerHTML = `<i class="bi bi-ui-checks-grid"></i> ${t('mapping_editor.visual_mode', 'Visual Mode')}`;
                 _inlineTextMode = true;
             } else {
                 // Text → Visual: parse YAML and rebuild rows
@@ -1730,7 +1730,7 @@
                             document.getElementById('inline-mapping-empty').style.display = 'none';
                         }
                     } catch (e) {
-                        showToast('YAML parse error: ' + e.message, 'danger');
+                        showToast(t('toast.yaml_parse_error', 'YAML parse error') + ': ' + e.message, 'danger');
                         return; // stay in text mode
                     }
                 } else {
@@ -1739,14 +1739,14 @@
                 }
                 visual.style.display = '';
                 text.style.display = 'none';
-                btn.innerHTML = '<i class="bi bi-code-slash"></i> Text Mode';
+                btn.innerHTML = `<i class="bi bi-code-slash"></i> ${t('mapping_editor.text_mode', 'Text Mode')}`;
                 _inlineTextMode = false;
             }
         }
 
         function toggleHaMappingMode() {
             if (!_isJsYamlAvailable()) {
-                showToast('YAML library not loaded. Please reload the page.', 'warning');
+                showToast(t('toast.yaml_not_loaded', 'YAML library not loaded. Please reload the page.'), 'warning');
                 return;
             }
             const visual = document.getElementById('ha-mapping-visual');
@@ -1758,19 +1758,19 @@
                 // Visual → Text
                 const mapping = collectHaMapping();
                 if (mapping === undefined) {
-                    showToast('Fix validation errors before switching to text mode', 'warning');
+                    showToast(t('toast.fix_validation', 'Fix validation errors before switching to text mode'), 'warning');
                     return;
                 }
                 try {
                     const yamlStr = (mapping && Object.keys(mapping).length > 0) ? jsyaml.dump(mapping, { lineWidth: -1 }) : '';
                     document.getElementById('ha-mapping-yaml').value = yamlStr;
                 } catch (e) {
-                    showToast('Failed to serialize to YAML: ' + e.message, 'danger');
+                    showToast(t('toast.yaml_serialize_failed', 'Failed to serialize to YAML') + ': ' + e.message, 'danger');
                     return;
                 }
                 visual.style.display = 'none';
                 text.style.display = '';
-                btn.innerHTML = '<i class="bi bi-ui-checks-grid"></i> Visual';
+                btn.innerHTML = `<i class="bi bi-ui-checks-grid"></i> ${t('mapping_editor.visual_mode', 'Visual Mode')}`;
                 addBtn.style.display = 'none';
                 _haTextMode = true;
             } else {
@@ -1795,7 +1795,7 @@
                             document.getElementById('ha-mapping-empty').style.display = 'none';
                         }
                     } catch (e) {
-                        showToast('YAML parse error: ' + e.message, 'danger');
+                        showToast(t('toast.yaml_parse_error', 'YAML parse error') + ': ' + e.message, 'danger');
                         return; // stay in text mode
                     }
                 } else {
@@ -1804,7 +1804,7 @@
                 }
                 visual.style.display = '';
                 text.style.display = 'none';
-                btn.innerHTML = '<i class="bi bi-code-slash"></i> Text Mode';
+                btn.innerHTML = `<i class="bi bi-code-slash"></i> ${t('mapping_editor.text_mode', 'Text Mode')}`;
                 addBtn.style.display = '';
                 _haTextMode = false;
             }
@@ -1814,7 +1814,7 @@
             /** Get mapping data from either visual or text mode (inline editor) */
             if (_inlineTextMode) {
                 if (!_isJsYamlAvailable()) {
-                    showToast('YAML library not loaded. Please reload the page.', 'warning');
+                    showToast(t('toast.yaml_not_loaded', 'YAML library not loaded. Please reload the page.'), 'warning');
                     return undefined;
                 }
                 const yamlStr = document.getElementById('inline-mapping-yaml').value.trim();
@@ -1823,7 +1823,7 @@
                     const mapping = jsyaml.load(yamlStr);
                     return (mapping && typeof mapping === 'object') ? mapping : {};
                 } catch (e) {
-                    showToast('YAML parse error: ' + e.message, 'danger');
+                    showToast(t('toast.yaml_parse_error', 'YAML parse error') + ': ' + e.message, 'danger');
                     return undefined; // signal error
                 }
             }
@@ -1834,7 +1834,7 @@
             /** Get mapping data from either visual or text mode (HA mapping editor) */
             if (_haTextMode) {
                 if (!_isJsYamlAvailable()) {
-                    showToast('YAML library not loaded. Please reload the page.', 'warning');
+                    showToast(t('toast.yaml_not_loaded', 'YAML library not loaded. Please reload the page.'), 'warning');
                     return undefined;
                 }
                 const yamlStr = document.getElementById('ha-mapping-yaml').value.trim();
@@ -1843,7 +1843,7 @@
                     const mapping = jsyaml.load(yamlStr);
                     return (mapping && typeof mapping === 'object' && Object.keys(mapping).length > 0) ? mapping : null;
                 } catch (e) {
-                    showToast('YAML parse error: ' + e.message, 'danger');
+                    showToast(t('toast.yaml_parse_error', 'YAML parse error') + ': ' + e.message, 'danger');
                     return undefined; // signal error
                 }
             }
@@ -1870,11 +1870,11 @@
             row.innerHTML = `
                 <div class="row g-2 align-items-end">
                     <div class="col-md-2">
-                        <label class="form-label small">Shortcut</label>
+                        <label class="form-label small">${t('mapping_editor.field_shortcut', 'Shortcut')}</label>
                         <input type="text" class="form-control form-control-sm" placeholder="TMP" value="${shortcut}" data-field="shortcut">
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small">Component</label>
+                        <label class="form-label small">${t('mapping_editor.field_component', 'Component')}</label>
                         <select class="form-select form-select-sm" data-field="component" onchange="onInlineComponentChange(this)">
                             <option value="binary_sensor" ${component === 'binary_sensor' ? 'selected' : ''}>binary_sensor</option>
                             <option value="sensor" ${component === 'sensor' ? 'selected' : ''}>sensor</option>
@@ -1886,70 +1886,70 @@
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small">Name</label>
+                        <label class="form-label small">${t('mapping_editor.field_name', 'Name')}</label>
                         <input type="text" class="form-control form-control-sm" placeholder="Temperature" value="${name}" data-field="name">
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small">Device Class</label>
+                        <label class="form-label small">${t('mapping_editor.field_device_class', 'Device Class')}</label>
                         <select class="form-select form-select-sm" data-field="device_class">
                             ${getDeviceClassOptions(component, deviceClass)}
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small">Icon</label>
+                        <label class="form-label small">${t('mapping_editor.field_icon', 'Icon')}</label>
                         <input type="text" class="form-control form-control-sm" placeholder="mdi:thermometer" value="${icon}" data-field="icon">
                     </div>
                     <div class="col-md-1">
-                        <label class="form-label small">Unit</label>
+                        <label class="form-label small">${t('mapping_editor.field_unit', 'Unit')}</label>
                         <input type="text" class="form-control form-control-sm" placeholder="" value="${unit}" data-field="unit_of_measurement">
                     </div>
                     <div class="col-md-1">
-                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeInlineMappingRow(this)" title="Remove">
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeInlineMappingRow(this)" title="${t('mapping_editor.field_remove', 'Remove')}">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
                 </div>
                 <div class="mt-1">
                     <a class="small text-muted text-decoration-none" data-bs-toggle="collapse" href="#inline-adv-${rowId}" role="button" aria-expanded="false">
-                        <i class="bi bi-chevron-right"></i> Advanced
+                        <i class="bi bi-chevron-right"></i> ${t('mapping_editor.advanced', 'Advanced')}
                     </a>
                     <div class="collapse" id="inline-adv-${rowId}">
                         <div class="row g-2 mt-1">
                             <div class="col-md-2">
-                                <label class="form-label small">State Class</label>
+                                <label class="form-label small">${t('mapping_editor.field_state_class', 'State Class')}</label>
                                 <select class="form-select form-select-sm" data-field="state_class">
-                                    <option value="" ${!stateClass ? 'selected' : ''}>(none)</option>
+                                    <option value="" ${!stateClass ? 'selected' : ''}>${t('mapping_editor.none', '(none)')}</option>
                                     <option value="measurement" ${stateClass === 'measurement' ? 'selected' : ''}>measurement</option>
                                     <option value="total" ${stateClass === 'total' ? 'selected' : ''}>total</option>
                                     <option value="total_increasing" ${stateClass === 'total_increasing' ? 'selected' : ''}>total_increasing</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <label class="form-label small">Entity Category</label>
+                                <label class="form-label small">${t('mapping_editor.field_entity_category', 'Entity Category')}</label>
                                 <select class="form-select form-select-sm" data-field="entity_category">
-                                    <option value="" ${!entityCategory ? 'selected' : ''}>(none)</option>
+                                    <option value="" ${!entityCategory ? 'selected' : ''}>${t('mapping_editor.none', '(none)')}</option>
                                     <option value="diagnostic" ${entityCategory === 'diagnostic' ? 'selected' : ''}>diagnostic</option>
                                     <option value="config" ${entityCategory === 'config' ? 'selected' : ''}>config</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <label class="form-label small">Expire After (s)</label>
+                                <label class="form-label small">${t('mapping_editor.field_expire_after', 'Expire After (s)')}</label>
                                 <input type="number" class="form-control form-control-sm" placeholder="" value="${expireAfter}" data-field="expire_after" min="0">
                             </div>
                             <div class="col-md-2">
-                                <label class="form-label small">Precision</label>
+                                <label class="form-label small">${t('mapping_editor.field_precision', 'Precision')}</label>
                                 <input type="number" class="form-control form-control-sm" placeholder="" value="${precision}" data-field="suggested_display_precision" min="0" max="10">
                             </div>
                             <div class="col-md-2 d-flex align-items-end">
                                 <div class="form-check mb-2">
                                     <input class="form-check-input" type="checkbox" data-field="force_update" ${forceUpdate ? 'checked' : ''}>
-                                    <label class="form-check-label small">Force Update</label>
+                                    <label class="form-check-label small">${t('mapping_editor.field_force_update', 'Force Update')}</label>
                                 </div>
                             </div>
                         </div>
                         <div class="row g-2 mt-1">
                             <div class="col-md-6">
-                                <label class="form-label small">Value Template</label>
+                                <label class="form-label small">${t('mapping_editor.field_value_template', 'Value Template')}</label>
                                 <input type="text" class="form-control form-control-sm font-monospace" placeholder="auto-generated" value="${valueTemplate.replace(/"/g, '&quot;')}" data-field="value_template">
                             </div>
                         </div>
@@ -2068,20 +2068,20 @@
 
                         addInlineMappingRow(shortcut, component, field.description || '', dc, '', unit);
                     }
-                    showToast('Fields pre-filled from EEP profile', 'success');
+                    showToast(t('mapping_editor.prefilled', 'Fields pre-filled from EEP profile'), 'success');
                 } else {
                     document.getElementById('inline-mapping-empty').style.display = '';
-                    showToast('No fields found in profile', 'warning');
+                    showToast(t('mapping_editor.no_fields', 'No fields found in profile'), 'warning');
                 }
             } catch (e) {
-                showToast('Failed to load profile fields', 'danger');
+                showToast(t('mapping_editor.load_fields_failed', 'Failed to load profile fields'), 'danger');
             }
         }
 
         async function saveMappingOverride(eepId) {
             const mapping = getInlineMappingData();
             if (mapping === undefined) {
-                showToast('All rows must have a shortcut name (or fix YAML errors)', 'warning');
+                showToast(t('mapping_editor.need_shortcut', 'All rows must have a shortcut name (or fix YAML errors)'), 'warning');
                 return;
             }
 
@@ -2093,9 +2093,9 @@
                 });
                 if (!resp.ok) {
                     const err = await resp.json().catch(() => null);
-                    throw new Error(err?.detail || 'Save failed');
+                    throw new Error(err?.detail || t('mapping_editor.save_failed', 'Save failed'));
                 }
-                showToast('Mapping saved', 'success');
+                showToast(t('mapping_editor.saved', 'Mapping saved'), 'success');
                 closeMappingEditor();
                 showProfileDetails(eepId);
                 // Refresh the profile tree to update "Customized" indicators
@@ -2106,14 +2106,14 @@
         }
 
         async function resetMappingOverride(eepId) {
-            if (!confirm('Reset mapping to EEP.xml default? Your customization will be removed.')) return;
+            if (!confirm(t('mapping_editor.reset_confirm', 'Reset mapping to EEP.xml default? Your customization will be removed.'))) return;
             try {
                 const resp = await fetch(getApiUrl(`/api/eep/${eepId}/mapping`), { method: 'DELETE' });
                 if (!resp.ok) {
                     const err = await resp.json().catch(() => null);
-                    throw new Error(err?.detail || 'Reset failed');
+                    throw new Error(err?.detail || t('mapping_editor.reset_failed', 'Reset failed'));
                 }
-                showToast('Mapping reset to default', 'success');
+                showToast(t('mapping_editor.reset_success', 'Mapping reset to default'), 'success');
                 showProfileDetails(eepId);
                 // Refresh the profile tree to update indicators
                 loadProfiles();
@@ -2123,7 +2123,7 @@
         }
 
         async function deleteCustomProfile(eepId) {
-            if (!confirm(`Delete custom profile ${eepId}? This cannot be undone.`)) return;
+            if (!confirm(`${t('profile.delete_confirm', 'Delete custom profile')} ${eepId}? ${t('common.cannot_undo', 'This cannot be undone.')}`)) return;
 
             try {
                 const response = await fetch(getApiUrl(`/api/eep/custom/${eepId}`), {method: 'DELETE'});
@@ -2131,9 +2131,9 @@
                     const errData = await response.json().catch(() => null);
                     throw new Error(errData?.detail || `Server error (${response.status})`);
                 }
-                document.getElementById('profile-details').innerHTML = '<p class="text-muted">Select a profile to view details</p>';
+                document.getElementById('profile-details').innerHTML = `<p class="text-muted">${t('profiles.select_hint', 'Select a profile to view details')}</p>`;
                 loadProfiles();
-                showToast(`Profile ${eepId} deleted`, 'success');
+                showToast(`${t('profile.deleted', 'Profile deleted')}: ${eepId}`, 'success');
             } catch (error) {
                 showToast(error.message, 'danger');
             }
@@ -2145,7 +2145,7 @@
                 const profile = await response.json();
 
                 if (!profile.is_custom) {
-                    showToast('Only custom profiles can be edited', 'danger');
+                    showToast(t('profile.only_custom_editable', 'Only custom profiles can be edited'), 'danger');
                     return;
                 }
 
@@ -2174,7 +2174,7 @@
                 // Show modal
                 new bootstrap.Modal(document.getElementById('customProfileModal')).show();
             } catch (error) {
-                showToast('Failed to load profile for editing', 'danger');
+                showToast(t('profile.load_edit_failed', 'Failed to load profile for editing'), 'danger');
             }
         }
 
@@ -2207,12 +2207,12 @@
                 populateHaMapping(effectiveMapping);
 
                 // Update modal title
-                document.querySelector('#customProfileModal .modal-title').textContent = `Fork Standard Profile: ${eepId}`;
+                document.querySelector('#customProfileModal .modal-title').textContent = `${t('modal.fork_title', 'Fork Standard Profile')}: ${eepId}`;
 
                 // Show modal
                 new bootstrap.Modal(document.getElementById('customProfileModal')).show();
             } catch (error) {
-                showToast('Failed to load profile for forking', 'danger');
+                showToast(t('profile.load_fork_failed', 'Failed to load profile for forking'), 'danger');
             }
         }
 
@@ -2272,7 +2272,7 @@
             }
 
             const proto = actuatorType === 'light' ? 'A5-38-08 (Central Command)' : 'F6 (Rocker)';
-            resultDiv.innerHTML = `<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Sending ${proto} teach-in...</div>`;
+            resultDiv.innerHTML = `<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> ${t('teach_in.sending', 'Sending')} ${proto} teach-in...</div>`;
             resultDiv.style.display = 'block';
 
             try {
@@ -2285,14 +2285,14 @@
 
                 if (resp.ok) {
                     resultDiv.innerHTML = `<div class="alert alert-success">
-                        <i class="bi bi-check-circle"></i> <strong>Teach-in sent!</strong> (${data.teach_type || proto})<br>
-                        Sender ID: <code>${data.sender_id}</code> → Destination: <code>${data.destination}</code><br>
+                        <i class="bi bi-check-circle"></i> <strong>${t('teach_in.teach_in_sent', 'Teach-in sent!')}</strong> (${data.teach_type || proto})<br>
+                        ${t('teach_in.sender_id', 'Sender ID')}: <code>${data.sender_id}</code> → ${t('teach_in.destination', 'Destination')}: <code>${data.destination}</code><br>
                         <small class="text-muted">${data.message}</small><br><br>
-                        <strong>Next:</strong> Use "Manual Entry" to add this device with sender ID <code>${data.sender_id}</code>
-                        and actuator type <code>${actuatorType}</code>
+                        <strong>${t('teach_in.next_step', 'Next')}:</strong> ${t('teach_in.next_step_desc', 'Use "Manual Entry" to add this device with sender ID')} <code>${data.sender_id}</code>
+                        ${t('teach_in.and_actuator_type', 'and actuator type')} <code>${actuatorType}</code>
                     </div>`;
                 } else {
-                    resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${data.detail || 'Unknown error'}</div>`;
+                    resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${data.detail || t('common.unknown_error', 'Unknown error')}</div>`;
                 }
             } catch (e) {
                 resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${e.message}</div>`;
@@ -2393,7 +2393,7 @@
                 countdownEl.textContent = `(${remaining}s)`;
                 if (remaining <= 0) {
                     cancelTeachIn();
-                    showToast('Teach-in timed out — no device detected', 'warning');
+                    showToast(t('teach_in.timeout', 'Teach-in timed out — no device detected'), 'warning');
                 }
             }, 1000);
 
@@ -2412,7 +2412,7 @@
                     cancelTeachIn();
                     wizardNext();
 
-                    showToast('Device detected!', 'success');
+                    showToast(t('teach_in.detected', 'Device detected!'), 'success');
                 }
             };
 
@@ -2482,9 +2482,9 @@
             delete form.dataset.editMode;
             document.querySelector('[name="name"]').readOnly = false;
             const submitBtn = form.querySelector('button[type="submit"]');
-            if (submitBtn) submitBtn.textContent = 'Add Device';
+            if (submitBtn) submitBtn.textContent = t('teach_in.add_device', 'Add Device');
             const heading = document.querySelector('#step-2 h4');
-            if (heading) heading.textContent = 'Step 2: Configure Device';
+            if (heading) heading.textContent = t('teach_in.step2', 'Step 2: Configure Device');
         }
 
         async function saveDevice(e) {
@@ -2513,7 +2513,7 @@
                 }
 
                 if (!response.ok) {
-                    let errorMsg = 'Failed to save device';
+                    let errorMsg = t('device.save_failed', 'Failed to save device');
                     try {
                         const error = await response.json();
                         errorMsg = error.detail || errorMsg;
@@ -2527,18 +2527,18 @@
                 delete form.dataset.editMode;
                 document.querySelector('[name="name"]').readOnly = false;
                 const submitBtn = form.querySelector('button[type="submit"]');
-                if (submitBtn) submitBtn.textContent = 'Add Device';
+                if (submitBtn) submitBtn.textContent = t('teach_in.add_device', 'Add Device');
                 const heading = document.querySelector('#step-2 h4');
-                if (heading) heading.textContent = 'Step 2: Configure Device';
+                if (heading) heading.textContent = t('teach_in.step2', 'Step 2: Configure Device');
 
                 if (editMode) {
                     // After editing, go back to devices page
-                    showToast('Device updated successfully', 'success');
+                    showToast(t('device.updated', 'Device updated successfully'), 'success');
                     navigateTo('devices');
                 } else {
                     // After adding new device, show success screen
                     wizardNext();
-                    showToast('Device saved successfully', 'success');
+                    showToast(t('device.saved', 'Device saved successfully'), 'success');
                 }
                 loadDevices();
             } catch (error) {
@@ -2577,15 +2577,15 @@
 
                 // Change button text and disable name field
                 const submitBtn = form.querySelector('button[type="submit"]');
-                if (submitBtn) submitBtn.textContent = 'Save Device';
+                if (submitBtn) submitBtn.textContent = t('device.save', 'Save Device');
                 document.querySelector('[name="name"]').readOnly = true;
 
                 // Update heading
                 const heading = document.querySelector('#step-2 h4');
-                if (heading) heading.textContent = 'Edit Device';
+                if (heading) heading.textContent = t('device.edit', 'Edit Device');
 
             } catch (error) {
-                showToast('Failed to load device', 'danger');
+                showToast(t('device.load_failed', 'Failed to load device'), 'danger');
             }
         }
 
@@ -2610,10 +2610,10 @@
                     <div class="col-12">
                         <div class="mb-3">
                             <button class="btn btn-outline-secondary btn-sm" onclick="loadDevices()">
-                                <i class="bi bi-arrow-left"></i> Back to Devices
+                                <i class="bi bi-arrow-left"></i> ${t('device.back', 'Back to Devices')}
                             </button>
                             <button class="btn btn-outline-primary btn-sm ms-2" onclick="editDevice('${device.name}')">
-                                <i class="bi bi-pencil"></i> Edit Device
+                                <i class="bi bi-pencil"></i> ${t('device.edit', 'Edit Device')}
                             </button>
                         </div>
 
@@ -2625,17 +2625,17 @@
                                 <div class="row">
                                     <div class="col-md-6">
                                         <table class="table table-sm">
-                                            <tr><th>Address</th><td><code>${device.address}</code></td></tr>
-                                            <tr><th>EEP Profile</th><td><span class="badge bg-primary">${device.rorg}-${device.func}-${device.type}</span></td></tr>
-                                            ${device.description ? `<tr><th>Description</th><td>${device.description}</td></tr>` : ''}
-                                            ${device.room ? `<tr><th>Room</th><td>${device.room}</td></tr>` : ''}
-                                            ${device.sender_id ? `<tr><th>Sender ID</th><td><code>${device.sender_id}</code></td></tr>` : ''}
-                                            ${device.actuator_type ? `<tr><th>Device Role</th><td><span class="badge bg-warning text-dark">${device.actuator_type}</span></td></tr>` : ''}
-                                            ${device.manufacturer ? `<tr><th>Manufacturer</th><td>${device.manufacturer}</td></tr>` : ''}
+                                            <tr><th>${t('device.address', 'Address')}</th><td><code>${device.address}</code></td></tr>
+                                            <tr><th>${t('device.eep_profile', 'EEP Profile')}</th><td><span class="badge bg-primary">${device.rorg}-${device.func}-${device.type}</span></td></tr>
+                                            ${device.description ? `<tr><th>${t('device.description', 'Description')}</th><td>${device.description}</td></tr>` : ''}
+                                            ${device.room ? `<tr><th>${t('device.room', 'Room')}</th><td>${device.room}</td></tr>` : ''}
+                                            ${device.sender_id ? `<tr><th>${t('device.sender_id', 'Sender ID')}</th><td><code>${device.sender_id}</code></td></tr>` : ''}
+                                            ${device.actuator_type ? `<tr><th>${t('device.device_role', 'Device Role')}</th><td><span class="badge bg-warning text-dark">${device.actuator_type}</span></td></tr>` : ''}
+                                            ${device.manufacturer ? `<tr><th>${t('device.manufacturer', 'Manufacturer')}</th><td>${device.manufacturer}</td></tr>` : ''}
                                         </table>
                                     </div>
                                     <div class="col-md-6">
-                                        <h6>MQTT Topics</h6>
+                                        <h6>${t('device.mqtt_topics', 'MQTT Topics')}</h6>
                                         <small class="text-muted">
                                             <code>enocean/${device.name}/state</code><br>
                                             ${device.sender_id ? `<code>enocean/${device.name}/set</code>` : ''}
@@ -2648,27 +2648,27 @@
                         ${device.actuator_type ? `
                         <div class="card mb-3">
                             <div class="card-header bg-warning bg-opacity-25">
-                                <h6 class="mb-0"><i class="bi bi-lightning"></i> Actuator Test</h6>
+                                <h6 class="mb-0"><i class="bi bi-lightning"></i> ${t('device.actuator_test', 'Actuator Test')}</h6>
                             </div>
                             <div class="card-body">
-                                <p class="small text-muted mb-2">Send F6 rocker commands directly to test if teach-in was successful.</p>
+                                <p class="small text-muted mb-2">${t('device.actuator_hint', 'Send F6 rocker commands directly to test if teach-in was successful.')}</p>
                                 <div class="d-flex gap-2 align-items-center flex-wrap">
                                     ${device.actuator_type === 'cover' ? `
                                         <button class="btn btn-success" onclick="testActuator('${device.name}', 'OPEN')">
-                                            <i class="bi bi-arrow-up"></i> Open
+                                            <i class="bi bi-arrow-up"></i> ${t('device.open', 'Open')}
                                         </button>
                                         <button class="btn btn-secondary" onclick="testActuator('${device.name}', 'STOP')">
-                                            <i class="bi bi-stop-fill"></i> Stop
+                                            <i class="bi bi-stop-fill"></i> ${t('device.stop', 'Stop')}
                                         </button>
                                         <button class="btn btn-danger" onclick="testActuator('${device.name}', 'CLOSE')">
-                                            <i class="bi bi-arrow-down"></i> Close
+                                            <i class="bi bi-arrow-down"></i> ${t('device.close', 'Close')}
                                         </button>
                                     ` : `
                                         <button class="btn btn-success" onclick="testActuator('${device.name}', 'ON')">
-                                            <i class="bi bi-power"></i> Test ON
+                                            <i class="bi bi-power"></i> ${t('device.test_on', 'Test ON')}
                                         </button>
                                         <button class="btn btn-danger" onclick="testActuator('${device.name}', 'OFF')">
-                                            <i class="bi bi-power"></i> Test OFF
+                                            <i class="bi bi-power"></i> ${t('device.test_off', 'Test OFF')}
                                         </button>
                                     `}
                                     <span id="test-actuator-result" class="small"></span>
@@ -2679,22 +2679,22 @@
 
                         <div class="card">
                             <div class="card-header d-flex justify-content-between align-items-center">
-                                <span><i class="bi bi-clock-history"></i> Recent Telegrams for ${device.name}</span>
-                                <small class="text-muted">${telegrams.length} telegram(s)</small>
+                                <span><i class="bi bi-clock-history"></i> ${t('device.recent_telegrams', 'Recent Telegrams for')} ${device.name}</span>
+                                <small class="text-muted">${telegrams.length} ${t('device.telegrams_count', 'telegram(s)')}</small>
                             </div>
                             <div class="card-body" style="max-height: 400px; overflow-y: auto;">
                                 ${telegrams.length === 0
-                                    ? '<p class="text-muted">No telegrams received from this device yet</p>'
+                                    ? `<p class="text-muted">${t('device.no_telegrams', 'No telegrams received from this device yet')}</p>`
                                     : `<div class="table-responsive"><table class="table table-sm">
-                                        <thead><tr><th>Time</th><th>RORG</th><th>Data</th><th>dBm</th><th>Teach-In</th></tr></thead>
+                                        <thead><tr><th>${t('telegram.time', 'Time')}</th><th>${t('telegram.rorg', 'RORG')}</th><th>${t('telegram.data', 'Data')}</th><th>${t('telegram.dbm', 'dBm')}</th><th>${t('telegram.teach_in', 'Teach-In')}</th></tr></thead>
                                         <tbody>
-                                            ${telegrams.map(t => `
+                                            ${telegrams.map(tg => `
                                                 <tr>
-                                                    <td><small>${new Date(t.timestamp).toLocaleTimeString()}</small></td>
-                                                    <td><span class="badge bg-secondary">${t.rorg}</span></td>
-                                                    <td><code>${t.data || '-'}</code></td>
-                                                    <td>${t.dbm ? t.dbm + ' dBm' : '<span class="text-muted">N/A</span>'}</td>
-                                                    <td>${t.is_teach_in ? '<span class="badge bg-warning">Yes</span>' : '-'}</td>
+                                                    <td><small>${new Date(tg.timestamp).toLocaleTimeString()}</small></td>
+                                                    <td><span class="badge bg-secondary">${tg.rorg}</span></td>
+                                                    <td><code>${tg.data || '-'}</code></td>
+                                                    <td>${tg.dbm ? tg.dbm + ' dBm' : '<span class="text-muted">N/A</span>'}</td>
+                                                    <td>${tg.is_teach_in ? '<span class="badge bg-warning">Yes</span>' : '-'}</td>
                                                 </tr>
                                             `).join('')}
                                         </tbody>
@@ -2705,26 +2705,26 @@
                     </div>
                 `;
             } catch (error) {
-                showToast('Failed to load device details', 'danger');
+                showToast(t('device.details_failed', 'Failed to load device details'), 'danger');
             }
         }
 
         async function deleteDevice(name) {
-            if (!confirm(`Delete device "${name}"?`)) return;
+            if (!confirm(`${t('devices.delete_confirm', 'Delete device')} "${name}"?`)) return;
 
             try {
                 await fetch(getApiUrl(`/api/devices/${name}`), {method: 'DELETE'});
                 loadDevices();
-                showToast('Device deleted', 'success');
+                showToast(t('devices.deleted', 'Device deleted'), 'success');
             } catch (error) {
-                showToast('Failed to delete device', 'danger');
+                showToast(t('devices.delete_failed', 'Failed to delete device'), 'danger');
             }
         }
 
         async function exportConfig() {
             try {
                 const response = await fetch(getApiUrl('/api/system/export'), {method: 'POST'});
-                if (!response.ok) throw new Error('Export failed');
+                if (!response.ok) throw new Error(t('settings.export_failed', 'Export failed'));
                 const blob = await response.blob();
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -2735,9 +2735,9 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                showToast('Config exported successfully', 'success');
+                showToast(t('export.success', 'Config exported successfully'), 'success');
             } catch (error) {
-                showToast('Export failed: ' + error.message, 'danger');
+                showToast(t('export.failed', 'Export failed') + ': ' + error.message, 'danger');
             }
         }
 
@@ -2753,22 +2753,22 @@
                     body: formData
                 });
                 const result = await response.json();
-                showToast(`Import successful: ${result.details.devices ? 'devices, ' : ''}${result.details.mappings ? 'mappings, ' : ''}${result.details.custom_profiles} custom profiles`, 'success');
+                showToast(`${t('settings.import_success', 'Import successful')}: ${result.details.devices ? 'devices, ' : ''}${result.details.mappings ? 'mappings, ' : ''}${result.details.custom_profiles} custom profiles`, 'success');
                 loadStatus();
             } catch (error) {
-                showToast('Import failed', 'danger');
+                showToast(t('settings.import_failed', 'Import failed'), 'danger');
             }
         }
 
         async function restartServices() {
-            if (!confirm('Restart EnOcean and MQTT services?')) return;
+            if (!confirm(t('settings.restart_confirm', 'Restart EnOcean and MQTT services?'))) return;
 
             try {
                 await fetch(getApiUrl('/api/system/restart'), {method: 'POST'});
-                showToast('Services restarting...', 'info');
+                showToast(t('settings.restarting', 'Services restarting...'), 'info');
                 setTimeout(loadStatus, 3000);
             } catch (error) {
-                showToast('Restart failed', 'danger');
+                showToast(t('settings.restart_failed', 'Restart failed'), 'danger');
             }
         }
 
@@ -2803,7 +2803,7 @@
                 renderBackupList(backups);
             } catch (error) {
                 document.getElementById('backup-list').innerHTML =
-                    '<p class="text-danger">Failed to load backups</p>';
+                    `<p class="text-danger">${t('backup.load_failed', 'Failed to load backups')}</p>`;
             }
         }
 
@@ -2817,7 +2817,7 @@
             const container = document.getElementById('backup-list');
 
             if (backups.length === 0) {
-                container.innerHTML = '<p class="text-muted">No backups yet. Click "Create Backup" to save your current configuration.</p>';
+                container.innerHTML = `<p class="text-muted">${t('backup.no_backups', 'No backups yet. Click "Create Backup" to save your current configuration.')}</p>`;
                 return;
             }
 
@@ -2826,12 +2826,12 @@
                     <table class="table table-sm table-hover mb-0">
                         <thead>
                             <tr>
-                                <th>Filename</th>
-                                <th>Created</th>
-                                <th>Size</th>
-                                <th>Devices</th>
-                                <th>Version</th>
-                                <th class="text-end">Actions</th>
+                                <th>${t('backup.filename', 'Filename')}</th>
+                                <th>${t('backup.created', 'Created')}</th>
+                                <th>${t('backup.size', 'Size')}</th>
+                                <th>${t('backup.devices', 'Devices')}</th>
+                                <th>${t('backup.version', 'Version')}</th>
+                                <th class="text-end">${t('backup.actions', 'Actions')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -2843,13 +2843,13 @@
                                     <td><small>${b.devices}</small></td>
                                     <td><small>${b.version}</small></td>
                                     <td class="text-end text-nowrap">
-                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="downloadBackup('${b.filename}')" title="Download">
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="downloadBackup('${b.filename}')" title="${t('backup.download', 'Download')}">
                                             <i class="bi bi-download"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-warning me-1" onclick="confirmRestoreBackup('${b.filename}')" title="Restore">
+                                        <button class="btn btn-sm btn-outline-warning me-1" onclick="confirmRestoreBackup('${b.filename}')" title="${t('backup.restore', 'Restore')}">
                                             <i class="bi bi-arrow-counterclockwise"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteBackup('${b.filename}')" title="Delete">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteBackup('${b.filename}')" title="${t('backup.delete', 'Delete')}">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </td>
@@ -2863,14 +2863,14 @@
 
         async function createBackup() {
             try {
-                showToast('Creating backup...', 'info');
+                showToast(t('backup.creating', 'Creating backup...'), 'info');
                 const response = await fetch(getApiUrl('/api/system/backup'), {method: 'POST'});
-                if (!response.ok) throw new Error('Backup failed');
+                if (!response.ok) throw new Error(t('backup.failed', 'Backup failed'));
                 const result = await response.json();
-                showToast(`Backup created: ${result.filename}`, 'success');
+                showToast(`${t('backup.created_success', 'Backup created')}: ${result.filename}`, 'success');
                 loadBackups();
             } catch (error) {
-                showToast('Backup failed: ' + error.message, 'danger');
+                showToast(t('backup.failed', 'Backup failed') + ': ' + error.message, 'danger');
             }
         }
 
@@ -2885,28 +2885,28 @@
 
         function confirmRestoreBackup(filename) {
             showConfirmDialog(
-                'Restore Backup',
-                `<p>Are you sure you want to restore from:</p>
+                t('backup.restore_title', 'Restore Backup'),
+                `<p>${t('backup.restore_confirm', 'Are you sure you want to restore from:')}</p>
                  <p><strong><code>${filename}</code></strong></p>
                  <p class="text-warning mb-0"><i class="bi bi-exclamation-triangle"></i>
-                 This will overwrite your current devices, mappings, and custom profiles.</p>`,
-                'Restore',
+                 ${t('backup.restore_warning', 'This will overwrite your current devices, mappings, and custom profiles.')}</p>`,
+                t('backup.restore', 'Restore'),
                 'btn-warning',
                 async () => {
                     try {
-                        showToast('Restoring backup...', 'info');
+                        showToast(t('backup.restoring', 'Restoring backup...'), 'info');
                         const response = await fetch(getApiUrl(`/api/system/backup/restore/${filename}`), {method: 'POST'});
                         if (!response.ok) {
                             const err = await response.json().catch(() => null);
-                            throw new Error(err?.detail || 'Restore failed');
+                            throw new Error(err?.detail || t('backup.restore_failed', 'Restore failed'));
                         }
                         const result = await response.json();
-                        showToast(`Backup restored: ${result.details.devices ? 'devices, ' : ''}${result.details.mappings ? 'mappings, ' : ''}${result.details.custom_profiles} custom profiles`, 'success');
+                        showToast(`${t('backup.restored', 'Backup restored')}: ${result.details.devices ? t('nav.devices', 'devices') + ', ' : ''}${result.details.mappings ? t('nav.mappings', 'mappings') + ', ' : ''}${result.details.custom_profiles} ${t('backup.custom_profiles', 'custom profiles')}`, 'success');
                         loadStatus();
                         loadDevices();
                         loadProfiles();
                     } catch (error) {
-                        showToast('Restore failed: ' + error.message, 'danger');
+                        showToast(t('backup.restore_failed', 'Restore failed') + ': ' + error.message, 'danger');
                     }
                 }
             );
@@ -2914,21 +2914,21 @@
 
         function confirmDeleteBackup(filename) {
             showConfirmDialog(
-                'Delete Backup',
-                `<p>Are you sure you want to delete:</p>
+                t('backup.delete_title', 'Delete Backup'),
+                `<p>${t('backup.delete_confirm', 'Are you sure you want to delete:')}</p>
                  <p><strong><code>${filename}</code></strong></p>
                  <p class="text-danger mb-0"><i class="bi bi-exclamation-triangle"></i>
-                 This cannot be undone.</p>`,
-                'Delete',
+                 ${t('backup.delete_warning', 'This cannot be undone.')}</p>`,
+                t('backup.delete', 'Delete'),
                 'btn-danger',
                 async () => {
                     try {
                         const response = await fetch(getApiUrl(`/api/system/backup/${filename}`), {method: 'DELETE'});
-                        if (!response.ok) throw new Error('Delete failed');
-                        showToast('Backup deleted', 'success');
+                        if (!response.ok) throw new Error(t('backup.delete_failed', 'Delete failed'));
+                        showToast(t('backup.deleted', 'Backup deleted'), 'success');
                         loadBackups();
                     } catch (error) {
-                        showToast('Delete failed: ' + error.message, 'danger');
+                        showToast(t('backup.delete_failed', 'Delete failed') + ': ' + error.message, 'danger');
                     }
                 }
             );
@@ -2956,12 +2956,12 @@
             row.innerHTML = `
                 <div class="row g-2 align-items-end">
                     <div class="col-md-2">
-                        <label class="form-label small">Shortcut</label>
+                        <label class="form-label small">${t('mapping_editor.field_shortcut', 'Shortcut')}</label>
                         <input type="text" class="form-control form-control-sm" placeholder="AL" value="${shortcut}"
                                data-field="shortcut">
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small">Component</label>
+                        <label class="form-label small">${t('mapping_editor.field_component', 'Component')}</label>
                         <select class="form-select form-select-sm" data-field="component" onchange="onComponentChange(this)">
                             <option value="binary_sensor" ${component === 'binary_sensor' ? 'selected' : ''}>binary_sensor</option>
                             <option value="sensor" ${component === 'sensor' ? 'selected' : ''}>sensor</option>
@@ -2973,73 +2973,73 @@
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small">Name</label>
+                        <label class="form-label small">${t('mapping_editor.field_name', 'Name')}</label>
                         <input type="text" class="form-control form-control-sm" placeholder="Alarm" value="${name}"
                                data-field="name">
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small">Device Class</label>
+                        <label class="form-label small">${t('mapping_editor.field_device_class', 'Device Class')}</label>
                         <select class="form-select form-select-sm" data-field="device_class">
                             ${getDeviceClassOptions(component, deviceClass)}
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small">Icon</label>
+                        <label class="form-label small">${t('mapping_editor.field_icon', 'Icon')}</label>
                         <input type="text" class="form-control form-control-sm" placeholder="mdi:alert" value="${icon}"
                                data-field="icon">
                     </div>
                     <div class="col-md-1">
-                        <label class="form-label small">Unit</label>
+                        <label class="form-label small">${t('mapping_editor.field_unit', 'Unit')}</label>
                         <input type="text" class="form-control form-control-sm" placeholder="" value="${unit}"
                                data-field="unit_of_measurement">
                     </div>
                     <div class="col-md-1">
-                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeHaMappingRow(this)" title="Remove">
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeHaMappingRow(this)" title="${t('mapping_editor.field_remove', 'Remove')}">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
                 </div>
                 <div class="mt-1">
                     <a class="small text-muted text-decoration-none" data-bs-toggle="collapse" href="#ha-adv-${rowId}" role="button" aria-expanded="false">
-                        <i class="bi bi-chevron-right"></i> Advanced
+                        <i class="bi bi-chevron-right"></i> ${t('mapping_editor.advanced', 'Advanced')}
                     </a>
                     <div class="collapse" id="ha-adv-${rowId}">
                         <div class="row g-2 mt-1">
                             <div class="col-md-2">
-                                <label class="form-label small">State Class</label>
+                                <label class="form-label small">${t('mapping_editor.field_state_class', 'State Class')}</label>
                                 <select class="form-select form-select-sm" data-field="state_class">
-                                    <option value="" ${!stateClass ? 'selected' : ''}>(none)</option>
+                                    <option value="" ${!stateClass ? 'selected' : ''}>${t('mapping_editor.none', '(none)')}</option>
                                     <option value="measurement" ${stateClass === 'measurement' ? 'selected' : ''}>measurement</option>
                                     <option value="total" ${stateClass === 'total' ? 'selected' : ''}>total</option>
                                     <option value="total_increasing" ${stateClass === 'total_increasing' ? 'selected' : ''}>total_increasing</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <label class="form-label small">Entity Category</label>
+                                <label class="form-label small">${t('mapping_editor.field_entity_category', 'Entity Category')}</label>
                                 <select class="form-select form-select-sm" data-field="entity_category">
-                                    <option value="" ${!entityCategory ? 'selected' : ''}>(none)</option>
+                                    <option value="" ${!entityCategory ? 'selected' : ''}>${t('mapping_editor.none', '(none)')}</option>
                                     <option value="diagnostic" ${entityCategory === 'diagnostic' ? 'selected' : ''}>diagnostic</option>
                                     <option value="config" ${entityCategory === 'config' ? 'selected' : ''}>config</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <label class="form-label small">Expire After (s)</label>
+                                <label class="form-label small">${t('mapping_editor.field_expire_after', 'Expire After (s)')}</label>
                                 <input type="number" class="form-control form-control-sm" placeholder="" value="${expireAfter}" data-field="expire_after" min="0">
                             </div>
                             <div class="col-md-2">
-                                <label class="form-label small">Precision</label>
+                                <label class="form-label small">${t('mapping_editor.field_precision', 'Precision')}</label>
                                 <input type="number" class="form-control form-control-sm" placeholder="" value="${precision}" data-field="suggested_display_precision" min="0" max="10">
                             </div>
                             <div class="col-md-2 d-flex align-items-end">
                                 <div class="form-check mb-2">
                                     <input class="form-check-input" type="checkbox" data-field="force_update" ${forceUpdate ? 'checked' : ''}>
-                                    <label class="form-check-label small">Force Update</label>
+                                    <label class="form-check-label small">${t('mapping_editor.field_force_update', 'Force Update')}</label>
                                 </div>
                             </div>
                         </div>
                         <div class="row g-2 mt-1">
                             <div class="col-md-6">
-                                <label class="form-label small">Value Template</label>
+                                <label class="form-label small">${t('mapping_editor.field_value_template', 'Value Template')}</label>
                                 <input type="text" class="form-control form-control-sm font-monospace" placeholder="auto-generated" value="${valueTemplate.replace(/"/g, '&quot;')}" data-field="value_template">
                             </div>
                         </div>
@@ -3186,11 +3186,11 @@
             const description = (formData.get('description') || '').trim();
 
             if (!rorg || !func || !type) {
-                showToast('RORG, FUNC, and TYPE are required', 'danger');
+                showToast(t('toast.rorg_func_type_required', 'RORG, FUNC, and TYPE are required'), 'danger');
                 return;
             }
             if (!description) {
-                showToast('Description is required', 'danger');
+                showToast(t('toast.description_required', 'Description is required'), 'danger');
                 return;
             }
 
@@ -3200,7 +3200,7 @@
                 if (fieldsText) {
                     fields = JSON.parse(fieldsText);
                     if (!Array.isArray(fields)) {
-                        showToast('Fields must be a JSON array', 'danger');
+                        showToast(t('toast.fields_json_array', 'Fields must be a JSON array'), 'danger');
                         return;
                     }
                 }
@@ -3208,7 +3208,7 @@
                 // Collect HA mapping from builder (visual or text mode)
                 const haMapping = getHaMappingData();
                 if (haMapping === undefined) {
-                    showToast('HA Mapping: All rows need a Shortcut (or fix YAML errors)', 'danger');
+                    showToast(t('mapping_editor.ha_need_shortcut', 'HA Mapping: All rows need a Shortcut (or fix YAML errors)'), 'danger');
                     return;
                 }
 
@@ -3245,12 +3245,12 @@
                 bootstrap.Modal.getInstance(document.getElementById('customProfileModal')).hide();
                 form.reset();
                 delete form.dataset.editEepId;
-                document.querySelector('#customProfileModal .modal-title').textContent = 'Create Custom EEP Profile';
+                document.querySelector('#customProfileModal .modal-title').textContent = t('modal.custom_profile_title', 'Create Custom EEP Profile');
                 // Clear HA mapping rows
                 document.getElementById('ha-mapping-rows').innerHTML = '';
                 document.getElementById('ha-mapping-empty').style.display = '';
                 loadProfiles();
-                showToast(editEepId ? 'Custom profile updated' : 'Custom profile created', 'success');
+                showToast(editEepId ? t('modal.profile_updated', 'Custom profile updated') : t('modal.profile_saved', 'Custom profile created'), 'success');
                 // Show the profile details (use editEepId for updates, compute from form for new)
                 const showEepId = editEepId || `${rorg.toUpperCase().replace('0X','')}-${func.toUpperCase().replace('0X','').padStart(2,'0')}-${type.toUpperCase().replace('0X','').padStart(2,'0')}`;
                 showProfileDetails(showEepId);
@@ -3315,20 +3315,20 @@
                 const container = document.getElementById('recent-activity');
 
                 if (telegrams.length === 0) {
-                    container.innerHTML = '<p class="text-muted">No telegrams received yet</p>';
+                    container.innerHTML = `<p class="text-muted">${t('dashboard.no_telegrams', 'No telegrams received yet')}</p>`;
                     return;
                 }
 
-                container.innerHTML = telegrams.map(t => `
+                container.innerHTML = telegrams.map(tg => `
                     <div class="d-flex justify-content-between align-items-center border-bottom py-2">
                         <div>
-                            <strong>${t.device_name || 'Unknown'}</strong>
-                            <small class="text-muted ms-2">${t.sender_id}</small>
-                            ${t.is_teach_in ? '<span class="badge bg-warning ms-2">Teach-In</span>' : ''}
+                            <strong>${tg.device_name || t('common.unknown', 'Unknown')}</strong>
+                            <small class="text-muted ms-2">${tg.sender_id}</small>
+                            ${tg.is_teach_in ? `<span class="badge bg-warning ms-2">${t('teach_in.teach_in_badge', 'Teach-In')}</span>` : ''}
                         </div>
                         <div>
-                            <span class="badge bg-secondary">${t.rorg}</span>
-                            <small class="text-muted">${t.dbm ? t.dbm + ' dBm' : 'N/A'}</small>
+                            <span class="badge bg-secondary">${tg.rorg}</span>
+                            <small class="text-muted">${tg.dbm ? tg.dbm + ' dBm' : 'N/A'}</small>
                         </div>
                     </div>
                 `).join('');
@@ -3342,9 +3342,9 @@
                 await fetch(getApiUrl('/api/gateway/clear-telegrams'), { method: 'POST' });
                 loadRecentTelegrams();
                 loadUnknownDevices();
-                showToast('Telegrams cleared', 'success');
+                showToast(t('toast.telegrams_cleared', 'Telegrams cleared'), 'success');
             } catch (error) {
-                showToast('Failed to clear telegrams', 'danger');
+                showToast(t('toast.telegrams_clear_failed', 'Failed to clear telegrams'), 'danger');
             }
         }
 
@@ -3356,7 +3356,7 @@
                 const container = document.getElementById('unknown-devices-list');
 
                 if (devices.length === 0) {
-                    container.innerHTML = '<p class="text-muted">No unknown devices detected</p>';
+                    container.innerHTML = `<p class="text-muted">${t('dashboard.no_unknown', 'No unknown devices detected')}</p>`;
                     return;
                 }
 
@@ -3365,12 +3365,12 @@
                         <table class="table table-sm">
                             <thead>
                                 <tr>
-                                    <th>Address</th>
-                                    <th>RORG</th>
-                                    <th>Signal</th>
-                                    <th>Count</th>
-                                    <th>Last Seen</th>
-                                    <th>Action</th>
+                                    <th>${t('table.address', 'Address')}</th>
+                                    <th>${t('table.rorg', 'RORG')}</th>
+                                    <th>${t('table.signal', 'Signal')}</th>
+                                    <th>${t('table.count', 'Count')}</th>
+                                    <th>${t('table.last_seen', 'Last Seen')}</th>
+                                    <th>${t('table.action', 'Action')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -3383,7 +3383,7 @@
                                         <td><small>${new Date(d.last_seen).toLocaleTimeString()}</small></td>
                                         <td>
                                             <button class="btn btn-sm btn-outline-primary" onclick="addUnknownDevice('${d.sender_id}', '${d.rorg}')">
-                                                <i class="bi bi-plus"></i> Add
+                                                <i class="bi bi-plus"></i> ${t('table.add', 'Add')}
                                             </button>
                                         </td>
                                     </tr>
