@@ -18,8 +18,9 @@ Modern web-based EnOcean to MQTT bridge for Home Assistant with visual device co
 - **Home Assistant MQTT Discovery** — Automatic entity creation in Home Assistant
 - **Live Telegram Monitor** — Debug incoming EnOcean telegrams in real-time
 - **Unknown Device Detection** — Automatically detect and list unconfigured devices
-- **Configuration Export/Import** — Backup and restore your configuration as ZIP files
-- **Local Backup System** — Create, list, restore, and delete local backups with confirmation dialogs
+- **Fork Standard Profiles** — Create custom copies of standard EEP profiles to edit fields and mappings
+- **Configuration Export/Import** — Backup and restore your full configuration as YAML ZIP files
+- **Local Backup System** — Create, list, restore, and delete local backups (devices, mappings, custom profiles, overrides)
 - **Device State Caching** — Persist sensor states across restarts (essential for infrequent senders)
 - **Actuator Control** — Control Eltako dimmers, switches, and blinds via F6 rocker telegrams with teach-in support
 - **Dark Mode** — Automatically adapts to Home Assistant theme (dark/light) and OS preference
@@ -317,11 +318,24 @@ Access the web UI via Home Assistant sidebar (EnOcean icon).
 <img width="1492" height="874" alt="Devices" src="https://github.com/user-attachments/assets/0e7981a0-9db0-4e63-9bd1-2bd4d20c5c85" />
 
 ### EEP Profiles
-- Browse profile tree by RORG/FUNC/TYPE
+- Browse profile tree with dedicated sections for Custom Profiles, Customized Mappings, and standard EEP tree
 - View field definitions with bit offsets
-- Create custom profiles with HA entity mapping
+- Create custom profiles or fork standard profiles to edit fields and mappings
 
-<img width="1492" height="874" alt="EEP Profiles" src="https://github.com/user-attachments/assets/ca0c5baa-4566-45bb-8150-79c77ca3c48e" />
+<img width="1034" height="782" alt="EEP Profiles" src="https://github.com/user-attachments/assets/fa4d4142-b873-4862-823e-815bec9fc7ac" />
+
+### Entity Mapping Editor
+- Visual editor with advanced MQTT discovery fields
+- Toggle between Visual and YAML Text Mode for full control
+- Inline editor on profile detail view and modal editor for custom profiles
+
+<img width="1025" height="785" alt="Text Mode" src="https://github.com/user-attachments/assets/d6b188da-a61e-4ec1-aae3-c01bb805b45e" />
+
+### Custom & Forked Profiles
+- Create fully custom EEP profiles for non-standard devices
+- Fork standard profiles to customize Telegram Fields and HA mappings together
+
+<img width="1040" height="683" alt="Custom Profile" src="https://github.com/user-attachments/assets/8da98b5c-14cf-4e4e-a26a-cc31aac98e67" />
 
 ### Teach-In
 - Automatic device detection via teach-in mode
@@ -329,8 +343,8 @@ Access the web UI via Home Assistant sidebar (EnOcean icon).
 - Profile suggestion based on detected EEP
 
 ### Settings
-- Export/Import configuration (ZIP download/upload)
-- Local Backup: create, list, restore, delete (with confirmation popups)
+- Export/Import full configuration as YAML ZIP files
+- Local Backup: create, list, restore, delete (devices, mappings, custom profiles, overrides)
 - EEP.xml management: upload custom, view source info, delete to revert
 - Restart services
 
@@ -350,6 +364,11 @@ The add-on provides a REST API for automation:
 | `/api/eep/{eep_id}` | GET | Get profile details |
 | `/api/eep/tree` | GET | Get profiles as tree |
 | `/api/eep/custom` | POST | Create custom profile |
+| `/api/eep/custom/{eep_id}` | PUT | Update custom profile |
+| `/api/eep/custom/{eep_id}` | DELETE | Delete custom profile |
+| `/api/eep/{eep_id}/mapping` | GET | Get mapping (with override) |
+| `/api/eep/{eep_id}/mapping` | PUT | Save mapping override |
+| `/api/eep/{eep_id}/mapping` | DELETE | Reset mapping override |
 | `/api/gateway/recent-telegrams` | GET | Get recent telegrams |
 | `/api/gateway/unknown-devices` | GET | List unknown devices |
 | `/api/gateway/teach-in` | WebSocket | Teach-in mode |
