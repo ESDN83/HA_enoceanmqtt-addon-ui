@@ -730,18 +730,18 @@
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label" data-i18n="teach_in.sender_id">Sender ID (for bidirectional devices)</label>
-                                    <input type="text" class="form-control" name="sender_id" placeholder="0xFFBD7480">
-                                </div>
-                                <div class="col-md-6 mb-3">
                                     <label class="form-label" data-i18n="teach_in.device_role">Device Role</label>
-                                    <select class="form-select" name="actuator_type">
+                                    <select class="form-select" name="actuator_type" onchange="toggleSenderIdField(this)">
                                         <option value="" data-i18n="teach_in.sensor_only">Sensor (receive only)</option>
                                         <option value="light" data-i18n="teach_in.actuator_light">Actuator: Light / Dimmer</option>
                                         <option value="switch" data-i18n="teach_in.actuator_switch">Actuator: Switch</option>
                                         <option value="cover" data-i18n="teach_in.actuator_cover">Actuator: Cover / Blind</option>
                                     </select>
                                     <small class="text-muted" data-i18n="teach_in.actuator_hint">Actuators create controllable HA entities (requires Sender ID)</small>
+                                </div>
+                                <div class="col-md-6 mb-3" id="sender-id-group" style="display: none;">
+                                    <label class="form-label" data-i18n="teach_in.sender_id">Sender ID (for bidirectional devices)</label>
+                                    <input type="text" class="form-control" name="sender_id" placeholder="0xFFBD7480">
                                 </div>
                             </div>
                             <div class="mb-3">
@@ -2436,6 +2436,18 @@
             document.getElementById('teach-in-status').style.display = 'none';
         }
 
+        function toggleSenderIdField(select) {
+            const senderGroup = document.getElementById('sender-id-group');
+            if (senderGroup) {
+                senderGroup.style.display = select.value ? '' : 'none';
+                // Clear sender_id when switching back to sensor
+                if (!select.value) {
+                    const input = senderGroup.querySelector('input[name="sender_id"]');
+                    if (input) input.value = '';
+                }
+            }
+        }
+
         function resetTeachInPage() {
             cancelTeachIn();
             document.getElementById('actuator-teach-in-panel').style.display = 'none';
@@ -2481,6 +2493,9 @@
             form.reset();
             delete form.dataset.editMode;
             document.querySelector('[name="name"]').readOnly = false;
+            // Hide sender_id field (default: sensor mode)
+            const senderGroup = document.getElementById('sender-id-group');
+            if (senderGroup) senderGroup.style.display = 'none';
             const submitBtn = form.querySelector('button[type="submit"]');
             if (submitBtn) submitBtn.textContent = t('teach_in.add_device', 'Add Device');
             const heading = document.querySelector('#step-2 h4');
@@ -2567,9 +2582,12 @@
                 document.querySelector('[name="type"]').value = device.type;
                 document.querySelector('[name="description"]').value = device.description || '';
                 document.querySelector('[name="room"]').value = device.room || '';
-                document.querySelector('[name="sender_id"]').value = device.sender_id || '';
                 document.querySelector('[name="actuator_type"]').value = device.actuator_type || '';
+                document.querySelector('[name="sender_id"]').value = device.sender_id || '';
                 document.querySelector('[name="manufacturer"]').value = device.manufacturer || '';
+                // Show/hide sender_id field based on actuator type
+                const senderGroup = document.getElementById('sender-id-group');
+                if (senderGroup) senderGroup.style.display = device.actuator_type ? '' : 'none';
 
                 // Mark as edit mode
                 const form = document.getElementById('device-form');

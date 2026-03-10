@@ -524,6 +524,14 @@ class SerialHandler:
             else:
                 decoded[shortcut] = raw_value
 
+        # RPS (F6) rocker switches: when Energy Bow is released (EB=0),
+        # the rocker fields (R1, R2) contain zeroed data which maps to
+        # "Button AI" — misleading in MQTT Explorer. Override to "released".
+        if decoded.get("EB") == 0:
+            for field_key in ("R1", "R2"):
+                if f"{field_key}_text" in decoded:
+                    decoded[f"{field_key}_text"] = "released"
+
         return decoded
 
     async def _send_command(self, command_code: int) -> Optional[bytes]:
