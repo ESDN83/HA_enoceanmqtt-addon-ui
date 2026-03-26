@@ -2,7 +2,10 @@
 configuration:
   serial_port:
     name: Serial Port
-    description: EnOcean USB transceiver serial port (e.g., /dev/ttyUSB0).
+    description: EnOcean USB transceiver serial port (e.g., /dev/ttyUSB0). Leave empty when using TCP.
+  tcp_port:
+    name: TCP Port
+    description: "Remote EnOcean connection via TCP (format: tcp:host:port, e.g., tcp:192.168.1.118:8638). Takes priority over serial port when set."
   log_level:
     name: Log Level
     description: Application log verbosity level.
