@@ -17,7 +17,7 @@ from lxml import etree
 router = APIRouter()
 
 # Version should match config.yaml
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 
 
 @router.get("/status")

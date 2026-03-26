@@ -107,6 +107,18 @@ Select your EnOcean USB transceiver from the dropdown. Common ports:
 - `/dev/ttyUSB0` (USB300)
 - `/dev/ttyAMA0` (Raspberry Pi GPIO)
 
+Leave empty when using TCP connection.
+
+### TCP Port (Remote Connection)
+
+Connect to a remote EnOcean transceiver over the network. Use this when your
+EnOcean USB stick is connected to a USB-over-IP device (e.g., SMLIGHT SLZB-MR5U
+USB-Passthrough, Silex DS-700, or any ser2net-based setup).
+
+Format: `tcp:HOST:PORT` (e.g., `tcp:192.168.1.118:8638`)
+
+When both serial and TCP are configured, **TCP takes priority**.
+
 ### MQTT Settings
 
 The add-on automatically connects to Home Assistant's MQTT broker (Mosquitto).

@@ -297,10 +297,21 @@ class SerialHandler:
         logger.info("Serial read loop stopped")
 
     def _serial_read(self, size: int) -> bytes:
-        """Blocking serial read - called via run_in_executor"""
+        """Blocking serial/TCP read - called via run_in_executor"""
         try:
-            if self._serial and self._serial.is_open:
+            if self.is_tcp:
+                if self._socket:
+                    data = b""
+                    while len(data) < size:
+                        chunk = self._socket.recv(size - len(data))
+                        if not chunk:
+                            return b""
+                        data += chunk
+                    return data
+            elif self._serial and self._serial.is_open:
                 return self._serial.read(size)
+        except socket.timeout:
+            return b""
         except Exception as e:
             if self._running:
                 logger.error(f"Serial read error: {e}")

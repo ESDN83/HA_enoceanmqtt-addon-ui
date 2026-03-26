@@ -2,14 +2,18 @@
 
 # Get configuration
 SERIAL_PORT=$(bashio::config 'serial_port')
+TCP_PORT=$(bashio::config 'tcp_port')
 LOG_LEVEL=$(bashio::config 'log_level')
 CACHE_DEVICE_STATES=$(bashio::config 'cache_device_states')
 MQTT_DISCOVERY_PREFIX=$(bashio::config 'mqtt.discovery_prefix')
 MQTT_PREFIX=$(bashio::config 'mqtt.prefix')
 MQTT_CLIENT_ID=$(bashio::config 'mqtt.client_id')
 
-# Determine EnOcean connection
-if bashio::var.has_value "${SERIAL_PORT}"; then
+# Determine EnOcean connection: TCP takes priority over serial
+if bashio::var.has_value "${TCP_PORT}"; then
+    ENOCEAN_PORT="${TCP_PORT}"
+    bashio::log.info "Using TCP EnOcean connection: ${ENOCEAN_PORT}"
+elif bashio::var.has_value "${SERIAL_PORT}"; then
     ENOCEAN_PORT="${SERIAL_PORT}"
     bashio::log.info "Using Serial EnOcean connection: ${ENOCEAN_PORT}"
 else

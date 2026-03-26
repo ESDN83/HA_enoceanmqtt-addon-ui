@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1] - 2026-03-27
+
+### New Features
+- **TCP Port Configuration** — New `tcp_port` config option for connecting to remote EnOcean devices via TCP (e.g., `tcp:192.168.1.118:8638` for SLZB-MR5U USB-Passthrough or similar USB-over-IP devices). TCP takes priority over serial when both are configured.
+
+### Bug Fixes
+- **TCP Read Fix** — Fixed TCP socket read in serial handler. The `_serial_read()` method now correctly reads from TCP sockets (previously only serial devices were read, causing TCP connections to receive no data).
+
 ## [1.2.0] - 2026-03-10
 
 ### New Features
