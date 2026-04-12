@@ -1,6 +1,10 @@
 # EnOcean MQTT UI - All-in-One Home Assistant Add-on
 
 [![Add to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/ESDN83/HA_enoceanmqtt-addon-ui)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Add--on-41BDF5.svg)](https://www.home-assistant.io/)
+[![GitHub Release](https://img.shields.io/github/v/release/ESDN83/HA_enoceanmqtt-addon-ui)](https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/releases)
+[![EnOcean](https://img.shields.io/badge/EnOcean-MQTT%20Bridge-green.svg)](https://www.enocean.com/)
 
 Modern web-based EnOcean to MQTT bridge for Home Assistant with visual device configuration.
 
