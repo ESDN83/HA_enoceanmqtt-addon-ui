@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.5] - 2026-04-17
+
+### Improvements
+- **Debounced State Persistence** — `last_states.yaml` is no longer written on every single `publish_state()` call. Updates mark the cache dirty and a single background task flushes the full YAML every 10s (and always on shutdown via a cancelled-task fallback). Eliminates SD/flash write amplification for installations with chatty sensors.
+- **Startup Hardening** — If the EnOcean gateway is unreachable at addon start, the lifespan no longer crashes the whole app. Instead a background task retries `connect()` with backoff (5s → 60s) until the gateway comes up, so the Web UI stays available for reconfiguration and the supervisor doesn't restart in a loop.
+- **Typed Transceiver Errors** — `_send_command()` now raises `NotConnectedError` / `CommandTimeoutError` / `TransportLostError` instead of returning `None` for every failure mode. `read_base_id()` catches each and logs a distinct reason — "Base ID read skipped" vs "timed out" vs "transport lost" — so log output tells you *why*, not just *that* it failed.
+
+### Cleanup
+- **Removed Dead `/api/gateway/send` Endpoint** — Had placeholder command bytes that didn't match real EEP encodings and wasn't called from anywhere in the frontend. The working command paths are `/api/gateway/test-actuator` and the MQTT command bridge.
+
 ## [1.2.4] - 2026-04-17
 
 ### Bug Fixes
