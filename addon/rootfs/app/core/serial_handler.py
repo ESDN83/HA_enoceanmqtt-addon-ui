@@ -25,6 +25,23 @@ PACKET_TYPE_COMMON_COMMAND = 0x05
 # Common commands
 CO_RD_IDBASE = 0x08
 
+
+class TransceiverError(Exception):
+    """Base class for EnOcean transceiver command failures."""
+
+
+class NotConnectedError(TransceiverError):
+    """Raised when a command is attempted with no active transport."""
+
+
+class CommandTimeoutError(TransceiverError):
+    """Raised when a command was sent but no response arrived in time."""
+
+
+class TransportLostError(TransceiverError):
+    """Raised when the transport died while a command was in flight."""
+
+
 # CRC8 lookup table
 CRC8_TABLE = [
     0x00, 0x07, 0x0e, 0x09, 0x1c, 0x1b, 0x12, 0x15, 0x38, 0x3f, 0x36, 0x31, 0x24, 0x23, 0x2a, 0x2d,
@@ -672,15 +689,20 @@ class SerialHandler:
         else:
             raise ConnectionError("No transport available")
 
-    async def _send_command(self, command_code: int) -> Optional[bytes]:
+    async def _send_command(self, command_code: int) -> bytes:
         """Send an ESP3 common command and wait for response.
 
         Serialized via self._cmd_lock so concurrent callers don't overwrite
         each other's _response_future slot (the read loop only fills the
         currently-pending slot and would silently mis-route responses).
+
+        Raises:
+            NotConnectedError: transport is not open
+            CommandTimeoutError: no response within 3s
+            TransportLostError: transport died during the exchange
         """
         if not self._connected:
-            return None
+            raise NotConnectedError(f"Cannot send 0x{command_code:02X}: transceiver not connected")
 
         packet_data = bytes([command_code])
         header = bytes([0x00, len(packet_data), 0x00, PACKET_TYPE_COMMON_COMMAND])
@@ -696,12 +718,10 @@ class SerialHandler:
                 await self._write_packet(packet)
                 return await asyncio.wait_for(self._response_future, timeout=3.0)
             except asyncio.TimeoutError:
-                logger.error(f"Timeout waiting for response to command 0x{command_code:02X}")
-                return None
+                raise CommandTimeoutError(f"No response to command 0x{command_code:02X} after 3s")
             except (ConnectionError, serial.SerialException, OSError) as e:
-                logger.error(f"Transport error sending command 0x{command_code:02X}: {e}")
                 self._connected = False
-                return None
+                raise TransportLostError(f"Transport lost sending 0x{command_code:02X}: {e}") from e
             finally:
                 self._response_future = None
 
@@ -709,8 +729,21 @@ class SerialHandler:
         """Read the base ID from the USB300 transceiver.
 
         Returns base ID as hex string (e.g., '0xFFE30180') or None on error.
+        Logs the specific reason (not-connected / timeout / transport-lost)
+        so callers can tell why it failed by reading the log.
         """
-        response = await self._send_command(CO_RD_IDBASE)
+        try:
+            response = await self._send_command(CO_RD_IDBASE)
+        except NotConnectedError as e:
+            logger.warning(f"Base ID read skipped: {e}")
+            return None
+        except CommandTimeoutError as e:
+            logger.error(f"Base ID read timed out: {e}")
+            return None
+        except TransportLostError as e:
+            logger.error(f"Base ID read failed (transport lost): {e}")
+            return None
+
         if not response or len(response) < 5:
             logger.error(f"Invalid base ID response: {response}")
             return None

@@ -15,13 +15,6 @@ logger = logging.getLogger(__name__)
 active_teach_in_sessions: Dict[str, WebSocket] = {}
 
 
-class SendCommandRequest(BaseModel):
-    """Request to send an EnOcean command"""
-    device_name: str
-    command: str
-    value: Optional[Any] = None
-
-
 class TeachInResult(BaseModel):
     """Teach-in result"""
     sender_id: str
@@ -293,71 +286,6 @@ async def test_actuator(req: TestActuatorRequest, request: Request) -> Dict[str,
         "sender_id": device.sender_id,
         "destination": device.address
     }
-
-
-@router.post("/send")
-async def send_command(cmd: SendCommandRequest, request: Request) -> Dict[str, Any]:
-    """Send a command to an EnOcean device"""
-    serial_handler = request.app.state.serial_handler
-    device_manager = request.app.state.device_manager
-    eep_manager = request.app.state.eep_manager
-
-    if not serial_handler or not serial_handler.is_connected:
-        raise HTTPException(status_code=503, detail="EnOcean gateway not connected")
-
-    if not device_manager:
-        raise HTTPException(status_code=500, detail="Device manager not initialized")
-
-    # Get device
-    device = device_manager.get_device(cmd.device_name)
-    if not device:
-        raise HTTPException(status_code=404, detail=f"Device '{cmd.device_name}' not found")
-
-    if not device.sender_id:
-        raise HTTPException(status_code=400, detail="Device has no sender_id configured")
-
-    # Get EEP profile
-    profile = eep_manager.get_profile(device.eep_id) if eep_manager else None
-
-    # Build and send telegram based on command
-    # This is a simplified implementation - real implementation would need to
-    # properly encode the command based on EEP profile
-    try:
-        rorg = int(device.rorg, 16)
-        sender_id = int(device.sender_id.replace("0x", "").replace("0X", ""), 16)
-        destination = int(device.address.replace("0x", "").replace("0X", ""), 16)
-
-        # Build data based on command type
-        # This is placeholder logic - real implementation depends on device type
-        if cmd.command == "on":
-            data = bytes([0x01, 0x00, 0x00, 0x09])  # Example: switch on
-        elif cmd.command == "off":
-            data = bytes([0x00, 0x00, 0x00, 0x08])  # Example: switch off
-        elif cmd.command == "dim":
-            level = int(cmd.value or 100)
-            data = bytes([0x02, level, 0x00, 0x09])  # Example: dim
-        elif cmd.command == "stop":
-            data = bytes([0x00, 0x00, 0x00, 0x08])  # Example: stop
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown command: {cmd.command}")
-
-        success = await serial_handler.send_telegram(
-            sender_id=sender_id,
-            rorg=rorg,
-            data=data,
-            destination=destination
-        )
-
-        if success:
-            return {"status": "sent", "device": cmd.device_name, "command": cmd.command}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to send telegram")
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid device configuration: {e}")
-    except Exception as e:
-        logger.error(f"Error sending command: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to send command: {e}")
 
 
 @router.websocket("/teach-in")

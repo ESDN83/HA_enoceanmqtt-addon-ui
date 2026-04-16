@@ -68,6 +68,14 @@ class MQTTHandler:
         self._states_file = os.path.join(config_path, "last_states.yaml")
         self._legacy_states_file = os.path.join(config_path, "last_states.json")
 
+        # Debounced persist: instead of writing the full YAML on every
+        # publish_state() (which hammers SD/flash when many sensors send
+        # frequently), coalesce updates into a single write every
+        # _save_interval seconds.
+        self._save_dirty = False
+        self._save_task: Optional[asyncio.Task] = None
+        self._save_interval = 10.0
+
     @property
     def is_connected(self) -> bool:
         return self._connected
@@ -128,6 +136,14 @@ class MQTTHandler:
 
     async def disconnect(self):
         """Disconnect gracefully - publish offline status for all devices first"""
+        # Flush any pending state writes before we lose the event loop
+        if self._save_task and not self._save_task.done():
+            self._save_task.cancel()
+            try:
+                await self._save_task
+            except asyncio.CancelledError:
+                pass
+
         if self._client and self._connected:
             # Publish offline for all configured devices
             if self.device_manager:
@@ -274,12 +290,36 @@ class MQTTHandler:
         # Add timestamp
         state["_last_update"] = datetime.now().isoformat()
 
-        # Persist state for recovery (only if caching enabled)
+        # Persist state for recovery (only if caching enabled).
+        # Writes are debounced: updates just mark the cache dirty and a
+        # single background task flushes the full YAML every _save_interval.
         if self.cache_states:
             self._last_states[device_name] = state
-            await self._save_states()
+            self._save_dirty = True
+            if self._save_task is None or self._save_task.done():
+                self._save_task = asyncio.create_task(self._debounced_save())
 
         await self.publish(topic, state, retain=True)
+
+    async def _debounced_save(self):
+        """Wait out the debounce window, then flush dirty states to disk.
+
+        Cancelled by disconnect() — if dirty at cancel time we flush
+        synchronously so we don't lose data on shutdown.
+        """
+        try:
+            await asyncio.sleep(self._save_interval)
+            if self._save_dirty:
+                self._save_dirty = False
+                await self._save_states()
+        except asyncio.CancelledError:
+            if self._save_dirty:
+                self._save_dirty = False
+                try:
+                    await self._save_states()
+                except Exception as e:
+                    logger.error(f"Failed to flush states on shutdown: {e}")
+            raise
 
     async def _save_states(self):
         """Save last known states to file for recovery after restart"""

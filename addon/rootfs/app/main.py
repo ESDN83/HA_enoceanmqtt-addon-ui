@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/data")
 ENOCEAN_PORT = os.getenv("ENOCEAN_PORT", "")
 CACHE_DEVICE_STATES = os.getenv("CACHE_DEVICE_STATES", "true").lower() == "true"
-VERSION = "1.2.4"
+VERSION = "1.2.5"
 
 # Global instances
 mqtt_handler: MQTTHandler = None
@@ -109,7 +109,11 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("MQTT not configured - running in UI-only mode")
 
-    # Initialize Serial Handler (EnOcean communication)
+    # Initialize Serial Handler (EnOcean communication).
+    # A failing initial connect (gateway offline at startup) must NOT crash
+    # the whole addon — otherwise the supervisor restarts us in a loop and
+    # the UI is never reachable for reconfiguration. On failure we start a
+    # background task that retries until the gateway comes up.
     if ENOCEAN_PORT:
         serial_handler = SerialHandler(
             port=ENOCEAN_PORT,
@@ -118,8 +122,12 @@ async def lifespan(app: FastAPI):
             eep_manager=eep_manager,
             telegram_buffer=telegram_buffer
         )
-        await serial_handler.connect()
-        logger.info(f"Connected to EnOcean transceiver at {ENOCEAN_PORT}")
+        try:
+            await serial_handler.connect()
+            logger.info(f"Connected to EnOcean transceiver at {ENOCEAN_PORT}")
+        except Exception as e:
+            logger.error(f"Initial EnOcean connect failed: {e} — will retry in background")
+            asyncio.create_task(_serial_background_connect(serial_handler, ENOCEAN_PORT))
     else:
         logger.warning("EnOcean port not configured - running without EnOcean communication")
 
@@ -158,6 +166,28 @@ async def lifespan(app: FastAPI):
         await mqtt_handler.disconnect()
 
     logger.info("EnOcean MQTT Add-on stopped")
+
+
+async def _serial_background_connect(handler, port: str):
+    """Keep retrying serial_handler.connect() until the gateway comes up.
+
+    Used when the gateway is unreachable at startup. Once connected, the
+    SerialHandler's own read loop takes over reconnect duties on later
+    drops. Backoff 5s -> 60s.
+    """
+    backoff = 5.0
+    while True:
+        try:
+            await asyncio.sleep(backoff)
+        except asyncio.CancelledError:
+            return
+        try:
+            await handler.connect()
+            logger.info(f"EnOcean transceiver connected at {port} (was offline at startup)")
+            return
+        except Exception as e:
+            logger.warning(f"Retry connect to {port} failed: {e} — next attempt in {min(backoff * 2, 60.0):.0f}s")
+            backoff = min(backoff * 2, 60.0)
 
 
 async def _publish_all_discoveries():
