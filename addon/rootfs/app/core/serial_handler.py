@@ -114,6 +114,9 @@ class SerialHandler:
         self._teach_in_callback: Optional[Callable] = None
         self._base_id: Optional[int] = None
         self._response_future: Optional[asyncio.Future] = None
+        # Serializes _send_command() so concurrent callers don't clobber
+        # each other's _response_future slot.
+        self._cmd_lock = asyncio.Lock()
 
     @property
     def is_connected(self) -> bool:
@@ -166,7 +169,13 @@ class SerialHandler:
         logger.info(f"Serial port opened: {self.port} @ 57600 baud (8N1)")
 
     async def _connect_tcp(self):
-        """Connect via TCP"""
+        """Connect via TCP with keepalive enabled.
+
+        Without TCP keepalive, half-open connections (ESP32 crash, WiFi drop,
+        router reboot — anything that prevents a clean FIN) are only detected
+        after the OS default of ~2 hours. Tuning KEEPIDLE/INTVL/CNT brings
+        that down to ~60s so the read loop can trigger a reconnect.
+        """
         parts = self.port.split(":")
         if len(parts) != 3:
             raise ValueError(f"Invalid TCP port format: {self.port}")
@@ -178,6 +187,18 @@ class SerialHandler:
         self._socket.settimeout(5.0)
         self._socket.connect((host, port))
         self._socket.settimeout(1.0)
+
+        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        # Linux-specific knobs (HA OS runs on Alpine Linux).
+        for name, value in (("TCP_KEEPIDLE", 30), ("TCP_KEEPINTVL", 10), ("TCP_KEEPCNT", 3)):
+            opt = getattr(socket, name, None)
+            if opt is not None:
+                try:
+                    self._socket.setsockopt(socket.IPPROTO_TCP, opt, value)
+                except OSError as e:
+                    logger.debug(f"Could not set {name}={value}: {e}")
+
+        logger.info(f"TCP connected to {host}:{port} (keepalive 30s idle / 10s intvl / 3 probes)")
 
     async def disconnect(self):
         """Disconnect from EnOcean transceiver"""
@@ -191,13 +212,7 @@ class SerialHandler:
                 pass
             self._read_task = None
 
-        if self._serial:
-            self._serial.close()
-            self._serial = None
-
-        if self._socket:
-            self._socket.close()
-            self._socket = None
+        await self._close_transport()
 
         self._connected = False
         logger.info("Disconnected from EnOcean transceiver")
@@ -205,11 +220,16 @@ class SerialHandler:
     async def _read_loop(self):
         """Main read loop using run_in_executor for blocking serial reads.
 
-        This approach is proven to work with EnOcean USB sticks.
+        Recovers from connection loss by closing the dead transport and
+        retrying the connect with exponential backoff. Previously any
+        ConnectionError/SerialException killed the task and left the addon
+        in a zombie state — /health still reported connected, but no data
+        flowed and nothing in the log said why.
         """
         loop = asyncio.get_event_loop()
         timeout_count = 0
         packet_count = 0
+        backoff = 1.0
 
         logger.info("Listening for EnOcean telegrams...")
 
@@ -225,6 +245,7 @@ class SerialHandler:
                     continue
 
                 timeout_count = 0
+                backoff = 1.0  # reset backoff on any successful read
 
                 if byte[0] != SYNC_BYTE:
                     logger.debug(f"Non-sync byte: 0x{byte[0]:02X}")
@@ -285,10 +306,18 @@ class SerialHandler:
 
             except asyncio.CancelledError:
                 break
-            except serial.SerialException as e:
-                logger.error(f"Serial error: {e}")
+            except (ConnectionError, serial.SerialException, OSError) as e:
+                if not self._running:
+                    break
+                logger.warning(f"Transport lost: {e} — reconnecting in {backoff:.0f}s")
                 self._connected = False
-                break
+                await self._close_transport()
+                if not await self._wait_and_reconnect(backoff):
+                    backoff = min(backoff * 2, 30.0)
+                else:
+                    backoff = 1.0
+                timeout_count = 0
+                continue
             except Exception as e:
                 if self._running:
                     logger.error(f"Error in read loop: {e}", exc_info=True)
@@ -296,26 +325,83 @@ class SerialHandler:
 
         logger.info("Serial read loop stopped")
 
-    def _serial_read(self, size: int) -> bytes:
-        """Blocking serial/TCP read - called via run_in_executor"""
+    async def _close_transport(self):
+        """Close the current serial/socket transport without touching task state."""
+        if self._serial:
+            try:
+                self._serial.close()
+            except Exception as e:
+                logger.debug(f"Error closing serial: {e}")
+            self._serial = None
+        if self._socket:
+            try:
+                self._socket.close()
+            except Exception as e:
+                logger.debug(f"Error closing socket: {e}")
+            self._socket = None
+
+    async def _wait_and_reconnect(self, delay: float) -> bool:
+        """Sleep `delay` seconds, then try to re-open the transport.
+
+        Cancel any pending command future so callers don't hang. Returns
+        True on success, False on failure (caller should grow backoff).
+        """
+        if self._response_future and not self._response_future.done():
+            self._response_future.set_exception(ConnectionError("Transport lost"))
+
+        try:
+            await asyncio.sleep(delay)
+        except asyncio.CancelledError:
+            raise
+
+        if not self._running:
+            return False
+
         try:
             if self.is_tcp:
-                if self._socket:
-                    data = b""
-                    while len(data) < size:
-                        chunk = self._socket.recv(size - len(data))
-                        if not chunk:
-                            return b""
-                        data += chunk
-                    return data
-            elif self._serial and self._serial.is_open:
-                return self._serial.read(size)
-        except socket.timeout:
-            return b""
+                await self._connect_tcp()
+            else:
+                await self._connect_serial()
+            self._connected = True
+            logger.info(f"Reconnected to EnOcean transceiver at {self.port}")
+            # Give the transceiver a moment before probing it again
+            await asyncio.sleep(0.3)
+            try:
+                await self.read_base_id()
+            except Exception as e:
+                logger.debug(f"Base ID re-read after reconnect failed: {e}")
+            return True
         except Exception as e:
-            if self._running:
-                logger.error(f"Serial read error: {e}")
-        return b""
+            logger.error(f"Reconnect attempt failed: {e}")
+            return False
+
+    def _serial_read(self, size: int) -> bytes:
+        """Blocking serial/TCP read - called via run_in_executor.
+
+        Returns b"" on timeout (normal — the read loop treats this as idle).
+        Raises ConnectionError / serial.SerialException on real failure so the
+        read loop can trigger a reconnect. The previous version swallowed
+        peer-closed (FIN -> recv returns b"") as "timeout", leaving the loop
+        spinning forever with no log — exactly the silent-disconnect symptom.
+        """
+        if self.is_tcp:
+            if not self._socket:
+                raise ConnectionError("TCP socket not open")
+            try:
+                data = b""
+                while len(data) < size:
+                    chunk = self._socket.recv(size - len(data))
+                    if not chunk:
+                        raise ConnectionResetError("TCP peer closed connection (FIN received)")
+                    data += chunk
+                return data
+            except socket.timeout:
+                return b""
+
+        if self._serial and self._serial.is_open:
+            return self._serial.read(size)
+
+        raise ConnectionError("No transport available")
 
     async def _process_radio_telegram(self, data: bytes, optional: bytes):
         """Process a received radio telegram"""
@@ -545,8 +631,31 @@ class SerialHandler:
 
         return decoded
 
+    async def _write_packet(self, packet: bytes):
+        """Write a raw packet to the transport without blocking the event loop.
+
+        socket.send() and serial.write() are synchronous — calling them
+        directly from an async handler can freeze the whole FastAPI app
+        when the transport is slow or half-dead (full send buffer).
+        """
+        loop = asyncio.get_event_loop()
+        if self._serial:
+            await loop.run_in_executor(None, self._serial.write, packet)
+        elif self._socket:
+            # sendall() loops internally until all bytes are written or an
+            # error is raised — safer than send() for the multi-byte packets
+            # we emit here.
+            await loop.run_in_executor(None, self._socket.sendall, packet)
+        else:
+            raise ConnectionError("No transport available")
+
     async def _send_command(self, command_code: int) -> Optional[bytes]:
-        """Send an ESP3 common command and wait for response"""
+        """Send an ESP3 common command and wait for response.
+
+        Serialized via self._cmd_lock so concurrent callers don't overwrite
+        each other's _response_future slot (the read loop only fills the
+        currently-pending slot and would silently mis-route responses).
+        """
         if not self._connected:
             return None
 
@@ -556,23 +665,22 @@ class SerialHandler:
         data_crc = crc8(packet_data)
         packet = bytes([SYNC_BYTE]) + header + bytes([header_crc]) + packet_data + bytes([data_crc])
 
-        # Set up response future
-        loop = asyncio.get_event_loop()
-        self._response_future = loop.create_future()
+        async with self._cmd_lock:
+            loop = asyncio.get_event_loop()
+            self._response_future = loop.create_future()
 
-        try:
-            if self._serial:
-                self._serial.write(packet)
-            elif self._socket:
-                self._socket.send(packet)
-
-            # Wait for response with timeout
-            return await asyncio.wait_for(self._response_future, timeout=3.0)
-        except asyncio.TimeoutError:
-            logger.error(f"Timeout waiting for response to command 0x{command_code:02X}")
-            return None
-        finally:
-            self._response_future = None
+            try:
+                await self._write_packet(packet)
+                return await asyncio.wait_for(self._response_future, timeout=3.0)
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout waiting for response to command 0x{command_code:02X}")
+                return None
+            except (ConnectionError, serial.SerialException, OSError) as e:
+                logger.error(f"Transport error sending command 0x{command_code:02X}: {e}")
+                self._connected = False
+                return None
+            finally:
+                self._response_future = None
 
     async def read_base_id(self) -> Optional[str]:
         """Read the base ID from the USB300 transceiver.
@@ -794,16 +902,14 @@ class SerialHandler:
 
         packet = bytes([SYNC_BYTE]) + header + bytes([header_crc]) + packet_data + optional + bytes([data_crc])
 
-        # Send packet
         try:
-            if self._serial:
-                self._serial.write(packet)
-            elif self._socket:
-                self._socket.send(packet)
-
+            await self._write_packet(packet)
             logger.debug(f"TX EnOcean: RORG={rorg:02X}, Data={data.hex()}, Dest={destination:08X}")
             return True
-
+        except (ConnectionError, serial.SerialException, OSError) as e:
+            logger.error(f"Transport error sending telegram: {e}")
+            self._connected = False
+            return False
         except Exception as e:
             logger.error(f"Failed to send telegram: {e}")
             return False

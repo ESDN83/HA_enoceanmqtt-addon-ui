@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.2] - 2026-04-17
+
+### Bug Fixes
+- **TCP Silent Disconnect Fix** — The read loop no longer silently loops when the TCP peer closes the connection. Previously, when an ESP32 gateway (or any TCP peer) sent a clean FIN, `recv()` returned empty bytes which the code treated as a read timeout — leaving the addon in a zombie state with no log output and no reconnect. `_serial_read()` now raises `ConnectionResetError` in that case so the read loop can trigger a reconnect.
+- **TCP Keepalive** — Enabled `SO_KEEPALIVE` on TCP connections with `TCP_KEEPIDLE=30s`, `TCP_KEEPINTVL=10s`, `TCP_KEEPCNT=3`. Half-open connections (ESP32 crash, WiFi drop, router reboot — anything without a clean FIN) are now detected in ~60s instead of the OS default of ~2 hours.
+- **Automatic Reconnect** — On transport loss (`ConnectionError`, `SerialException`, `OSError`), the read loop now closes the dead transport and retries the connect with exponential backoff (1s → 2s → … → 30s max). Previously the task died and `/health` kept reporting `enocean_connected: true`.
+- **Non-blocking Writes** — `send_telegram()` and `_send_command()` now write via `run_in_executor`. A full send buffer on a half-dead socket no longer freezes the entire FastAPI event loop (UI + MQTT).
+- **Command Race Condition** — `_send_command()` is now serialized via an `asyncio.Lock` so concurrent callers cannot clobber each other's `_response_future` slot and mis-route responses.
+
 ## [1.2.1] - 2026-03-27
 
 ### New Features
