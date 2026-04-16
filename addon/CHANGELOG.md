@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.3] - 2026-04-17
+
+### Bug Fixes
+- **Reconnect Base-ID Deadlock** — After a TCP reconnect, the base-ID re-read used to run synchronously inside `_read_loop` via `_wait_and_reconnect`. But `_send_command()` depends on `_read_loop` to deliver the response packet — so awaiting it from inside `_read_loop` deadlocked until the 3s command timeout ("Timeout waiting for response to command 0x08 / Invalid base ID response: None" in the logs). The base-ID refresh now runs as an independent task so the read loop resumes immediately and the response round-trip completes.
+
 ## [1.2.2] - 2026-04-17
 
 ### Bug Fixes
