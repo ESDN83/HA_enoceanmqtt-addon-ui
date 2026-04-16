@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.4] - 2026-04-17
+
+### Bug Fixes
+- **False-Positive Teach-In for Non-Standard Devices** — A5 teach-in detection checks the LRN bit (bit 3 of data[3]). Some non-standard devices (e.g. Eltako Staufix boiler sensor) send regular data telegrams with LRN=0, which were mis-flagged as teach-ins on every received packet. Now only applies teach-in detection to senders that are NOT already configured — an already-known device cannot logically send a new teach-in.
+
 ## [1.2.3] - 2026-04-17
 
 ### Bug Fixes

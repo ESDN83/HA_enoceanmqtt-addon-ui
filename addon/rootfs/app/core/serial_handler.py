@@ -452,8 +452,16 @@ class SerialHandler:
 
         logger.debug(f"RX [{telegram.sender_hex}] RORG={telegram.rorg_hex} Data={telegram.data.hex().upper()} dBm={telegram.dbm}")
 
-        # Check if this is a teach-in telegram
-        is_teach_in = self._is_teach_in(telegram)
+        # Check if this is a teach-in telegram.
+        # Only treat as teach-in if the sender is NOT already configured —
+        # some non-standard devices (e.g. Eltako Staufix boiler sensor) send
+        # data packets with LRN=0 in data[3], which the A5 check would
+        # otherwise mis-flag as a teach-in on every single telegram.
+        already_configured = (
+            self.device_manager is not None
+            and self.device_manager.get_device_by_address(telegram.sender_hex) is not None
+        )
+        is_teach_in = False if already_configured else self._is_teach_in(telegram)
         if is_teach_in:
             await self._handle_teach_in(telegram)
 
