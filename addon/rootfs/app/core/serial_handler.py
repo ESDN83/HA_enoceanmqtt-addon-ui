@@ -364,16 +364,31 @@ class SerialHandler:
                 await self._connect_serial()
             self._connected = True
             logger.info(f"Reconnected to EnOcean transceiver at {self.port}")
-            # Give the transceiver a moment before probing it again
-            await asyncio.sleep(0.3)
-            try:
-                await self.read_base_id()
-            except Exception as e:
-                logger.debug(f"Base ID re-read after reconnect failed: {e}")
+            # Re-read base ID in a separate task — we're still running inside
+            # _read_loop, and _send_command() waits on _response_future which
+            # only _read_loop can deliver. Awaiting it here deadlocks until
+            # the command times out (3s). Firing it as a task lets the read
+            # loop resume first, then the base-ID exchange runs concurrently.
+            if self.is_tcp or self._base_id is None:
+                asyncio.create_task(self._refresh_base_id_after_reconnect())
             return True
         except Exception as e:
             logger.error(f"Reconnect attempt failed: {e}")
             return False
+
+    async def _refresh_base_id_after_reconnect(self):
+        """Re-read base ID shortly after a reconnect.
+
+        Runs as an independent task so it doesn't block the read loop that
+        must deliver the response packet.
+        """
+        await asyncio.sleep(0.5)
+        if not self._connected or not self._running:
+            return
+        try:
+            await self.read_base_id()
+        except Exception as e:
+            logger.debug(f"Base ID re-read after reconnect failed: {e}")
 
     def _serial_read(self, size: int) -> bytes:
         """Blocking serial/TCP read - called via run_in_executor.
