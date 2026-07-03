@@ -1,0 +1,3526 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EnOcean MQTT UI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script>
+        // Early dark mode detection — set Bootstrap theme before first paint
+        (function() {
+            function applyTheme(dark) {
+                document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+            }
+            // Check HA Ingress parent window background
+            try {
+                var parentBg = window.parent.document.documentElement.style.backgroundColor;
+                if (parentBg) {
+                    var r = parseInt(parentBg.match(/\d+/)?.[0] || 255);
+                    applyTheme(r < 128);
+                    return;
+                }
+            } catch(e) {}
+            // Fallback: OS preference
+            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
+            applyTheme(prefersDark.matches);
+            prefersDark.addEventListener('change', function(e) { applyTheme(e.matches); });
+        })();
+    </script>
+    <style>
+        /* ===== Light Theme (default) ===== */
+        :root {
+            --primary-color: #0d6efd;
+            --success-color: #198754;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --bg-color: #f8f9fa;
+            --bg-card: #fff;
+            --bg-sidebar: #fff;
+            --bg-navbar: #0d6efd;
+            --text-color: #212529;
+            --text-muted: #6c757d;
+            --border-color: rgba(0, 0, 0, 0.125);
+            --hover-bg: #e9ecef;
+            --code-bg: #f8f9fa;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --card-header-bg: rgba(0, 0, 0, 0.03);
+            --table-stripe-bg: rgba(0, 0, 0, 0.02);
+            --input-bg: #fff;
+            --input-border: #ced4da;
+        }
+
+        /* ===== Dark Theme (matches HA default dark) ===== */
+        [data-theme="dark"] {
+            --primary-color: #03a9f4;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+            --danger-color: #f44336;
+            --bg-color: #111111;
+            --bg-card: #1c1c1c;
+            --bg-sidebar: #1c1c1c;
+            --bg-navbar: #1c1c1c;
+            --text-color: #e1e1e1;
+            --text-muted: #9b9b9b;
+            --border-color: rgba(255, 255, 255, 0.12);
+            --hover-bg: rgba(255, 255, 255, 0.08);
+            --code-bg: #262626;
+            --shadow-color: rgba(0, 0, 0, 0.4);
+            --card-header-bg: rgba(255, 255, 255, 0.05);
+            --table-stripe-bg: rgba(255, 255, 255, 0.03);
+            --input-bg: #262626;
+            --input-border: rgba(255, 255, 255, 0.2);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding-top: 56px;
+        }
+        .sidebar {
+            position: fixed;
+            top: 56px;
+            bottom: 0;
+            left: 0;
+            z-index: 100;
+            width: 240px;
+            box-shadow: inset -1px 0 0 var(--border-color);
+            background-color: var(--bg-sidebar);
+        }
+        .sidebar-sticky {
+            position: relative;
+            top: 0;
+            height: calc(100vh - 56px);
+            padding-top: .5rem;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+        .nav-link {
+            color: var(--text-color);
+            padding: 0.75rem 1rem;
+        }
+        .nav-link:hover, .nav-link.active {
+            background-color: var(--hover-bg);
+            color: var(--primary-color);
+        }
+        .nav-link i {
+            margin-right: 0.5rem;
+        }
+        .main-content {
+            margin-left: 240px;
+            padding: 20px;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 767.98px) {
+            .sidebar {
+                position: fixed;
+                top: 56px;
+                left: -240px;
+                width: 240px;
+                transition: left 0.3s ease-in-out;
+                z-index: 1040;
+            }
+            .sidebar.show {
+                left: 0;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+            .sidebar-backdrop {
+                position: fixed;
+                top: 56px;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 1030;
+                display: none;
+            }
+            .sidebar-backdrop.show {
+                display: block;
+            }
+        }
+
+        /* ===== Dark theme overrides for Bootstrap components ===== */
+        [data-theme="dark"] .navbar {
+            background-color: var(--bg-navbar) !important;
+        }
+        [data-theme="dark"] .card {
+            background-color: var(--bg-card);
+            border-color: var(--border-color);
+            color: var(--text-color);
+        }
+        [data-theme="dark"] .card-header {
+            background-color: var(--card-header-bg);
+            border-color: var(--border-color);
+            color: var(--text-color);
+        }
+        [data-theme="dark"] .table {
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+        [data-theme="dark"] .table-hover tbody tr:hover {
+            background-color: var(--hover-bg);
+            color: var(--text-color);
+        }
+        [data-theme="dark"] .form-control,
+        [data-theme="dark"] .form-select {
+            background-color: var(--input-bg);
+            border-color: var(--input-border);
+            color: var(--text-color);
+        }
+        [data-theme="dark"] .form-control:focus,
+        [data-theme="dark"] .form-select:focus {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border-color: var(--primary-color);
+        }
+        [data-theme="dark"] .form-control::placeholder {
+            color: var(--text-muted);
+        }
+        [data-theme="dark"] .modal-content {
+            background-color: var(--bg-card);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+        [data-theme="dark"] .modal-header,
+        [data-theme="dark"] .modal-footer {
+            border-color: var(--border-color);
+        }
+        [data-theme="dark"] .btn-close {
+            filter: invert(1) grayscale(100%) brightness(200%);
+        }
+        [data-theme="dark"] .list-group-item {
+            background-color: var(--bg-card);
+            border-color: var(--border-color);
+            color: var(--text-color);
+        }
+        [data-theme="dark"] .alert-info {
+            background-color: rgba(3, 169, 244, 0.15);
+            border-color: rgba(3, 169, 244, 0.3);
+            color: #4fc3f7;
+        }
+        [data-theme="dark"] .alert-warning {
+            background-color: rgba(255, 152, 0, 0.15);
+            border-color: rgba(255, 152, 0, 0.3);
+            color: #ffb74d;
+        }
+        [data-theme="dark"] .text-muted {
+            color: var(--text-muted) !important;
+        }
+        [data-theme="dark"] code {
+            color: #e6a07c;
+            background-color: var(--code-bg);
+        }
+        [data-theme="dark"] .border-bottom {
+            border-color: var(--border-color) !important;
+        }
+        [data-theme="dark"] .btn-outline-primary {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        [data-theme="dark"] .btn-outline-secondary {
+            color: var(--text-muted);
+            border-color: var(--text-muted);
+        }
+        [data-theme="dark"] .btn-outline-danger {
+            color: var(--danger-color);
+            border-color: var(--danger-color);
+        }
+        [data-theme="dark"] .btn-outline-warning {
+            color: var(--warning-color);
+            border-color: var(--warning-color);
+        }
+        [data-theme="dark"] h1, [data-theme="dark"] h2,
+        [data-theme="dark"] h3, [data-theme="dark"] h4,
+        [data-theme="dark"] h5, [data-theme="dark"] h6 {
+            color: var(--text-color);
+        }
+        [data-theme="dark"] .accordion-button {
+            background-color: var(--bg-card);
+            color: var(--text-color);
+        }
+        [data-theme="dark"] .accordion-button:not(.collapsed) {
+            background-color: var(--hover-bg);
+            color: var(--primary-color);
+        }
+        [data-theme="dark"] .accordion-body {
+            background-color: var(--bg-card);
+        }
+        [data-theme="dark"] textarea.form-control {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+        }
+
+        /* ===== Component styles ===== */
+        .status-card {
+            border-left: 4px solid var(--primary-color);
+        }
+        .status-card.connected {
+            border-left-color: var(--success-color);
+        }
+        .status-card.disconnected {
+            border-left-color: var(--danger-color);
+        }
+        .device-card {
+            transition: transform 0.2s;
+        }
+        .device-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--shadow-color);
+        }
+        .eep-tree {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .eep-item {
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+        .eep-item:hover {
+            background-color: var(--hover-bg);
+        }
+        .eep-item.custom {
+            background-color: #fff3cd;
+        }
+        [data-theme="dark"] .eep-item.custom {
+            background-color: rgba(241, 196, 15, 0.2);
+        }
+        .eep-item.overridden {
+            background-color: #d4edda;
+        }
+        [data-theme="dark"] .eep-item.overridden {
+            background-color: rgba(40, 167, 69, 0.2);
+        }
+        .eep-item.orphaned {
+            background-color: #f8d7da;
+        }
+        [data-theme="dark"] .eep-item.orphaned {
+            background-color: rgba(244, 67, 54, 0.2);
+        }
+        .teach-in-indicator {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .wizard-step {
+            display: none;
+        }
+        .wizard-step.active {
+            display: block;
+        }
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Navbar -->
+    <nav class="navbar navbar-dark fixed-top" style="background-color: var(--bg-navbar);">
+        <div class="container-fluid">
+            <!-- Mobile menu toggle button -->
+            <button class="navbar-toggler d-md-none me-2" type="button" onclick="toggleSidebar()">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-broadcast-pin"></i> EnOcean MQTT UI
+            </a>
+            <div class="d-flex align-items-center">
+                <span id="mqtt-status" class="badge bg-danger me-2">
+                    <i class="bi bi-wifi-off"></i> MQTT
+                </span>
+                <span id="enocean-status" class="badge bg-danger">
+                    <i class="bi bi-usb-symbol"></i> EnOcean
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Mobile sidebar backdrop -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar()"></div>
+
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-sticky pt-4">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#" data-page="dashboard">
+                        <i class="bi bi-speedometer2"></i> <span data-i18n="nav.dashboard">Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="devices">
+                        <i class="bi bi-cpu"></i> <span data-i18n="nav.devices">Devices</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="profiles">
+                        <i class="bi bi-file-earmark-code"></i> <span data-i18n="nav.profiles">EEP Profiles</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="teach-in">
+                        <i class="bi bi-plus-circle"></i> <span data-i18n="nav.add_device">Add Device</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-page="settings">
+                        <i class="bi bi-gear"></i> <span data-i18n="nav.settings">Settings</span>
+                    </a>
+                </li>
+            </ul>
+            <hr>
+            <div class="px-3">
+                <small class="text-muted">Version {{ version }}</small>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Dashboard Page -->
+        <div id="page-dashboard" class="page-content">
+            <h2 class="mb-4" data-i18n="dashboard.title">Dashboard</h2>
+
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card status-card" id="card-mqtt">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted" data-i18n="dashboard.mqtt_broker">MQTT Broker</h6>
+                            <h4 class="card-title" id="mqtt-host">-</h4>
+                            <span class="badge bg-secondary" id="mqtt-connection" data-i18n="status.checking">Checking...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card status-card" id="card-enocean">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted" data-i18n="dashboard.enocean_gateway">EnOcean Gateway</h6>
+                            <h4 class="card-title" id="enocean-port">-</h4>
+                            <span class="badge bg-secondary" id="enocean-connection" data-i18n="status.checking">Checking...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card status-card connected">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted" data-i18n="dashboard.devices">Devices</h6>
+                            <h4 class="card-title" id="device-count">0</h4>
+                            <span class="badge bg-success" data-i18n="dashboard.configured">Configured</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card status-card connected">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted" data-i18n="dashboard.profiles">EEP Profiles</h6>
+                            <h4 class="card-title" id="profile-count">0</h4>
+                            <span class="badge bg-success" data-i18n="dashboard.loaded">Loaded</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="bi bi-lightning"></i> <span data-i18n="dashboard.quick_actions">Quick Actions</span>
+                        </div>
+                        <div class="card-body">
+                            <button class="btn btn-primary me-2" onclick="navigateTo('teach-in')">
+                                <i class="bi bi-plus-circle"></i> <span data-i18n="dashboard.add_device">Add Device</span>
+                            </button>
+                            <button class="btn btn-outline-primary me-2" onclick="navigateTo('profiles')">
+                                <i class="bi bi-file-earmark-code"></i> <span data-i18n="dashboard.browse_profiles">Browse Profiles</span>
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="exportConfig()">
+                                <i class="bi bi-download"></i> <span data-i18n="dashboard.export_config">Export Config</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-clock-history"></i> <span data-i18n="dashboard.recent_telegrams">Recent Telegrams</span></span>
+                            <div>
+                                <button class="btn btn-sm btn-outline-danger me-1" onclick="clearTelegrams()" title="Clear all">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="loadRecentTelegrams()" title="Refresh">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body" id="recent-activity" style="max-height: 300px; overflow-y: auto;">
+                            <p class="text-muted" data-i18n="common.loading">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-question-circle"></i> <span data-i18n="dashboard.unknown_devices">Unknown Devices</span></span>
+                            <small class="text-muted" data-i18n="dashboard.unknown_devices_desc">Devices sending telegrams but not yet configured</small>
+                        </div>
+                        <div class="card-body">
+                            <div id="unknown-devices-list">
+                                <p class="text-muted" data-i18n="dashboard.no_unknown">No unknown devices detected</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Devices Page -->
+        <div id="page-devices" class="page-content" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 data-i18n="devices.title">Devices</h2>
+                <button class="btn btn-primary" onclick="navigateTo('teach-in')">
+                    <i class="bi bi-plus-circle"></i> Add Device
+                </button>
+            </div>
+
+            <div class="mb-3">
+                <input type="text" class="form-control" id="device-search" placeholder="Search devices..." data-i18n-placeholder="devices.search_placeholder">
+            </div>
+
+            <div id="device-list" class="row">
+                <!-- Devices will be loaded here -->
+            </div>
+        </div>
+
+        <!-- EEP Profiles Page -->
+        <div id="page-profiles" class="page-content" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 data-i18n="profiles.title">EEP Profiles</h2>
+                <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#customProfileModal">
+                    <i class="bi bi-plus-circle"></i> Create Custom Profile
+                </button>
+            </div>
+
+            <div class="mb-3">
+                <input type="text" class="form-control" id="profile-search" placeholder="Search profiles (e.g., temperature, A5-02, switch)..." data-i18n-placeholder="profiles.search_placeholder">
+            </div>
+
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header" data-i18n="profiles.tree">Profile Tree</div>
+                        <div class="card-body eep-tree" id="eep-tree">
+                            <!-- Tree will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header" data-i18n="profiles.details">Profile Details</div>
+                        <div class="card-body" id="profile-details">
+                            <p class="text-muted" data-i18n="profiles.select_hint">Select a profile to view details</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Teach-In / Add Device Page -->
+        <div id="page-teach-in" class="page-content" style="display: none;">
+            <h2 class="mb-4" data-i18n="teach_in.title">Add New Device</h2>
+
+            <div class="card">
+                <div class="card-body">
+                    <!-- Wizard Steps -->
+                    <div class="wizard-step active" id="step-1">
+                        <h4 data-i18n="teach_in.step1">Step 1: Detect Device</h4>
+                        <p class="text-muted" data-i18n="teach_in.step1_desc">Choose how to add your device</p>
+
+                        <div class="row mt-4">
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="bi bi-broadcast display-4 text-primary"></i>
+                                        <h5 class="mt-3" data-i18n="teach_in.automatic">Automatic (Teach-In)</h5>
+                                        <p data-i18n="teach_in.automatic_desc">Press the teach-in button on your sensor</p>
+                                        <button class="btn btn-primary" onclick="startTeachIn()" data-i18n="teach_in.start">
+                                            Start Teach-In
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="bi bi-lightning display-4 text-warning"></i>
+                                        <h5 class="mt-3" data-i18n="teach_in.actuator_teach_in">Actuator Teach-In</h5>
+                                        <p data-i18n="teach_in.actuator_desc">Teach-in Eltako dimmers, switches, blinds</p>
+                                        <button class="btn btn-warning" onclick="showActuatorTeachIn()" data-i18n="teach_in.teach_in_actuator_btn">
+                                            Teach-In Actuator
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="bi bi-pencil-square display-4 text-secondary"></i>
+                                        <h5 class="mt-3" data-i18n="teach_in.manual">Manual Entry</h5>
+                                        <p data-i18n="teach_in.manual_desc">Enter device details manually</p>
+                                        <button class="btn btn-outline-secondary" onclick="showManualEntry()" data-i18n="teach_in.enter_manually">
+                                            Enter Manually
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actuator Teach-In Panel -->
+                        <div id="actuator-teach-in-panel" class="mt-4" style="display: none;">
+                            <div class="card border-warning">
+                                <div class="card-header bg-warning text-dark">
+                                    <i class="bi bi-lightning"></i> Actuator Teach-In (Eltako FD62NPN, FSB61, FUD61, etc.)
+                                </div>
+                                <div class="card-body">
+                                    <div class="alert alert-warning small mb-3">
+                                        <strong><i class="bi bi-exclamation-triangle"></i> Before you start:</strong>
+                                        Each sender offset (1-127) can only control <strong>one</strong> actuator. Use a different offset for each device.
+                                    </div>
+
+                                    <h6>Step-by-Step</h6>
+                                    <ol class="small mb-3">
+                                        <li><strong>Read Base ID</strong> — Click "Read" to get the gateway's base address</li>
+                                        <li><strong>Enter actuator address</strong> — The address printed on the actuator or its packaging (e.g., <code>0x05834FA4</code>)</li>
+                                        <li><strong>Choose sender offset</strong> — Pick a unique number (1-127) for this actuator</li>
+                                        <li><strong>Put actuator in learn mode:</strong>
+                                            <ul>
+                                                <li><strong>Eltako FD62NPN (Dimmer):</strong> Press the rotary knob <strong>4× short + 1× long (&gt;2s)</strong> — lamp flickers briefly to confirm learn mode</li>
+                                                <li><strong>Eltako FSR61 (Switch):</strong> Short press the learn button — LED blinks</li>
+                                                <li><strong>Eltako FSB61 (Blind):</strong> Turn the rotary dial to desired run time, then press learn button</li>
+                                                <li><strong>Other Eltako:</strong> Check manual — typically short press the learn/prog button</li>
+                                            </ul>
+                                        </li>
+                                        <li><strong>Click "Send Teach-In"</strong> within 30 seconds — the actuator confirms with a brief lamp flicker or LED flash</li>
+                                        <li><strong>Add the device</strong> with the sender ID shown below using "Manual Entry"</li>
+                                    </ol>
+
+                                    <div class="alert alert-danger small mb-3">
+                                        <i class="bi bi-broadcast"></i>
+                                        <strong>Range important!</strong> Place the actuator <strong>directly next to the USB300</strong> during teach-in.
+                                        Some devices (e.g. FD62NPN) have weak radio and won't receive at 2m distance.
+                                        After successful teach-in, the actuator's <strong>receiver</strong> typically works at normal range.
+                                    </div>
+
+                                    <div class="alert alert-info small mb-3">
+                                        <i class="bi bi-info-circle"></i>
+                                        <strong>Teach-in didn't work?</strong>
+                                        <ul class="mb-0 mt-1">
+                                            <li>Make sure you use a <strong>momentary pushbutton (Taster)</strong>, not a toggle switch (Schalter)</li>
+                                            <li>Clear all learned senders: press the learn button <strong>5× quickly</strong> (LED flashes = cleared)</li>
+                                            <li>Try "Repeat Teach-In" — it sends continuously for 30s while you activate learn mode</li>
+                                        </ul>
+                                    </div>
+
+                                    <div class="row mb-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label" data-i18n="teach_in.gateway_base_id">Gateway Base ID</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="gateway-base-id" readonly data-i18n-placeholder="teach_in.click_read" placeholder="Click Read...">
+                                                <button class="btn btn-outline-primary" onclick="readBaseId()" data-i18n="teach_in.read">Read</button>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label" data-i18n="teach_in.actuator_address">Actuator Address</label>
+                                            <input type="text" class="form-control" id="actuator-address" placeholder="0x05834FA4">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label" data-i18n="teach_in.sender_offset">Sender Offset</label>
+                                            <input type="number" class="form-control" id="sender-offset" value="1" min="1" max="127">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label" data-i18n="teach_in.sender_id_label">Sender ID</label>
+                                            <input type="text" class="form-control" id="derived-sender-id" readonly placeholder="Base + Offset">
+                                        </div>
+                                    </div>
+                                    <div class="row mb-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label" data-i18n="teach_in.actuator_type">Actuator Type</label>
+                                            <select class="form-select" id="actuator-type-teach-in">
+                                                <option value="light">Dimmer (FD62NPN, FUD61) → A5-38-08</option>
+                                                <option value="switch">Switch (FSR61, FSR14) → F6 Rocker</option>
+                                                <option value="cover">Blind (FSB61, FSB14) → F6 Rocker</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button class="btn btn-warning" onclick="sendActuatorTeachIn()">
+                                            <i class="bi bi-lightning"></i> <span data-i18n="teach_in.send_teach_in">Send Teach-In</span>
+                                        </button>
+                                        <button class="btn btn-warning" id="btn-repeat-teach-in" onclick="sendRepeatTeachIn()">
+                                            <i class="bi bi-arrow-repeat"></i> <span data-i18n="teach_in.repeat_teach_in">Repeat Teach-In (30s)</span>
+                                        </button>
+                                        <button class="btn btn-outline-secondary" onclick="hideActuatorTeachIn()" data-i18n="modal.cancel">Cancel</button>
+                                    </div>
+                                    <div id="actuator-teach-in-result" class="mt-3" style="display: none;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="teach-in-status" class="mt-4" style="display: none;">
+                            <div class="alert alert-info teach-in-indicator">
+                                <i class="bi bi-broadcast"></i>
+                                <span data-i18n="teach_in.waiting">Waiting for device... Press the teach-in button now.</span>
+                                <span id="teach-in-countdown" class="fw-bold ms-2"></span>
+                            </div>
+                            <button class="btn btn-outline-secondary btn-sm mt-2" onclick="cancelTeachIn()">
+                                <i class="bi bi-x-circle"></i> <span data-i18n="modal.cancel">Cancel</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="wizard-step" id="step-2">
+                        <h4 data-i18n="teach_in.step2">Step 2: Configure Device</h4>
+
+                        <form id="device-form">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label" data-i18n="teach_in.device_name">Device Name *</label>
+                                    <input type="text" class="form-control" name="name" required data-i18n-placeholder="teach_in.device_name_placeholder" placeholder="e.g., Living Room Temperature">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label" data-i18n="teach_in.address">Address *</label>
+                                    <input type="text" class="form-control" name="address" required placeholder="0x05834FA4">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label" data-i18n="modal.rorg">RORG *</label>
+                                    <input type="text" class="form-control" name="rorg" required placeholder="A5">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label" data-i18n="modal.func">FUNC *</label>
+                                    <input type="text" class="form-control" name="func" required placeholder="02">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label" data-i18n="modal.type">TYPE *</label>
+                                    <input type="text" class="form-control" name="type" required placeholder="05">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label" data-i18n="teach_in.description">Description</label>
+                                    <input type="text" class="form-control" name="description" data-i18n-placeholder="teach_in.description_placeholder" placeholder="Optional description">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label" data-i18n="teach_in.room">Room</label>
+                                    <input type="text" class="form-control" name="room" data-i18n-placeholder="teach_in.room_placeholder" placeholder="e.g., Living Room">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label" data-i18n="teach_in.device_role">Device Role</label>
+                                    <select class="form-select" name="actuator_type" onchange="toggleSenderIdField(this)">
+                                        <option value="" data-i18n="teach_in.sensor_only">Sensor (receive only)</option>
+                                        <option value="light" data-i18n="teach_in.actuator_light">Actuator: Light / Dimmer</option>
+                                        <option value="switch" data-i18n="teach_in.actuator_switch">Actuator: Switch</option>
+                                        <option value="cover" data-i18n="teach_in.actuator_cover">Actuator: Cover / Blind</option>
+                                    </select>
+                                    <small class="text-muted" data-i18n="teach_in.actuator_hint">Actuators create controllable HA entities (requires Sender ID)</small>
+                                </div>
+                                <div class="col-md-6 mb-3" id="sender-id-group" style="display: none;">
+                                    <label class="form-label" data-i18n="teach_in.sender_id">Sender ID (for bidirectional devices)</label>
+                                    <input type="text" class="form-control" name="sender_id" placeholder="0xFFBD7480">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" data-i18n="teach_in.manufacturer">Manufacturer</label>
+                                <input type="text" class="form-control" name="manufacturer" data-i18n-placeholder="teach_in.manufacturer_placeholder" placeholder="e.g., Eltako, Thermokon, Kessel">
+                            </div>
+
+                            <div id="profile-suggestion" class="alert alert-info" style="display: none;">
+                                <strong data-i18n="teach_in.suggested_profile">Suggested Profile:</strong> <span id="suggested-profile"></span>
+                            </div>
+
+                            <div class="mt-4">
+                                <button type="button" class="btn btn-outline-secondary" onclick="wizardBack()" data-i18n="teach_in.back">Back</button>
+                                <button type="submit" class="btn btn-primary" data-i18n="teach_in.add_device">Add Device</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="wizard-step" id="step-3">
+                        <div class="text-center py-5">
+                            <i class="bi bi-check-circle display-1 text-success"></i>
+                            <h4 class="mt-3" data-i18n="teach_in.success">Device Added Successfully!</h4>
+                            <p class="text-muted" data-i18n="teach_in.success_desc">The device will appear in Home Assistant shortly.</p>
+                            <button class="btn btn-primary" onclick="navigateTo('devices')" data-i18n="teach_in.view_devices">View Devices</button>
+                            <button class="btn btn-outline-secondary" onclick="resetWizard()" data-i18n="teach_in.add_another">Add Another</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Page -->
+        <div id="page-settings" class="page-content" style="display: none;">
+            <h2 class="mb-4" data-i18n="settings.title">Settings</h2>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header" data-i18n="settings.import_export">Import / Export</div>
+                        <div class="card-body">
+                            <button class="btn btn-outline-primary me-2" onclick="exportConfig()">
+                                <i class="bi bi-download"></i> <span data-i18n="settings.export_all">Export All</span>
+                            </button>
+                            <label class="btn btn-outline-secondary">
+                                <i class="bi bi-upload"></i> <span data-i18n="settings.import">Import</span>
+                                <input type="file" id="import-file" style="display: none;" accept=".zip" onchange="importConfig(this)">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header" data-i18n="settings.system">System</div>
+                        <div class="card-body">
+                            <button class="btn btn-warning" onclick="restartServices()">
+                                <i class="bi bi-arrow-clockwise"></i> <span data-i18n="settings.restart_services">Restart Services</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Local Backups -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-archive"></i> <span data-i18n="settings.local_backups">Local Backups</span></span>
+                    <button class="btn btn-sm btn-success" onclick="createBackup()">
+                        <i class="bi bi-plus-circle"></i> <span data-i18n="settings.create_backup">Create Backup</span>
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="backup-list">
+                        <p class="text-muted" data-i18n="backup.loading">Loading backups...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EEP.xml Profile Database -->
+            <div class="card mb-4">
+                <div class="card-header" data-i18n="settings.eep_title">EEP.xml Profile Database</div>
+                <div class="card-body">
+                    <div id="eep-info" class="mb-3">
+                        <table class="table table-sm mb-0" style="max-width: 400px;">
+                            <tr>
+                                <td class="fw-bold" data-i18n="settings.eep_source">Source</td>
+                                <td id="eep-source">-</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold" data-i18n="settings.eep_file_size">File size</td>
+                                <td id="eep-file-size">-</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold" data-i18n="settings.eep_profiles">Profiles loaded</td>
+                                <td id="eep-profile-count">-</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <label class="btn btn-outline-primary me-2">
+                        <i class="bi bi-upload"></i> <span data-i18n="settings.eep_upload">Upload EEP.xml</span>
+                        <input type="file" id="eep-upload-file" style="display: none;" accept=".xml" onchange="uploadEep(this)">
+                    </label>
+                    <button class="btn btn-outline-danger" id="eep-delete-btn" style="display: none;" onclick="deleteEep()">
+                        <i class="bi bi-trash"></i> <span data-i18n="settings.eep_delete">Delete Custom</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Confirmation Modal (reusable) -->
+    <div class="modal fade" id="confirmModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmModalTitle" data-i18n="modal.confirm">Confirm</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="confirmModalBody" data-i18n="modal.are_you_sure">
+                    Are you sure?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="modal.cancel">Cancel</button>
+                    <button type="button" class="btn" id="confirmModalAction" onclick="executeConfirmedAction()" data-i18n="modal.confirm">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Profile Modal -->
+    <div class="modal fade" id="customProfileModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" data-i18n="modal.custom_profile_title">Create Custom EEP Profile</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info small mb-3">
+                        <i class="bi bi-book"></i> <strong data-i18n="modal.need_help">Need help?</strong> <span data-i18n="modal.see_guide">See</span>
+                        <a href="https://github.com/ESDN83/HA_enoceanmqtt-addon-ui#custom-eep-profile-guide" target="_blank" rel="noopener" data-i18n="modal.guide_link">Custom EEP Profile Guide</a>
+                        <span data-i18n="modal.guide_desc">for step-by-step examples with real devices (bit offsets, field types, HA mappings).</span>
+                    </div>
+                    <form id="custom-profile-form">
+                        <!-- EEP Identity -->
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label" data-i18n="modal.rorg">RORG</label>
+                                <input type="text" class="form-control" name="rorg" required placeholder="A5">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label" data-i18n="modal.func">FUNC</label>
+                                <input type="text" class="form-control" name="func" required placeholder="30">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label" data-i18n="modal.type">TYPE</label>
+                                <input type="text" class="form-control" name="type" required placeholder="03">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" data-i18n="modal.description">Description</label>
+                            <input type="text" class="form-control" name="description" required data-i18n-placeholder="modal.description_placeholder" placeholder="e.g., Kessel Staufix Control">
+                        </div>
+
+                        <!-- Telegram Fields (bit decoding) -->
+                        <div class="mb-3">
+                            <label class="form-label"><span data-i18n="modal.fields">Fields (JSON)</span> <small class="text-muted">- <span data-i18n="modal.fields_hint">how to decode the telegram bits</span></small></label>
+                            <textarea class="form-control font-monospace" name="fields" rows="8" placeholder='[{"shortcut": "AL", "description": "Alarm", "offset": 0, "size": 1, "type": "enum"}]'></textarea>
+                        </div>
+
+                        <!-- HA Mapping (entity creation) -->
+                        <div class="card border-primary mb-3">
+                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-house-gear"></i> <span data-i18n="mapping_editor.ha_mapping">HA Entity Mapping</span></span>
+                                <div>
+                                    <button type="button" class="btn btn-sm btn-outline-light me-1" id="ha-mode-toggle" onclick="toggleHaMappingMode()">
+                                        <i class="bi bi-code-slash"></i> <span data-i18n="mapping_editor.text_mode">Text Mode</span>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-light" id="ha-add-row-btn" onclick="addHaMappingRow()">
+                                        <i class="bi bi-plus-circle"></i> <span data-i18n="mapping_editor.add_mapping">Add Mapping</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div id="ha-mapping-visual">
+                                    <p class="text-muted small mb-2" data-i18n="mapping_editor.modal_define_hint">
+                                        Define how each decoded field becomes a Home Assistant entity.
+                                        The Shortcut must match a field shortcut above (e.g., AL, DI0).
+                                    </p>
+                                    <div id="ha-mapping-rows">
+                                        <!-- Dynamic mapping rows will be added here -->
+                                    </div>
+                                    <div id="ha-mapping-empty" class="text-muted text-center py-3">
+                                        <i class="bi bi-info-circle"></i> <span data-i18n="mapping_editor.no_mapping_modal">No HA mappings defined. Click "Add Mapping" to create one.</span>
+                                        <br><small data-i18n="mapping_editor.no_mapping_default">Without mappings, default EEP mappings will be used.</small>
+                                    </div>
+                                </div>
+                                <div id="ha-mapping-text" style="display:none;">
+                                    <p class="text-muted small mb-2" data-i18n="mapping_editor.modal_text_hint">Edit mapping as YAML. Any valid MQTT discovery field can be used.</p>
+                                    <textarea id="ha-mapping-yaml" class="form-control form-control-sm font-monospace" rows="14" spellcheck="false"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="modal.cancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveCustomProfile()" data-i18n="modal.save_profile">Save Profile</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // Load js-yaml dynamically with Ingress-aware path
+    (function() {
+        var base = window.location.pathname.replace(/\/$/, '');
+        if (base === '/') base = '';
+        var s = document.createElement('script');
+        s.src = base + '/static/js/js-yaml.min.js';
+        document.head.appendChild(s);
+    })();
+    </script>
+    <script>
+        // === i18n Translation System ===
+        let currentLang = 'en';
+        let i18nStrings = {};
+
+        async function initI18n() {
+            const lang = (navigator.language || 'en').split('-')[0];
+            const supported = ['en','de','zh','hi','es','fr','ar','bn','pt','ru','ja'];
+            currentLang = supported.includes(lang) ? lang : 'en';
+            try {
+                const resp = await fetch(getApiUrl(`/static/i18n/${currentLang}.json`));
+                if (resp.ok) {
+                    i18nStrings = await resp.json();
+                }
+            } catch (e) {
+                console.warn('Failed to load translations, using defaults');
+            }
+            applyTranslations();
+        }
+
+        function t(key, fallback) {
+            return i18nStrings[key] || fallback || key;
+        }
+
+        function applyTranslations() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.dataset.i18n;
+                const val = i18nStrings[key];
+                if (val) el.textContent = val;
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.dataset.i18nPlaceholder;
+                const val = i18nStrings[key];
+                if (val) el.placeholder = val;
+            });
+            document.querySelectorAll('[data-i18n-title]').forEach(el => {
+                const key = el.dataset.i18nTitle;
+                const val = i18nStrings[key];
+                if (val) el.title = val;
+            });
+        }
+
+        // Global state
+        let currentPage = 'dashboard';
+        let teachInSocket = null;
+
+        // API base URL - handles HA Ingress path
+        function getApiUrl(path) {
+            // Get base path from current URL (for HA Ingress)
+            // pathname could be "/" or "/api/hassio_ingress/<token>/" etc
+            let basePath = window.location.pathname;
+
+            // Remove trailing slash
+            basePath = basePath.replace(/\/$/, '');
+
+            // If we're at root or basePath already contains /api/, don't prepend
+            if (basePath === '' || basePath === '/') {
+                return path;
+            }
+
+            // For HA Ingress: basePath will be like /api/hassio_ingress/abc123
+            return basePath + path;
+        }
+
+        // WebSocket URL helper
+        function getWsUrl(path) {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const basePath = window.location.pathname.replace(/\/$/, '');
+            return `${wsProtocol}//${window.location.host}${basePath}${path}`;
+        }
+
+        // ===== Theme Detection =====
+
+        function detectAndApplyTheme() {
+            let dark = false;
+
+            // Method 1: Check HA Ingress — HA sets body background via inline style
+            try {
+                const parentDoc = window.parent.document;
+                const haTheme = parentDoc.querySelector('html')?.getAttribute('data-theme') ||
+                                parentDoc.querySelector('home-assistant')?.getAttribute('hass-theme') || '';
+                if (haTheme.toLowerCase().includes('dark')) {
+                    dark = true;
+                }
+                // Also check computed style of HA body background
+                if (!dark) {
+                    const bgColor = getComputedStyle(parentDoc.body).backgroundColor;
+                    // Parse rgb(r,g,b) — if average < 128 it's dark
+                    const m = bgColor.match(/\d+/g);
+                    if (m && m.length >= 3) {
+                        const avg = (parseInt(m[0]) + parseInt(m[1]) + parseInt(m[2])) / 3;
+                        if (avg < 128) dark = true;
+                    }
+                }
+
+                // Try to inherit HA's CSS custom properties for exact theme matching
+                applyHAThemeVars(parentDoc);
+            } catch (e) {
+                // Cross-origin — not in HA Ingress, fall through
+            }
+
+            // Method 2: prefers-color-scheme media query (standalone browser)
+            if (!dark && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                dark = true;
+            }
+
+            document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+        }
+
+        function applyHAThemeVars(parentDoc) {
+            // Map HA CSS variables to our variables for seamless theme integration
+            const haRoot = parentDoc.documentElement;
+            const style = getComputedStyle(haRoot);
+            const mapping = {
+                '--primary-color': '--primary-color',
+                '--primary-background-color': '--bg-color',
+                '--card-background-color': '--bg-card',
+                '--sidebar-background-color': '--bg-sidebar',
+                '--app-header-background-color': '--bg-navbar',
+                '--primary-text-color': '--text-color',
+                '--secondary-text-color': '--text-muted',
+                '--divider-color': '--border-color',
+            };
+            const root = document.documentElement;
+            for (const [haVar, ourVar] of Object.entries(mapping)) {
+                const val = style.getPropertyValue(haVar).trim();
+                if (val) root.style.setProperty(ourVar, val);
+            }
+        }
+
+        // Listen for OS theme changes (standalone mode)
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', detectAndApplyTheme);
+        }
+
+        // Apply theme immediately (before DOMContentLoaded to prevent flash)
+        detectAndApplyTheme();
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Re-check theme after full load (HA Ingress may set theme late)
+            setTimeout(detectAndApplyTheme, 500);
+
+            // Navigation
+            document.querySelectorAll('[data-page]').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    navigateTo(this.dataset.page);
+                });
+            });
+
+            // Load initial data
+            initI18n().then(() => {
+                loadStatus();
+                loadRecentTelegrams();
+                loadUnknownDevices();
+            });
+            setInterval(loadStatus, 10000); // Refresh every 10 seconds
+            setInterval(loadRecentTelegrams, 5000); // Refresh telegrams every 5 seconds
+            setInterval(loadUnknownDevices, 15000); // Refresh unknown devices every 15 seconds
+
+            // Device form
+            document.getElementById('device-form').addEventListener('submit', saveDevice);
+
+            // Search handlers
+            document.getElementById('device-search')?.addEventListener('input', filterDevices);
+            document.getElementById('profile-search')?.addEventListener('input', filterProfiles);
+
+            // Reset custom profile modal when closed
+            document.getElementById('customProfileModal')?.addEventListener('hidden.bs.modal', function() {
+                const form = document.getElementById('custom-profile-form');
+                form.reset();
+                delete form.dataset.editEepId;
+                document.querySelector('#customProfileModal .modal-title').textContent = t('modal.custom_profile_title', 'Create Custom EEP Profile');
+                // Clear HA mapping builder
+                document.getElementById('ha-mapping-rows').innerHTML = '';
+                document.getElementById('ha-mapping-empty').style.display = '';
+                // Reset text mode when modal closes
+                _resetHaTextMode();
+            });
+        });
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            sidebar.classList.toggle('show');
+            backdrop.classList.toggle('show');
+        }
+
+        function closeSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            sidebar.classList.remove('show');
+            backdrop.classList.remove('show');
+        }
+
+        function navigateTo(page) {
+            // Hide all pages
+            document.querySelectorAll('.page-content').forEach(p => p.style.display = 'none');
+            // Show selected page
+            document.getElementById('page-' + page).style.display = 'block';
+            // Update nav
+            document.querySelectorAll('[data-page]').forEach(link => {
+                link.classList.toggle('active', link.dataset.page === page);
+            });
+            currentPage = page;
+
+            // Close sidebar on mobile after navigation
+            closeSidebar();
+
+            // Reset teach-in state when leaving the page
+            if (page !== 'teach-in') {
+                cancelTeachIn();
+                document.getElementById('actuator-teach-in-panel').style.display = 'none';
+            }
+
+            // Clear search fields when navigating away
+            if (page !== 'devices') {
+                const ds = document.getElementById('device-search');
+                if (ds) ds.value = '';
+            }
+            if (page !== 'profiles') {
+                const ps = document.getElementById('profile-search');
+                if (ps) ps.value = '';
+            }
+
+            // Load page-specific data
+            if (page === 'devices') loadDevices();
+            if (page === 'profiles') loadProfiles();
+            if (page === 'settings') { loadBackups(); loadEepInfo(); }
+            if (page === 'teach-in') resetTeachInPage();
+        }
+
+        async function loadStatus() {
+            try {
+                const response = await fetch(getApiUrl('/api/system/status'));
+                const data = await response.json();
+
+                // Update MQTT status
+                const mqttBadge = document.getElementById('mqtt-status');
+                const mqttConn = document.getElementById('mqtt-connection');
+                const mqttCard = document.getElementById('card-mqtt');
+                if (data.mqtt.connected) {
+                    mqttBadge.className = 'badge bg-success me-2';
+                    mqttBadge.innerHTML = '<i class="bi bi-wifi"></i> MQTT';
+                    mqttConn.className = 'badge bg-success';
+                    mqttConn.textContent = t('status.connected', 'Connected');
+                    mqttCard.classList.add('connected');
+                    mqttCard.classList.remove('disconnected');
+                } else {
+                    mqttBadge.className = 'badge bg-danger me-2';
+                    mqttBadge.innerHTML = '<i class="bi bi-wifi-off"></i> MQTT';
+                    mqttConn.className = 'badge bg-danger';
+                    mqttConn.textContent = t('status.disconnected', 'Disconnected');
+                    mqttCard.classList.add('disconnected');
+                    mqttCard.classList.remove('connected');
+                }
+                document.getElementById('mqtt-host').textContent = data.mqtt.host || t('status.not_configured', 'Not configured');
+
+                // Update EnOcean status
+                const enoceanBadge = document.getElementById('enocean-status');
+                const enoceanConn = document.getElementById('enocean-connection');
+                const enoceanCard = document.getElementById('card-enocean');
+                if (data.enocean.connected) {
+                    enoceanBadge.className = 'badge bg-success';
+                    enoceanBadge.innerHTML = '<i class="bi bi-usb-symbol"></i> EnOcean';
+                    enoceanConn.className = 'badge bg-success';
+                    enoceanConn.textContent = t('status.connected', 'Connected');
+                    enoceanCard.classList.add('connected');
+                    enoceanCard.classList.remove('disconnected');
+                } else {
+                    enoceanBadge.className = 'badge bg-danger';
+                    enoceanBadge.innerHTML = '<i class="bi bi-usb-symbol"></i> EnOcean';
+                    enoceanConn.className = 'badge bg-danger';
+                    enoceanConn.textContent = t('status.disconnected', 'Disconnected');
+                    enoceanCard.classList.add('disconnected');
+                    enoceanCard.classList.remove('connected');
+                }
+                document.getElementById('enocean-port').textContent = data.enocean.port || t('status.not_configured', 'Not configured');
+
+                // Update counts
+                document.getElementById('device-count').textContent = data.devices.count;
+                document.getElementById('profile-count').textContent = data.profiles.count;
+
+            } catch (error) {
+                console.error('Failed to load status:', error);
+            }
+        }
+
+        async function loadDevices() {
+            try {
+                const response = await fetch(getApiUrl('/api/devices'));
+                const devices = await response.json();
+
+                const container = document.getElementById('device-list');
+                container.innerHTML = '';
+
+                if (devices.length === 0) {
+                    container.innerHTML = `<div class="col-12"><p class="text-muted">${t('devices.empty', 'Add your first device')} <a href="#" onclick="navigateTo('teach-in')">${t('nav.add_device', 'Add Device')}</a></p></div>`;
+                    return;
+                }
+
+                devices.forEach(device => {
+                    const card = document.createElement('div');
+                    card.className = 'col-md-4 mb-3';
+                    // Build searchable text from device properties only (not button text)
+                    const searchText = [device.name, device.address, `${device.rorg}-${device.func}-${device.type}`,
+                        device.actuator_type, device.room, device.description, device.sender_id
+                    ].filter(Boolean).join(' ').toLowerCase();
+                    card.dataset.search = searchText;
+                    card.innerHTML = `
+                        <div class="card device-card" style="cursor: pointer;" onclick="showDeviceDetail('${device.name}')">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <h5 class="card-title mb-1">${device.name}</h5>
+                                    <div class="btn-group btn-group-sm" onclick="event.stopPropagation()">
+                                        <button class="btn btn-outline-primary" onclick="editDevice('${device.name}')" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" onclick="deleteDevice('${device.name}')" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <p class="card-text mb-1">
+                                    <code class="text-muted">${device.address}</code>
+                                </p>
+                                <p class="card-text mb-1">
+                                    <span class="badge bg-primary">${device.rorg}-${device.func}-${device.type}</span>
+                                    ${device.actuator_type ? `<span class="badge bg-warning text-dark ms-1"><i class="bi bi-lightning"></i> ${device.actuator_type}</span>` : ''}
+                                    ${device.room ? `<span class="badge bg-secondary ms-1">${device.room}</span>` : ''}
+                                </p>
+                                ${device.description ? `<p class="card-text mb-0"><small class="text-muted">${device.description}</small></p>` : ''}
+                                ${device.sender_id ? `<p class="card-text mb-0"><small class="text-muted"><i class="bi bi-arrow-left-right"></i> Sender: ${device.sender_id}</small></p>` : ''}
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+
+                // Re-apply search filter if query is active
+                const searchQuery = document.getElementById('device-search').value;
+                if (searchQuery) filterDevices();
+            } catch (error) {
+                showToast(t('devices.load_failed', 'Failed to load devices'), 'danger');
+            }
+        }
+
+        async function loadProfiles() {
+            try {
+                const response = await fetch(getApiUrl('/api/eep/tree'));
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('EEP tree API error:', response.status, errorText);
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                const treeResponse = await response.json();
+                const tree = treeResponse.tree || treeResponse;
+                const orphanedOverrides = treeResponse.orphaned_overrides || [];
+
+                const container = document.getElementById('eep-tree');
+                container.innerHTML = '';
+
+                // Collect custom profiles and overridden profiles for separate sections
+                const customProfiles = [];
+                const overriddenProfiles = [];
+
+                for (const [rorg, rorgData] of Object.entries(tree)) {
+                    for (const [func, funcData] of Object.entries(rorgData.funcs)) {
+                        for (const [type, typeData] of Object.entries(funcData.types)) {
+                            if (typeData.is_custom) {
+                                customProfiles.push(typeData);
+                            } else if (typeData.has_mapping_override) {
+                                overriddenProfiles.push(typeData);
+                            }
+                        }
+                    }
+                }
+
+                // Show custom profiles section first (always expanded)
+                if (customProfiles.length > 0) {
+                    const customSection = document.createElement('div');
+                    customSection.className = 'mb-3 border-start border-warning border-3 ps-2';
+                    customSection.innerHTML = `<strong class="text-warning"><i class="bi bi-star-fill"></i> <span data-i18n="eep.custom_profiles">Custom Profiles</span> (${customProfiles.length})</strong>`;
+                    customProfiles.forEach(typeData => {
+                        const typeDiv = document.createElement('div');
+                        typeDiv.className = 'ms-3 eep-item custom';
+                        typeDiv.style.cursor = 'pointer';
+                        typeDiv.dataset.search = `${typeData.eep_id} ${typeData.description} custom`.toLowerCase();
+                        typeDiv.innerHTML = `<i class="bi bi-file-earmark-fill text-warning"></i> ${typeData.eep_id} - ${typeData.description}`;
+                        typeDiv.onclick = () => showProfileDetails(typeData.eep_id);
+                        customSection.appendChild(typeDiv);
+                    });
+                    container.appendChild(customSection);
+                }
+
+                // Show overridden profiles section (always expanded)
+                if (overriddenProfiles.length > 0) {
+                    const overriddenSection = document.createElement('div');
+                    overriddenSection.className = 'mb-3 border-start border-success border-3 ps-2';
+                    overriddenSection.innerHTML = `<strong class="text-success"><i class="bi bi-pencil-square"></i> <span data-i18n="eep.customized_mappings">Customized Mappings</span> (${overriddenProfiles.length})</strong>`;
+                    overriddenProfiles.forEach(typeData => {
+                        const typeDiv = document.createElement('div');
+                        typeDiv.className = 'ms-3 eep-item overridden';
+                        typeDiv.style.cursor = 'pointer';
+                        typeDiv.dataset.search = `${typeData.eep_id} ${typeData.description} customized mapping`.toLowerCase();
+                        typeDiv.innerHTML = `<i class="bi bi-file-earmark-check text-success"></i> ${typeData.eep_id} - ${typeData.description}`;
+                        typeDiv.onclick = () => showProfileDetails(typeData.eep_id);
+                        overriddenSection.appendChild(typeDiv);
+                    });
+                    container.appendChild(overriddenSection);
+                }
+
+                // Show orphaned overrides warning (mappings for profiles that no longer exist)
+                if (orphanedOverrides.length > 0) {
+                    const orphanedSection = document.createElement('div');
+                    orphanedSection.className = 'mb-3 border-start border-danger border-3 ps-2';
+                    orphanedSection.innerHTML = `<strong class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> <span data-i18n="eep.orphaned_mappings">Orphaned Mappings</span> (${orphanedOverrides.length})</strong>
+                        <div class="text-danger small ms-3" data-i18n="eep.orphaned_hint">These mapping overrides reference EEP profiles that no longer exist in the current EEP.xml. Consider removing them.</div>`;
+                    orphanedOverrides.forEach(item => {
+                        const typeDiv = document.createElement('div');
+                        typeDiv.className = 'ms-3 eep-item orphaned';
+                        typeDiv.dataset.search = `${item.eep_id} orphaned`.toLowerCase();
+                        typeDiv.innerHTML = `<i class="bi bi-file-earmark-x text-danger"></i> ${item.eep_id} <span class="text-danger small">(${t('eep.orphaned_profile_missing', 'profile not found')})</span>`;
+                        orphanedSection.appendChild(typeDiv);
+                    });
+                    container.appendChild(orphanedSection);
+                }
+
+                // Standard profiles (collapsed by default)
+                for (const [rorg, rorgData] of Object.entries(tree)) {
+                    const rorgId = `rorg-${rorg}`;
+                    const rorgDiv = document.createElement('div');
+                    rorgDiv.className = 'mb-1';
+
+                    const rorgHeader = document.createElement('div');
+                    rorgHeader.style.cursor = 'pointer';
+                    rorgHeader.innerHTML = `<strong><i class="bi bi-folder" id="icon-${rorgId}"></i> ${rorg} - ${rorgData.description}</strong>`;
+                    rorgHeader.onclick = () => toggleTreeNode(rorgId);
+                    rorgDiv.appendChild(rorgHeader);
+
+                    const rorgContent = document.createElement('div');
+                    rorgContent.id = rorgId;
+                    rorgContent.style.display = 'none'; // collapsed by default
+
+                    for (const [func, funcData] of Object.entries(rorgData.funcs)) {
+                        const funcId = `func-${rorg}-${func}`;
+                        const funcDiv = document.createElement('div');
+                        funcDiv.className = 'ms-3';
+
+                        const funcHeader = document.createElement('div');
+                        funcHeader.style.cursor = 'pointer';
+                        funcHeader.innerHTML = `<i class="bi bi-folder2" id="icon-${funcId}"></i> FUNC ${func}`;
+                        funcHeader.onclick = (e) => { e.stopPropagation(); toggleTreeNode(funcId); };
+                        funcDiv.appendChild(funcHeader);
+
+                        const funcContent = document.createElement('div');
+                        funcContent.id = funcId;
+                        funcContent.style.display = 'none'; // collapsed by default
+
+                        for (const [type, typeData] of Object.entries(funcData.types)) {
+                            const typeDiv = document.createElement('div');
+                            const itemClass = typeData.is_custom ? 'custom' : typeData.has_mapping_override ? 'overridden' : '';
+                            typeDiv.className = `ms-4 eep-item ${itemClass}`;
+                            typeDiv.style.cursor = 'pointer';
+                            // Include RORG + FUNC + TYPE descriptions for broader search matches
+                            typeDiv.dataset.search = `${rorg} ${rorgData.description} ${func} ${funcData.description || ''} ${typeData.eep_id} ${typeData.description}`.toLowerCase();
+                            const icon = typeData.is_custom ? 'bi-file-earmark-fill text-warning' : typeData.has_mapping_override ? 'bi-file-earmark-check text-success' : 'bi-file-earmark';
+                            typeDiv.innerHTML = `<i class="bi ${icon}"></i> ${typeData.eep_id} - ${typeData.description}`;
+                            typeDiv.onclick = (e) => { e.stopPropagation(); showProfileDetails(typeData.eep_id); };
+                            funcContent.appendChild(typeDiv);
+                        }
+
+                        funcDiv.appendChild(funcContent);
+                        rorgContent.appendChild(funcDiv);
+                    }
+
+                    rorgDiv.appendChild(rorgContent);
+                    container.appendChild(rorgDiv);
+                }
+
+                // Re-apply translations for dynamically created elements
+                applyTranslations();
+
+                // Re-apply search filter if query is active
+                const searchQuery = document.getElementById('profile-search').value;
+                if (searchQuery) filterProfiles();
+            } catch (error) {
+                showToast(t('profiles.load_failed', 'Failed to load profiles'), 'danger');
+            }
+        }
+
+        function toggleTreeNode(nodeId) {
+            const node = document.getElementById(nodeId);
+            const icon = document.getElementById('icon-' + nodeId);
+            if (node) {
+                const isHidden = node.style.display === 'none';
+                node.style.display = isHidden ? '' : 'none';
+                if (icon) {
+                    icon.className = isHidden ? 'bi bi-folder2-open' : 'bi bi-folder';
+                }
+            }
+        }
+
+        async function showProfileDetails(eepId) {
+            try {
+                const response = await fetch(getApiUrl(`/api/eep/${eepId}`));
+                const profile = await response.json();
+
+                const container = document.getElementById('profile-details');
+                let actionsHtml = '';
+                if (profile.is_custom) {
+                    actionsHtml = `
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-outline-primary me-2" onclick="editCustomProfile('${profile.eep_id}')">
+                                <i class="bi bi-pencil"></i> ${t('profile.edit', 'Edit Profile')}
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteCustomProfile('${profile.eep_id}')">
+                                <i class="bi bi-trash"></i> ${t('profile.delete', 'Delete')}
+                            </button>
+                        </div>`;
+                } else {
+                    actionsHtml = `
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="forkStandardProfile('${profile.eep_id}')" title="${t('profile.fork_title', 'Create a custom copy to edit fields and mapping')}">
+                                <i class="bi bi-copy"></i> ${t('profile.fork', 'Fork as Custom Profile')}
+                            </button>
+                        </div>`;
+                }
+
+                // Determine effective mapping: override > ha_mapping > none
+                const effectiveMapping = profile.mapping_override || profile.ha_mapping || {};
+                const hasOverride = profile.has_mapping_override === true;
+                const hasMapping = Object.keys(effectiveMapping).length > 0;
+
+                // Build HA mapping display
+                let haMappingHtml = '<hr>';
+                haMappingHtml += `<div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0"><i class="bi bi-house-gear"></i> ${t('mapping_editor.ha_mapping', 'HA Entity Mapping')}
+                        ${hasOverride ? `<span class="badge bg-info ms-2">${t('mapping_editor.customized_badge', 'Customized')}</span>` : ''}
+                    </h6>
+                    <div>
+                        ${hasOverride && !profile.is_custom ? `<button class="btn btn-sm btn-outline-warning me-1" onclick="resetMappingOverride('${profile.eep_id}')" title="${t('mapping_editor.reset', 'Reset')}">
+                            <i class="bi bi-arrow-counterclockwise"></i> ${t('mapping_editor.reset', 'Reset')}
+                        </button>` : ''}
+                        <button class="btn btn-sm btn-outline-primary" onclick="openMappingEditor('${profile.eep_id}')">
+                            <i class="bi bi-pencil"></i> ${t('mapping_editor.customize', 'Customize')}
+                        </button>
+                    </div>
+                </div>`;
+
+                if (hasMapping) {
+                    haMappingHtml += Object.entries(effectiveMapping).map(([shortcut, config]) => {
+                        const mainFields = [];
+                        if (config.name) mainFields.push(`${t('label.name', 'Name')}: ${config.name}`);
+                        if (config.device_class) mainFields.push(`${t('label.class', 'Class')}: ${config.device_class}`);
+                        if (config.icon) mainFields.push(`${t('label.icon', 'Icon')}: ${config.icon}`);
+                        if (config.unit_of_measurement) mainFields.push(`${t('label.unit', 'Unit')}: ${config.unit_of_measurement}`);
+
+                        const advancedFields = [];
+                        if (config.state_class) advancedFields.push(`${t('label.state', 'State')}: ${config.state_class}`);
+                        if (config.entity_category) advancedFields.push(`${t('label.category', 'Category')}: ${config.entity_category}`);
+                        if (config.expire_after) advancedFields.push(`${t('label.expire', 'Expire')}: ${config.expire_after}s`);
+                        if (config.force_update) advancedFields.push(t('label.force_update', 'Force Update'));
+                        if (config.suggested_display_precision != null) advancedFields.push(`${t('label.precision', 'Precision')}: ${config.suggested_display_precision}`);
+
+                        return `<div class="border rounded p-2 mb-2 bg-body-secondary">
+                            <div class="d-flex justify-content-between">
+                                <strong>${shortcut}</strong>
+                                <span class="badge bg-primary">${config.component || 'sensor'}</span>
+                            </div>
+                            <small>${mainFields.join(' | ')}</small>
+                            ${advancedFields.length ? `<br><small class="text-info">${advancedFields.join(' | ')}</small>` : ''}
+                        </div>`;
+                    }).join('');
+                } else {
+                    haMappingHtml += `<p class="text-muted small"><i class="bi bi-info-circle"></i> ${t('mapping_editor.no_mapping', 'No HA mapping defined. Click "Customize" to create one.')}</p>`;
+                }
+
+                // Inline mapping editor (hidden by default)
+                haMappingHtml += `
+                <div id="inline-mapping-editor" style="display:none;" class="mt-3 border rounded p-3 bg-body-tertiary">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0"><i class="bi bi-sliders"></i> ${t('mapping_editor.title', 'Mapping Editor')}</h6>
+                        <button class="btn btn-sm btn-outline-secondary" id="inline-mode-toggle" onclick="toggleInlineMappingMode()">
+                            <i class="bi bi-code-slash"></i> ${t('mapping_editor.text_mode', 'Text Mode')}
+                        </button>
+                    </div>
+                    <div id="inline-mapping-visual">
+                        <p class="text-muted small mb-2">${t('mapping_editor.define_hint', 'Define how EEP fields map to Home Assistant entities. Shortcut must match a telegram field name.')}</p>
+                        <div id="inline-mapping-rows"></div>
+                        <div id="inline-mapping-empty" class="text-muted small mb-2" style="display:none;">${t('mapping_editor.no_rows', 'No mappings defined. Click "Add Row" to start.')}</div>
+                        <div class="d-flex gap-2 mt-2">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="addInlineMappingRow()">
+                                <i class="bi bi-plus"></i> ${t('mapping_editor.add_row', 'Add Row')}
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="prefillMappingFromFields('${profile.eep_id}')">
+                                <i class="bi bi-magic"></i> ${t('mapping_editor.autofill', 'Auto-fill from Fields')}
+                            </button>
+                        </div>
+                    </div>
+                    <div id="inline-mapping-text" style="display:none;">
+                        <p class="text-muted small mb-2">${t('mapping_editor.text_hint', 'Edit mapping as YAML. Any valid MQTT discovery field can be used (state_class, expire_after, etc.).')}</p>
+                        <textarea id="inline-mapping-yaml" class="form-control form-control-sm font-monospace" rows="14" spellcheck="false"></textarea>
+                    </div>
+                    <div class="d-flex gap-2 mt-2">
+                        <div class="ms-auto">
+                            <button class="btn btn-sm btn-outline-secondary me-1" onclick="closeMappingEditor()">${t('mapping_editor.cancel', 'Cancel')}</button>
+                            <button class="btn btn-sm btn-primary" onclick="saveMappingOverride('${profile.eep_id}')">
+                                <i class="bi bi-check-lg"></i> ${t('mapping_editor.save', 'Save Mapping')}
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+
+                container.innerHTML = `
+                    <h5>${profile.eep_id}</h5>
+                    <p>${profile.description}</p>
+                    ${profile.is_custom ? `<span class="badge bg-warning">${t('profile.custom', 'Custom Profile')}</span>` : `<span class="badge bg-secondary">${t('profile.standard', 'Standard Profile')}</span>`}
+                    ${actionsHtml}
+                    <hr>
+                    <h6>${t('profile.telegram_fields', 'Telegram Fields')}</h6>
+                    ${profile.fields.length ? profile.fields.map(f => `
+                        <div class="border rounded p-2 mb-2">
+                            <strong>${f.shortcut || '?'}</strong> - ${f.description || t('profile.no_description', 'No description')}<br>
+                            <small>${t('profile.field_offset', 'Offset')}: ${f.offset ?? '-'}, ${t('profile.field_size', 'Size')}: ${f.size ?? '-'} bits, ${t('profile.field_type', 'Type')}: ${f.type || '-'}</small>
+                        </div>
+                    `).join('') : `<p class="text-muted">${t('profile.no_fields', 'No field definitions')}</p>`}
+                    ${haMappingHtml}
+                `;
+            } catch (error) {
+                showToast(t('profiles.details_failed', 'Failed to load profile details'), 'danger');
+            }
+        }
+
+        // Store current profile data for inline editor
+        let _currentEditorProfile = null;
+
+        async function openMappingEditor(eepId) {
+            try {
+                const resp = await fetch(getApiUrl(`/api/eep/${eepId}/mapping`));
+                const data = await resp.json();
+                _currentEditorProfile = data;
+
+                // Reset text mode state when opening editor
+                _resetInlineTextMode();
+
+                const editor = document.getElementById('inline-mapping-editor');
+                const container = document.getElementById('inline-mapping-rows');
+                const emptyMsg = document.getElementById('inline-mapping-empty');
+                container.innerHTML = '';
+
+                const mapping = data.mapping || {};
+                if (Object.keys(mapping).length > 0) {
+                    emptyMsg.style.display = 'none';
+                    for (const [shortcut, config] of Object.entries(mapping)) {
+                        addInlineMappingRow(shortcut, config.component || 'sensor', config.name || '', config.device_class || '', config.icon || '', config.unit_of_measurement || '', {
+                            state_class: config.state_class,
+                            entity_category: config.entity_category,
+                            expire_after: config.expire_after,
+                            force_update: config.force_update,
+                            suggested_display_precision: config.suggested_display_precision,
+                            value_template: config.value_template
+                        });
+                    }
+                } else {
+                    emptyMsg.style.display = '';
+                }
+
+                editor.style.display = '';
+            } catch (e) {
+                showToast(t('toast.failed_load_mapping', 'Failed to load mapping'), 'danger');
+            }
+        }
+
+        function closeMappingEditor() {
+            document.getElementById('inline-mapping-editor').style.display = 'none';
+            _resetInlineTextMode();
+        }
+
+        // ===== Text Mode Toggle (Visual ↔ YAML) =====
+
+        let _inlineTextMode = false;
+        let _haTextMode = false;
+
+        function _isJsYamlAvailable() {
+            return typeof jsyaml !== 'undefined' && jsyaml.dump && jsyaml.load;
+        }
+
+        function _resetInlineTextMode() {
+            _inlineTextMode = false;
+            const visual = document.getElementById('inline-mapping-visual');
+            const text = document.getElementById('inline-mapping-text');
+            const btn = document.getElementById('inline-mode-toggle');
+            if (visual) visual.style.display = '';
+            if (text) text.style.display = 'none';
+            if (btn) btn.innerHTML = `<i class="bi bi-code-slash"></i> ${t('mapping_editor.text_mode', 'Text Mode')}`;
+        }
+
+        function _resetHaTextMode() {
+            _haTextMode = false;
+            const visual = document.getElementById('ha-mapping-visual');
+            const text = document.getElementById('ha-mapping-text');
+            const btn = document.getElementById('ha-mode-toggle');
+            const addBtn = document.getElementById('ha-add-row-btn');
+            if (visual) visual.style.display = '';
+            if (text) text.style.display = 'none';
+            if (btn) btn.innerHTML = `<i class="bi bi-code-slash"></i> ${t('mapping_editor.text_mode', 'Text Mode')}`;
+            if (addBtn) addBtn.style.display = '';
+        }
+
+        function toggleInlineMappingMode() {
+            if (!_isJsYamlAvailable()) {
+                showToast(t('toast.yaml_not_loaded', 'YAML library not loaded. Please reload the page.'), 'warning');
+                return;
+            }
+            const visual = document.getElementById('inline-mapping-visual');
+            const text = document.getElementById('inline-mapping-text');
+            const btn = document.getElementById('inline-mode-toggle');
+
+            if (!_inlineTextMode) {
+                // Visual → Text: collect mapping and serialize to YAML
+                const mapping = collectInlineMapping();
+                if (mapping === undefined) {
+                    showToast(t('toast.fix_validation', 'Fix validation errors before switching to text mode'), 'warning');
+                    return;
+                }
+                try {
+                    const yamlStr = (mapping && Object.keys(mapping).length > 0) ? jsyaml.dump(mapping, { lineWidth: -1 }) : '';
+                    document.getElementById('inline-mapping-yaml').value = yamlStr;
+                } catch (e) {
+                    showToast(t('toast.yaml_serialize_failed', 'Failed to serialize to YAML') + ': ' + e.message, 'danger');
+                    return;
+                }
+                visual.style.display = 'none';
+                text.style.display = '';
+                btn.innerHTML = `<i class="bi bi-ui-checks-grid"></i> ${t('mapping_editor.visual_mode', 'Visual Mode')}`;
+                _inlineTextMode = true;
+            } else {
+                // Text → Visual: parse YAML and rebuild rows
+                const yamlStr = document.getElementById('inline-mapping-yaml').value.trim();
+                if (yamlStr) {
+                    try {
+                        const mapping = jsyaml.load(yamlStr);
+                        if (mapping && typeof mapping === 'object') {
+                            const container = document.getElementById('inline-mapping-rows');
+                            container.innerHTML = '';
+                            for (const [shortcut, config] of Object.entries(mapping)) {
+                                addInlineMappingRow(shortcut, config.component || 'sensor', config.name || '', config.device_class || '', config.icon || '', config.unit_of_measurement || '', {
+                                    state_class: config.state_class,
+                                    entity_category: config.entity_category,
+                                    expire_after: config.expire_after,
+                                    force_update: config.force_update,
+                                    suggested_display_precision: config.suggested_display_precision,
+                                    value_template: config.value_template
+                                });
+                            }
+                            document.getElementById('inline-mapping-empty').style.display = 'none';
+                        }
+                    } catch (e) {
+                        showToast(t('toast.yaml_parse_error', 'YAML parse error') + ': ' + e.message, 'danger');
+                        return; // stay in text mode
+                    }
+                } else {
+                    document.getElementById('inline-mapping-rows').innerHTML = '';
+                    document.getElementById('inline-mapping-empty').style.display = '';
+                }
+                visual.style.display = '';
+                text.style.display = 'none';
+                btn.innerHTML = `<i class="bi bi-code-slash"></i> ${t('mapping_editor.text_mode', 'Text Mode')}`;
+                _inlineTextMode = false;
+            }
+        }
+
+        function toggleHaMappingMode() {
+            if (!_isJsYamlAvailable()) {
+                showToast(t('toast.yaml_not_loaded', 'YAML library not loaded. Please reload the page.'), 'warning');
+                return;
+            }
+            const visual = document.getElementById('ha-mapping-visual');
+            const text = document.getElementById('ha-mapping-text');
+            const btn = document.getElementById('ha-mode-toggle');
+            const addBtn = document.getElementById('ha-add-row-btn');
+
+            if (!_haTextMode) {
+                // Visual → Text
+                const mapping = collectHaMapping();
+                if (mapping === undefined) {
+                    showToast(t('toast.fix_validation', 'Fix validation errors before switching to text mode'), 'warning');
+                    return;
+                }
+                try {
+                    const yamlStr = (mapping && Object.keys(mapping).length > 0) ? jsyaml.dump(mapping, { lineWidth: -1 }) : '';
+                    document.getElementById('ha-mapping-yaml').value = yamlStr;
+                } catch (e) {
+                    showToast(t('toast.yaml_serialize_failed', 'Failed to serialize to YAML') + ': ' + e.message, 'danger');
+                    return;
+                }
+                visual.style.display = 'none';
+                text.style.display = '';
+                btn.innerHTML = `<i class="bi bi-ui-checks-grid"></i> ${t('mapping_editor.visual_mode', 'Visual Mode')}`;
+                addBtn.style.display = 'none';
+                _haTextMode = true;
+            } else {
+                // Text → Visual
+                const yamlStr = document.getElementById('ha-mapping-yaml').value.trim();
+                if (yamlStr) {
+                    try {
+                        const mapping = jsyaml.load(yamlStr);
+                        if (mapping && typeof mapping === 'object') {
+                            const container = document.getElementById('ha-mapping-rows');
+                            container.innerHTML = '';
+                            for (const [shortcut, config] of Object.entries(mapping)) {
+                                addHaMappingRow(shortcut, config.component || 'binary_sensor', config.name || '', config.device_class || '', config.icon || '', config.unit_of_measurement || '', {
+                                    state_class: config.state_class,
+                                    entity_category: config.entity_category,
+                                    expire_after: config.expire_after,
+                                    force_update: config.force_update,
+                                    suggested_display_precision: config.suggested_display_precision,
+                                    value_template: config.value_template
+                                });
+                            }
+                            document.getElementById('ha-mapping-empty').style.display = 'none';
+                        }
+                    } catch (e) {
+                        showToast(t('toast.yaml_parse_error', 'YAML parse error') + ': ' + e.message, 'danger');
+                        return; // stay in text mode
+                    }
+                } else {
+                    document.getElementById('ha-mapping-rows').innerHTML = '';
+                    document.getElementById('ha-mapping-empty').style.display = '';
+                }
+                visual.style.display = '';
+                text.style.display = 'none';
+                btn.innerHTML = `<i class="bi bi-code-slash"></i> ${t('mapping_editor.text_mode', 'Text Mode')}`;
+                addBtn.style.display = '';
+                _haTextMode = false;
+            }
+        }
+
+        function getInlineMappingData() {
+            /** Get mapping data from either visual or text mode (inline editor) */
+            if (_inlineTextMode) {
+                if (!_isJsYamlAvailable()) {
+                    showToast(t('toast.yaml_not_loaded', 'YAML library not loaded. Please reload the page.'), 'warning');
+                    return undefined;
+                }
+                const yamlStr = document.getElementById('inline-mapping-yaml').value.trim();
+                if (!yamlStr) return {};
+                try {
+                    const mapping = jsyaml.load(yamlStr);
+                    return (mapping && typeof mapping === 'object') ? mapping : {};
+                } catch (e) {
+                    showToast(t('toast.yaml_parse_error', 'YAML parse error') + ': ' + e.message, 'danger');
+                    return undefined; // signal error
+                }
+            }
+            return collectInlineMapping();
+        }
+
+        function getHaMappingData() {
+            /** Get mapping data from either visual or text mode (HA mapping editor) */
+            if (_haTextMode) {
+                if (!_isJsYamlAvailable()) {
+                    showToast(t('toast.yaml_not_loaded', 'YAML library not loaded. Please reload the page.'), 'warning');
+                    return undefined;
+                }
+                const yamlStr = document.getElementById('ha-mapping-yaml').value.trim();
+                if (!yamlStr) return null;
+                try {
+                    const mapping = jsyaml.load(yamlStr);
+                    return (mapping && typeof mapping === 'object' && Object.keys(mapping).length > 0) ? mapping : null;
+                } catch (e) {
+                    showToast(t('toast.yaml_parse_error', 'YAML parse error') + ': ' + e.message, 'danger');
+                    return undefined; // signal error
+                }
+            }
+            return collectHaMapping();
+        }
+
+        let _inlineRowCounter = 0;
+
+        function addInlineMappingRow(shortcut = '', component = 'sensor', name = '', deviceClass = '', icon = '', unit = '', opts = {}) {
+            const container = document.getElementById('inline-mapping-rows');
+            const emptyMsg = document.getElementById('inline-mapping-empty');
+            if (emptyMsg) emptyMsg.style.display = 'none';
+
+            const rowId = _inlineRowCounter++;
+            const stateClass = opts.state_class || '';
+            const entityCategory = opts.entity_category || '';
+            const expireAfter = opts.expire_after != null ? opts.expire_after : '';
+            const forceUpdate = opts.force_update || false;
+            const precision = opts.suggested_display_precision != null ? opts.suggested_display_precision : '';
+            const valueTemplate = opts.value_template || '';
+
+            const row = document.createElement('div');
+            row.className = 'inline-mapping-row border rounded p-2 mb-2 bg-body-secondary';
+            row.innerHTML = `
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-2">
+                        <label class="form-label small">${t('mapping_editor.field_shortcut', 'Shortcut')}</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="TMP" value="${shortcut}" data-field="shortcut">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">${t('mapping_editor.field_component', 'Component')}</label>
+                        <select class="form-select form-select-sm" data-field="component" onchange="onInlineComponentChange(this)">
+                            <option value="binary_sensor" ${component === 'binary_sensor' ? 'selected' : ''}>binary_sensor</option>
+                            <option value="sensor" ${component === 'sensor' ? 'selected' : ''}>sensor</option>
+                            <option value="switch" ${component === 'switch' ? 'selected' : ''}>switch</option>
+                            <option value="light" ${component === 'light' ? 'selected' : ''}>light</option>
+                            <option value="cover" ${component === 'cover' ? 'selected' : ''}>cover</option>
+                            <option value="climate" ${component === 'climate' ? 'selected' : ''}>climate</option>
+                            <option value="fan" ${component === 'fan' ? 'selected' : ''}>fan</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">${t('mapping_editor.field_name', 'Name')}</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="Temperature" value="${name}" data-field="name">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">${t('mapping_editor.field_device_class', 'Device Class')}</label>
+                        <select class="form-select form-select-sm" data-field="device_class">
+                            ${getDeviceClassOptions(component, deviceClass)}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">${t('mapping_editor.field_icon', 'Icon')}</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="mdi:thermometer" value="${icon}" data-field="icon">
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label small">${t('mapping_editor.field_unit', 'Unit')}</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="" value="${unit}" data-field="unit_of_measurement">
+                    </div>
+                    <div class="col-md-1">
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeInlineMappingRow(this)" title="${t('mapping_editor.field_remove', 'Remove')}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-1">
+                    <a class="small text-muted text-decoration-none" data-bs-toggle="collapse" href="#inline-adv-${rowId}" role="button" aria-expanded="false">
+                        <i class="bi bi-chevron-right"></i> ${t('mapping_editor.advanced', 'Advanced')}
+                    </a>
+                    <div class="collapse" id="inline-adv-${rowId}">
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-2">
+                                <label class="form-label small">${t('mapping_editor.field_state_class', 'State Class')}</label>
+                                <select class="form-select form-select-sm" data-field="state_class">
+                                    <option value="" ${!stateClass ? 'selected' : ''}>${t('mapping_editor.none', '(none)')}</option>
+                                    <option value="measurement" ${stateClass === 'measurement' ? 'selected' : ''}>measurement</option>
+                                    <option value="total" ${stateClass === 'total' ? 'selected' : ''}>total</option>
+                                    <option value="total_increasing" ${stateClass === 'total_increasing' ? 'selected' : ''}>total_increasing</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">${t('mapping_editor.field_entity_category', 'Entity Category')}</label>
+                                <select class="form-select form-select-sm" data-field="entity_category">
+                                    <option value="" ${!entityCategory ? 'selected' : ''}>${t('mapping_editor.none', '(none)')}</option>
+                                    <option value="diagnostic" ${entityCategory === 'diagnostic' ? 'selected' : ''}>diagnostic</option>
+                                    <option value="config" ${entityCategory === 'config' ? 'selected' : ''}>config</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">${t('mapping_editor.field_expire_after', 'Expire After (s)')}</label>
+                                <input type="number" class="form-control form-control-sm" placeholder="" value="${expireAfter}" data-field="expire_after" min="0">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">${t('mapping_editor.field_precision', 'Precision')}</label>
+                                <input type="number" class="form-control form-control-sm" placeholder="" value="${precision}" data-field="suggested_display_precision" min="0" max="10">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" data-field="force_update" ${forceUpdate ? 'checked' : ''}>
+                                    <label class="form-check-label small">${t('mapping_editor.field_force_update', 'Force Update')}</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-6">
+                                <label class="form-label small">${t('mapping_editor.field_value_template', 'Value Template')}</label>
+                                <input type="text" class="form-control form-control-sm font-monospace" placeholder="auto-generated" value="${valueTemplate.replace(/"/g, '&quot;')}" data-field="value_template">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Rotate chevron on collapse toggle
+            const collapseEl = row.querySelector('.collapse');
+            collapseEl.addEventListener('show.bs.collapse', () => {
+                row.querySelector('.bi-chevron-right')?.classList.replace('bi-chevron-right', 'bi-chevron-down');
+            });
+            collapseEl.addEventListener('hide.bs.collapse', () => {
+                row.querySelector('.bi-chevron-down')?.classList.replace('bi-chevron-down', 'bi-chevron-right');
+            });
+
+            container.appendChild(row);
+        }
+
+        function removeInlineMappingRow(btn) {
+            btn.closest('.inline-mapping-row').remove();
+            const container = document.getElementById('inline-mapping-rows');
+            if (container.children.length === 0) {
+                document.getElementById('inline-mapping-empty').style.display = '';
+            }
+        }
+
+        function onInlineComponentChange(select) {
+            const row = select.closest('.inline-mapping-row');
+            const dcSelect = row.querySelector('[data-field="device_class"]');
+            dcSelect.innerHTML = getDeviceClassOptions(select.value, '');
+        }
+
+        function collectInlineMapping() {
+            const rows = document.querySelectorAll('.inline-mapping-row');
+            if (rows.length === 0) return {};
+
+            const mapping = {};
+            let valid = true;
+            rows.forEach(row => {
+                const shortcut = (row.querySelector('[data-field="shortcut"]').value || '').trim();
+                if (!shortcut) { valid = false; return; }
+                const entry = { component: row.querySelector('[data-field="component"]').value };
+                const name = row.querySelector('[data-field="name"]').value.trim();
+                if (name) entry.name = name;
+                const dc = row.querySelector('[data-field="device_class"]').value;
+                if (dc) entry.device_class = dc;
+                const icon = row.querySelector('[data-field="icon"]').value.trim();
+                if (icon) entry.icon = icon;
+                const unit = row.querySelector('[data-field="unit_of_measurement"]').value.trim();
+                if (unit) entry.unit_of_measurement = unit;
+
+                // Advanced fields
+                const stateClass = row.querySelector('[data-field="state_class"]')?.value || '';
+                if (stateClass) entry.state_class = stateClass;
+                const entityCat = row.querySelector('[data-field="entity_category"]')?.value || '';
+                if (entityCat) entry.entity_category = entityCat;
+                const expireStr = row.querySelector('[data-field="expire_after"]')?.value || '';
+                if (expireStr !== '') entry.expire_after = parseInt(expireStr);
+                const precisionStr = row.querySelector('[data-field="suggested_display_precision"]')?.value || '';
+                if (precisionStr !== '') entry.suggested_display_precision = parseInt(precisionStr);
+                const forceUpdate = row.querySelector('[data-field="force_update"]')?.checked || false;
+                if (forceUpdate) entry.force_update = true;
+                const valTpl = row.querySelector('[data-field="value_template"]')?.value?.trim() || '';
+                if (valTpl) entry.value_template = valTpl;
+
+                mapping[shortcut] = entry;
+            });
+            if (!valid) return undefined;
+            return mapping;
+        }
+
+        async function prefillMappingFromFields(eepId) {
+            try {
+                const resp = await fetch(getApiUrl(`/api/eep/${eepId}`));
+                const profile = await resp.json();
+
+                const container = document.getElementById('inline-mapping-rows');
+                container.innerHTML = '';
+                document.getElementById('inline-mapping-empty').style.display = 'none';
+
+                if (profile.fields && profile.fields.length > 0) {
+                    for (const field of profile.fields) {
+                        const shortcut = field.shortcut || '';
+                        if (!shortcut) continue;
+                        // Guess component from field description/type
+                        let component = 'sensor';
+                        const desc = (field.description || '').toLowerCase();
+                        if (desc.includes('switch') || desc.includes('button') || desc.includes('rocker')) component = 'binary_sensor';
+                        if (desc.includes('alarm') || desc.includes('contact') || desc.includes('occupancy')) component = 'binary_sensor';
+                        // Guess device class
+                        let dc = '';
+                        if (desc.includes('temperature') || desc.includes('temp')) dc = 'temperature';
+                        else if (desc.includes('humidity')) dc = 'humidity';
+                        else if (desc.includes('illumina') || desc.includes('lux')) dc = 'illuminance';
+                        else if (desc.includes('voltage')) dc = 'voltage';
+                        else if (desc.includes('current') && !desc.includes('currently')) dc = 'current';
+                        else if (desc.includes('power') || desc.includes('watt')) dc = 'power';
+                        else if (desc.includes('energy')) dc = 'energy';
+                        else if (desc.includes('pressure')) dc = 'pressure';
+                        else if (desc.includes('battery')) dc = 'battery';
+                        else if (desc.includes('motion')) { dc = 'motion'; component = 'binary_sensor'; }
+                        else if (desc.includes('window')) { dc = 'window'; component = 'binary_sensor'; }
+                        else if (desc.includes('door')) { dc = 'door'; component = 'binary_sensor'; }
+                        // Guess unit
+                        let unit = '';
+                        if (dc === 'temperature') unit = '°C';
+                        else if (dc === 'humidity') unit = '%';
+                        else if (dc === 'illuminance') unit = 'lx';
+                        else if (dc === 'voltage') unit = 'V';
+                        else if (dc === 'current') unit = 'A';
+                        else if (dc === 'power') unit = 'W';
+                        else if (dc === 'energy') unit = 'kWh';
+                        else if (dc === 'pressure') unit = 'hPa';
+                        else if (dc === 'battery') unit = '%';
+
+                        addInlineMappingRow(shortcut, component, field.description || '', dc, '', unit);
+                    }
+                    showToast(t('mapping_editor.prefilled', 'Fields pre-filled from EEP profile'), 'success');
+                } else {
+                    document.getElementById('inline-mapping-empty').style.display = '';
+                    showToast(t('mapping_editor.no_fields', 'No fields found in profile'), 'warning');
+                }
+            } catch (e) {
+                showToast(t('mapping_editor.load_fields_failed', 'Failed to load profile fields'), 'danger');
+            }
+        }
+
+        async function saveMappingOverride(eepId) {
+            const mapping = getInlineMappingData();
+            if (mapping === undefined) {
+                showToast(t('mapping_editor.need_shortcut', 'All rows must have a shortcut name (or fix YAML errors)'), 'warning');
+                return;
+            }
+
+            try {
+                const resp = await fetch(getApiUrl(`/api/eep/${eepId}/mapping`), {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(mapping)
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => null);
+                    throw new Error(err?.detail || t('mapping_editor.save_failed', 'Save failed'));
+                }
+                showToast(t('mapping_editor.saved', 'Mapping saved'), 'success');
+                closeMappingEditor();
+                showProfileDetails(eepId);
+                // Refresh the profile tree to update "Customized" indicators
+                loadProfiles();
+            } catch (e) {
+                showToast(e.message, 'danger');
+            }
+        }
+
+        async function resetMappingOverride(eepId) {
+            if (!confirm(t('mapping_editor.reset_confirm', 'Reset mapping to EEP.xml default? Your customization will be removed.'))) return;
+            try {
+                const resp = await fetch(getApiUrl(`/api/eep/${eepId}/mapping`), { method: 'DELETE' });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => null);
+                    throw new Error(err?.detail || t('mapping_editor.reset_failed', 'Reset failed'));
+                }
+                showToast(t('mapping_editor.reset_success', 'Mapping reset to default'), 'success');
+                showProfileDetails(eepId);
+                // Refresh the profile tree to update indicators
+                loadProfiles();
+            } catch (e) {
+                showToast(e.message, 'danger');
+            }
+        }
+
+        async function deleteCustomProfile(eepId) {
+            if (!confirm(`${t('profile.delete_confirm', 'Delete custom profile')} ${eepId}? ${t('common.cannot_undo', 'This cannot be undone.')}`)) return;
+
+            try {
+                const response = await fetch(getApiUrl(`/api/eep/custom/${eepId}`), {method: 'DELETE'});
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => null);
+                    throw new Error(errData?.detail || `Server error (${response.status})`);
+                }
+                document.getElementById('profile-details').innerHTML = `<p class="text-muted">${t('profiles.select_hint', 'Select a profile to view details')}</p>`;
+                loadProfiles();
+                showToast(`${t('profile.deleted', 'Profile deleted')}: ${eepId}`, 'success');
+            } catch (error) {
+                showToast(error.message, 'danger');
+            }
+        }
+
+        async function editCustomProfile(eepId) {
+            try {
+                const response = await fetch(getApiUrl(`/api/eep/${eepId}`));
+                const profile = await response.json();
+
+                if (!profile.is_custom) {
+                    showToast(t('profile.only_custom_editable', 'Only custom profiles can be edited'), 'danger');
+                    return;
+                }
+
+                // Reset text mode before populating
+                _resetHaTextMode();
+
+                // Populate the modal form with existing data
+                const form = document.getElementById('custom-profile-form');
+                form.querySelector('[name="rorg"]').value = profile.rorg;
+                form.querySelector('[name="func"]').value = profile.func;
+                form.querySelector('[name="type"]').value = profile.type;
+                form.querySelector('[name="description"]').value = profile.description;
+                form.querySelector('[name="fields"]').value = profile.fields.length
+                    ? JSON.stringify(profile.fields, null, 2)
+                    : '';
+
+                // Populate HA mapping builder
+                populateHaMapping(profile.ha_mapping || {});
+
+                // Mark as editing (store original eep_id)
+                form.dataset.editEepId = eepId;
+
+                // Update modal title
+                document.querySelector('#customProfileModal .modal-title').textContent = `Edit Custom Profile: ${eepId}`;
+
+                // Show modal
+                new bootstrap.Modal(document.getElementById('customProfileModal')).show();
+            } catch (error) {
+                showToast(t('profile.load_edit_failed', 'Failed to load profile for editing'), 'danger');
+            }
+        }
+
+        async function forkStandardProfile(eepId) {
+            try {
+                const response = await fetch(getApiUrl(`/api/eep/${eepId}`));
+                const profile = await response.json();
+
+                // Also fetch mapping override if exists
+                const mappingResp = await fetch(getApiUrl(`/api/eep/${eepId}/mapping`));
+                const mappingData = await mappingResp.json();
+
+                // Reset text mode before populating
+                _resetHaTextMode();
+
+                // Populate the modal form with standard profile data
+                const form = document.getElementById('custom-profile-form');
+                form.reset();
+                delete form.dataset.editEepId;
+                form.querySelector('[name="rorg"]').value = profile.rorg;
+                form.querySelector('[name="func"]').value = profile.func;
+                form.querySelector('[name="type"]').value = profile.type;
+                form.querySelector('[name="description"]').value = profile.description;
+                form.querySelector('[name="fields"]').value = profile.fields.length
+                    ? JSON.stringify(profile.fields, null, 2)
+                    : '';
+
+                // Populate HA mapping from override or default
+                const effectiveMapping = mappingData.mapping || {};
+                populateHaMapping(effectiveMapping);
+
+                // Update modal title
+                document.querySelector('#customProfileModal .modal-title').textContent = `${t('modal.fork_title', 'Fork Standard Profile')}: ${eepId}`;
+
+                // Show modal
+                new bootstrap.Modal(document.getElementById('customProfileModal')).show();
+            } catch (error) {
+                showToast(t('profile.load_fork_failed', 'Failed to load profile for forking'), 'danger');
+            }
+        }
+
+        // ===== Actuator Teach-In Functions =====
+        function showActuatorTeachIn() {
+            // Cancel any running automatic teach-in first
+            cancelTeachIn();
+            document.getElementById('actuator-teach-in-panel').style.display = 'block';
+            readBaseId();
+        }
+
+        function hideActuatorTeachIn() {
+            document.getElementById('actuator-teach-in-panel').style.display = 'none';
+        }
+
+        async function readBaseId() {
+            const input = document.getElementById('gateway-base-id');
+            input.value = 'Reading...';
+            try {
+                const resp = await fetch(getApiUrl('/api/gateway/read-base-id'), { method: 'POST' });
+                const data = await resp.json();
+                if (resp.ok && data.base_id) {
+                    input.value = data.base_id;
+                    updateDerivedSenderId();
+                } else {
+                    input.value = 'Error: ' + (data.detail || 'unknown');
+                }
+            } catch (e) {
+                input.value = 'Error: ' + e.message;
+            }
+        }
+
+        function updateDerivedSenderId() {
+            const baseId = document.getElementById('gateway-base-id').value;
+            const offset = parseInt(document.getElementById('sender-offset').value) || 1;
+            const output = document.getElementById('derived-sender-id');
+            if (baseId && baseId.startsWith('0x')) {
+                const base = parseInt(baseId, 16);
+                const sender = base + offset;
+                output.value = '0x' + sender.toString(16).toUpperCase().padStart(8, '0');
+            }
+        }
+
+        // Update derived sender ID when offset changes
+        document.getElementById('sender-offset')?.addEventListener('input', updateDerivedSenderId);
+
+        async function sendActuatorTeachIn() {
+            const address = document.getElementById('actuator-address').value.trim();
+            const offset = parseInt(document.getElementById('sender-offset').value) || 1;
+            const actuatorType = document.getElementById('actuator-type-teach-in').value;
+            const resultDiv = document.getElementById('actuator-teach-in-result');
+
+            if (!address) {
+                resultDiv.innerHTML = '<div class="alert alert-danger">Enter the actuator address</div>';
+                resultDiv.style.display = 'block';
+                return;
+            }
+
+            const proto = actuatorType === 'light' ? 'A5-38-08 (Central Command)' : 'F6 (Rocker)';
+            resultDiv.innerHTML = `<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> ${t('teach_in.sending', 'Sending')} ${proto} teach-in...</div>`;
+            resultDiv.style.display = 'block';
+
+            try {
+                const resp = await fetch(getApiUrl('/api/gateway/teach-in-actuator'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ destination: address, sender_offset: offset, actuator_type: actuatorType })
+                });
+                const data = await resp.json();
+
+                if (resp.ok) {
+                    resultDiv.innerHTML = `<div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> <strong>${t('teach_in.teach_in_sent', 'Teach-in sent!')}</strong> (${data.teach_type || proto})<br>
+                        ${t('teach_in.sender_id', 'Sender ID')}: <code>${data.sender_id}</code> → ${t('teach_in.destination', 'Destination')}: <code>${data.destination}</code><br>
+                        <small class="text-muted">${data.message}</small><br><br>
+                        <strong>${t('teach_in.next_step', 'Next')}:</strong> ${t('teach_in.next_step_desc', 'Use "Manual Entry" to add this device with sender ID')} <code>${data.sender_id}</code>
+                        ${t('teach_in.and_actuator_type', 'and actuator type')} <code>${actuatorType}</code>
+                    </div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${data.detail || t('common.unknown_error', 'Unknown error')}</div>`;
+                }
+            } catch (e) {
+                resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${e.message}</div>`;
+            }
+        }
+
+        async function sendRepeatTeachIn() {
+            const address = document.getElementById('actuator-address').value.trim();
+            const offset = parseInt(document.getElementById('sender-offset').value) || 1;
+            const actuatorType = document.getElementById('actuator-type-teach-in').value;
+            const resultDiv = document.getElementById('actuator-teach-in-result');
+            const btn = document.getElementById('btn-repeat-teach-in');
+
+            if (!address) {
+                resultDiv.innerHTML = '<div class="alert alert-danger">Enter the actuator address</div>';
+                resultDiv.style.display = 'block';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Sending... (30s)';
+            const proto = actuatorType === 'light' ? 'A5-38-08' : 'F6 Rocker';
+            resultDiv.innerHTML = `<div class="alert alert-warning">
+                <i class="bi bi-broadcast"></i> <strong>Sending ${proto} teach-in repeatedly for 30 seconds...</strong><br>
+                Put the actuator in learn mode NOW! (Place it next to the USB300)
+            </div>`;
+            resultDiv.style.display = 'block';
+
+            try {
+                const resp = await fetch(getApiUrl('/api/gateway/teach-in-repeat'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        destination: address, sender_offset: offset,
+                        actuator_type: actuatorType,
+                        duration_seconds: 30, interval_seconds: 5
+                    })
+                });
+                const data = await resp.json();
+
+                if (resp.ok) {
+                    resultDiv.innerHTML = `<div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> <strong>${data.rounds_sent} teach-in rounds sent!</strong> (${data.teach_type})<br>
+                        Sender ID: <code>${data.sender_id}</code><br>
+                        <small>${data.message}</small>
+                    </div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${data.detail || 'Error'}</div>`;
+                }
+            } catch (e) {
+                resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${e.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Repeat Teach-In (30s)';
+            }
+        }
+
+        let _testActuatorBusy = false;
+        async function testActuator(deviceName, command) {
+            // Debounce: prevent double-send from rapid clicks
+            if (_testActuatorBusy) return;
+            _testActuatorBusy = true;
+            setTimeout(() => { _testActuatorBusy = false; }, 1500);
+
+            const resultSpan = document.getElementById('test-actuator-result');
+            resultSpan.innerHTML = '<span class="text-info"><i class="bi bi-hourglass-split"></i> Sending...</span>';
+
+            try {
+                const resp = await fetch(getApiUrl('/api/gateway/test-actuator'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_name: deviceName, command: command })
+                });
+                const data = await resp.json();
+
+                if (resp.ok) {
+                    resultSpan.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> ${command} sent to ${deviceName}</span>`;
+                } else {
+                    resultSpan.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle"></i> ${data.detail || 'Error'}</span>`;
+                }
+            } catch (e) {
+                resultSpan.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+            }
+
+            // Clear result after 5 seconds
+            setTimeout(() => { resultSpan.innerHTML = ''; }, 5000);
+        }
+
+        let teachInTimer = null;
+
+        function startTeachIn() {
+            // Auto-close actuator panel if open
+            document.getElementById('actuator-teach-in-panel').style.display = 'none';
+
+            const status = document.getElementById('teach-in-status');
+            status.style.display = 'block';
+
+            // Start 60-second countdown
+            let remaining = 60;
+            const countdownEl = document.getElementById('teach-in-countdown');
+            countdownEl.textContent = `(${remaining}s)`;
+            teachInTimer = setInterval(() => {
+                remaining--;
+                countdownEl.textContent = `(${remaining}s)`;
+                if (remaining <= 0) {
+                    cancelTeachIn();
+                    showToast(t('teach_in.timeout', 'Teach-in timed out — no device detected'), 'warning');
+                }
+            }, 1000);
+
+            // Connect to WebSocket
+            teachInSocket = new WebSocket(getWsUrl('/api/gateway/teach-in'));
+
+            teachInSocket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.type === 'teach_in') {
+                    // Auto-fill form with detected device
+                    document.querySelector('[name="address"]').value = data.data.sender_id;
+                    document.querySelector('[name="rorg"]').value = data.data.rorg;
+                    document.querySelector('[name="func"]').value = data.data.func;
+                    document.querySelector('[name="type"]').value = data.data.type;
+
+                    cancelTeachIn();
+                    wizardNext();
+
+                    showToast(t('teach_in.detected', 'Device detected!'), 'success');
+                }
+            };
+
+            teachInSocket.onerror = function() {
+                cancelTeachIn();
+                status.style.display = 'block';
+                status.querySelector('.alert').className = 'alert alert-danger';
+                status.querySelector('.alert').innerHTML = '<i class="bi bi-x-circle"></i> Connection failed. EnOcean gateway may not be connected.';
+            };
+        }
+
+        function cancelTeachIn() {
+            if (teachInTimer) {
+                clearInterval(teachInTimer);
+                teachInTimer = null;
+            }
+            if (teachInSocket) {
+                teachInSocket.close();
+                teachInSocket = null;
+            }
+            document.getElementById('teach-in-status').style.display = 'none';
+        }
+
+        function toggleSenderIdField(select) {
+            const senderGroup = document.getElementById('sender-id-group');
+            if (senderGroup) {
+                senderGroup.style.display = select.value ? '' : 'none';
+                // Clear sender_id when switching back to sensor
+                if (!select.value) {
+                    const input = senderGroup.querySelector('input[name="sender_id"]');
+                    if (input) input.value = '';
+                }
+            }
+        }
+
+        function resetTeachInPage() {
+            cancelTeachIn();
+            document.getElementById('actuator-teach-in-panel').style.display = 'none';
+            // Reset wizard to step 1
+            document.querySelectorAll('.wizard-step').forEach((step, i) => {
+                step.classList.toggle('active', i === 0);
+            });
+        }
+
+        function showManualEntry() {
+            wizardNext();
+        }
+
+        function wizardNext() {
+            const steps = document.querySelectorAll('.wizard-step');
+            let currentIndex = -1;
+            steps.forEach((step, index) => {
+                if (step.classList.contains('active')) currentIndex = index;
+            });
+            if (currentIndex < steps.length - 1) {
+                steps[currentIndex].classList.remove('active');
+                steps[currentIndex + 1].classList.add('active');
+            }
+        }
+
+        function wizardBack() {
+            const steps = document.querySelectorAll('.wizard-step');
+            let currentIndex = -1;
+            steps.forEach((step, index) => {
+                if (step.classList.contains('active')) currentIndex = index;
+            });
+            if (currentIndex > 0) {
+                steps[currentIndex].classList.remove('active');
+                steps[currentIndex - 1].classList.add('active');
+            }
+        }
+
+        function resetWizard() {
+            document.querySelectorAll('.wizard-step').forEach((step, index) => {
+                step.classList.toggle('active', index === 0);
+            });
+            const form = document.getElementById('device-form');
+            form.reset();
+            delete form.dataset.editMode;
+            document.querySelector('[name="name"]').readOnly = false;
+            // Hide sender_id field (default: sensor mode)
+            const senderGroup = document.getElementById('sender-id-group');
+            if (senderGroup) senderGroup.style.display = 'none';
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.textContent = t('teach_in.add_device', 'Add Device');
+            const heading = document.querySelector('#step-2 h4');
+            if (heading) heading.textContent = t('teach_in.step2', 'Step 2: Configure Device');
+        }
+
+        async function saveDevice(e) {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            const device = Object.fromEntries(formData);
+            const editMode = form.dataset.editMode;
+
+            try {
+                let response;
+                if (editMode) {
+                    // Update existing device
+                    response = await fetch(getApiUrl(`/api/devices/${editMode}`), {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(device)
+                    });
+                } else {
+                    // Create new device
+                    response = await fetch(getApiUrl('/api/devices'), {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(device)
+                    });
+                }
+
+                if (!response.ok) {
+                    let errorMsg = t('device.save_failed', 'Failed to save device');
+                    try {
+                        const error = await response.json();
+                        errorMsg = error.detail || errorMsg;
+                    } catch (parseError) {
+                        errorMsg = `Server error: ${response.status} ${response.statusText}`;
+                    }
+                    throw new Error(errorMsg);
+                }
+
+                // Clear edit mode and reset form state
+                delete form.dataset.editMode;
+                document.querySelector('[name="name"]').readOnly = false;
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) submitBtn.textContent = t('teach_in.add_device', 'Add Device');
+                const heading = document.querySelector('#step-2 h4');
+                if (heading) heading.textContent = t('teach_in.step2', 'Step 2: Configure Device');
+
+                if (editMode) {
+                    // After editing, go back to devices page
+                    showToast(t('device.updated', 'Device updated successfully'), 'success');
+                    navigateTo('devices');
+                } else {
+                    // After adding new device, show success screen
+                    wizardNext();
+                    showToast(t('device.saved', 'Device saved successfully'), 'success');
+                }
+                loadDevices();
+            } catch (error) {
+                showToast(error.message, 'danger');
+            }
+        }
+
+        async function editDevice(name) {
+            try {
+                const response = await fetch(getApiUrl(`/api/devices/${name}`));
+                const device = await response.json();
+
+                // Navigate to teach-in page
+                navigateTo('teach-in');
+
+                // Go directly to step-2 (form) regardless of current wizard state
+                document.querySelectorAll('.wizard-step').forEach((step, index) => {
+                    step.classList.toggle('active', index === 1);
+                });
+
+                // Fill in form fields
+                document.querySelector('[name="name"]').value = device.name;
+                document.querySelector('[name="address"]').value = device.address;
+                document.querySelector('[name="rorg"]').value = device.rorg;
+                document.querySelector('[name="func"]').value = device.func;
+                document.querySelector('[name="type"]').value = device.type;
+                document.querySelector('[name="description"]').value = device.description || '';
+                document.querySelector('[name="room"]').value = device.room || '';
+                document.querySelector('[name="actuator_type"]').value = device.actuator_type || '';
+                document.querySelector('[name="sender_id"]').value = device.sender_id || '';
+                document.querySelector('[name="manufacturer"]').value = device.manufacturer || '';
+                // Show/hide sender_id field based on actuator type
+                const senderGroup = document.getElementById('sender-id-group');
+                if (senderGroup) senderGroup.style.display = device.actuator_type ? '' : 'none';
+
+                // Mark as edit mode
+                const form = document.getElementById('device-form');
+                form.dataset.editMode = name;
+
+                // Change button text and disable name field
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) submitBtn.textContent = t('device.save', 'Save Device');
+                document.querySelector('[name="name"]').readOnly = true;
+
+                // Update heading
+                const heading = document.querySelector('#step-2 h4');
+                if (heading) heading.textContent = t('device.edit', 'Edit Device');
+
+            } catch (error) {
+                showToast(t('device.load_failed', 'Failed to load device'), 'danger');
+            }
+        }
+
+        async function showDeviceDetail(name) {
+            try {
+                const response = await fetch(getApiUrl(`/api/devices/${name}`));
+                const device = await response.json();
+
+                // Fetch recent telegrams for this device
+                let telegrams = [];
+                try {
+                    const tRes = await fetch(getApiUrl(`/api/gateway/recent-telegrams?limit=100`));
+                    const allTelegrams = await tRes.json();
+                    telegrams = allTelegrams.filter(t =>
+                        t.device_name === name || t.sender_id === device.address
+                    ).slice(0, 20);
+                } catch (e) { /* ignore */ }
+
+                // Build detail view in the devices page
+                const container = document.getElementById('device-list');
+                container.innerHTML = `
+                    <div class="col-12">
+                        <div class="mb-3">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="loadDevices()">
+                                <i class="bi bi-arrow-left"></i> ${t('device.back', 'Back to Devices')}
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm ms-2" onclick="editDevice('${device.name}')">
+                                <i class="bi bi-pencil"></i> ${t('device.edit', 'Edit Device')}
+                            </button>
+                        </div>
+
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="bi bi-cpu"></i> ${device.name}</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <table class="table table-sm">
+                                            <tr><th>${t('device.address', 'Address')}</th><td><code>${device.address}</code></td></tr>
+                                            <tr><th>${t('device.eep_profile', 'EEP Profile')}</th><td><span class="badge bg-primary">${device.rorg}-${device.func}-${device.type}</span></td></tr>
+                                            ${device.description ? `<tr><th>${t('device.description', 'Description')}</th><td>${device.description}</td></tr>` : ''}
+                                            ${device.room ? `<tr><th>${t('device.room', 'Room')}</th><td>${device.room}</td></tr>` : ''}
+                                            ${device.sender_id ? `<tr><th>${t('device.sender_id', 'Sender ID')}</th><td><code>${device.sender_id}</code></td></tr>` : ''}
+                                            ${device.actuator_type ? `<tr><th>${t('device.device_role', 'Device Role')}</th><td><span class="badge bg-warning text-dark">${device.actuator_type}</span></td></tr>` : ''}
+                                            ${device.manufacturer ? `<tr><th>${t('device.manufacturer', 'Manufacturer')}</th><td>${device.manufacturer}</td></tr>` : ''}
+                                        </table>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>${t('device.mqtt_topics', 'MQTT Topics')}</h6>
+                                        <small class="text-muted">
+                                            <code>enocean/${device.name}/state</code><br>
+                                            ${device.sender_id ? `<code>enocean/${device.name}/set</code>` : ''}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        ${device.actuator_type ? `
+                        <div class="card mb-3">
+                            <div class="card-header bg-warning bg-opacity-25">
+                                <h6 class="mb-0"><i class="bi bi-lightning"></i> ${t('device.actuator_test', 'Actuator Test')}</h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="small text-muted mb-2">${t('device.actuator_hint', 'Send F6 rocker commands directly to test if teach-in was successful.')}</p>
+                                <div class="d-flex gap-2 align-items-center flex-wrap">
+                                    ${device.actuator_type === 'cover' ? `
+                                        <button class="btn btn-success" onclick="testActuator('${device.name}', 'OPEN')">
+                                            <i class="bi bi-arrow-up"></i> ${t('device.open', 'Open')}
+                                        </button>
+                                        <button class="btn btn-secondary" onclick="testActuator('${device.name}', 'STOP')">
+                                            <i class="bi bi-stop-fill"></i> ${t('device.stop', 'Stop')}
+                                        </button>
+                                        <button class="btn btn-danger" onclick="testActuator('${device.name}', 'CLOSE')">
+                                            <i class="bi bi-arrow-down"></i> ${t('device.close', 'Close')}
+                                        </button>
+                                    ` : `
+                                        <button class="btn btn-success" onclick="testActuator('${device.name}', 'ON')">
+                                            <i class="bi bi-power"></i> ${t('device.test_on', 'Test ON')}
+                                        </button>
+                                        <button class="btn btn-danger" onclick="testActuator('${device.name}', 'OFF')">
+                                            <i class="bi bi-power"></i> ${t('device.test_off', 'Test OFF')}
+                                        </button>
+                                    `}
+                                    <span id="test-actuator-result" class="small"></span>
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-clock-history"></i> ${t('device.recent_telegrams', 'Recent Telegrams for')} ${device.name}</span>
+                                <small class="text-muted">${telegrams.length} ${t('device.telegrams_count', 'telegram(s)')}</small>
+                            </div>
+                            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                                ${telegrams.length === 0
+                                    ? `<p class="text-muted">${t('device.no_telegrams', 'No telegrams received from this device yet')}</p>`
+                                    : `<div class="table-responsive"><table class="table table-sm">
+                                        <thead><tr><th>${t('telegram.time', 'Time')}</th><th>${t('telegram.rorg', 'RORG')}</th><th>${t('telegram.data', 'Data')}</th><th>${t('telegram.dbm', 'dBm')}</th><th>${t('telegram.teach_in', 'Teach-In')}</th></tr></thead>
+                                        <tbody>
+                                            ${telegrams.map(tg => `
+                                                <tr>
+                                                    <td><small>${new Date(tg.timestamp).toLocaleTimeString()}</small></td>
+                                                    <td><span class="badge bg-secondary">${tg.rorg}</span></td>
+                                                    <td><code>${tg.data || '-'}</code></td>
+                                                    <td>${tg.dbm ? tg.dbm + ' dBm' : '<span class="text-muted">N/A</span>'}</td>
+                                                    <td>${tg.is_teach_in ? '<span class="badge bg-warning">Yes</span>' : '-'}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table></div>`
+                                }
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                showToast(t('device.details_failed', 'Failed to load device details'), 'danger');
+            }
+        }
+
+        async function deleteDevice(name) {
+            if (!confirm(`${t('devices.delete_confirm', 'Delete device')} "${name}"?`)) return;
+
+            try {
+                await fetch(getApiUrl(`/api/devices/${name}`), {method: 'DELETE'});
+                loadDevices();
+                showToast(t('devices.deleted', 'Device deleted'), 'success');
+            } catch (error) {
+                showToast(t('devices.delete_failed', 'Failed to delete device'), 'danger');
+            }
+        }
+
+        async function exportConfig() {
+            try {
+                const response = await fetch(getApiUrl('/api/system/export'), {method: 'POST'});
+                if (!response.ok) throw new Error(t('settings.export_failed', 'Export failed'));
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const disposition = response.headers.get('Content-Disposition');
+                a.download = disposition ? disposition.split('filename=')[1] : 'enocean_config.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast(t('export.success', 'Config exported successfully'), 'success');
+            } catch (error) {
+                showToast(t('export.failed', 'Export failed') + ': ' + error.message, 'danger');
+            }
+        }
+
+        async function importConfig(input) {
+            if (!input.files.length) return;
+
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+
+            try {
+                const response = await fetch(getApiUrl('/api/system/import'), {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                showToast(`${t('settings.import_success', 'Import successful')}: ${result.details.devices ? 'devices, ' : ''}${result.details.mappings ? 'mappings, ' : ''}${result.details.custom_profiles} custom profiles`, 'success');
+                loadStatus();
+            } catch (error) {
+                showToast(t('settings.import_failed', 'Import failed'), 'danger');
+            }
+        }
+
+        async function restartServices() {
+            if (!confirm(t('settings.restart_confirm', 'Restart EnOcean and MQTT services?'))) return;
+
+            try {
+                await fetch(getApiUrl('/api/system/restart'), {method: 'POST'});
+                showToast(t('settings.restarting', 'Services restarting...'), 'info');
+                setTimeout(loadStatus, 3000);
+            } catch (error) {
+                showToast(t('settings.restart_failed', 'Restart failed'), 'danger');
+            }
+        }
+
+        // ===== Confirmation Modal =====
+
+        let _pendingConfirmAction = null;
+
+        function showConfirmDialog(title, body, btnLabel, btnClass, action) {
+            document.getElementById('confirmModalTitle').textContent = title;
+            document.getElementById('confirmModalBody').innerHTML = body;
+            const btn = document.getElementById('confirmModalAction');
+            btn.textContent = btnLabel;
+            btn.className = 'btn ' + btnClass;
+            _pendingConfirmAction = action;
+            new bootstrap.Modal(document.getElementById('confirmModal')).show();
+        }
+
+        async function executeConfirmedAction() {
+            bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
+            if (_pendingConfirmAction) {
+                await _pendingConfirmAction();
+                _pendingConfirmAction = null;
+            }
+        }
+
+        // ===== Backup Management =====
+
+        async function loadBackups() {
+            try {
+                const response = await fetch(getApiUrl('/api/system/backups'));
+                const backups = await response.json();
+                renderBackupList(backups);
+            } catch (error) {
+                document.getElementById('backup-list').innerHTML =
+                    `<p class="text-danger">${t('backup.load_failed', 'Failed to load backups')}</p>`;
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function renderBackupList(backups) {
+            const container = document.getElementById('backup-list');
+
+            if (backups.length === 0) {
+                container.innerHTML = `<p class="text-muted">${t('backup.no_backups', 'No backups yet. Click "Create Backup" to save your current configuration.')}</p>`;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>${t('backup.filename', 'Filename')}</th>
+                                <th>${t('backup.created', 'Created')}</th>
+                                <th>${t('backup.size', 'Size')}</th>
+                                <th>${t('backup.devices', 'Devices')}</th>
+                                <th>${t('backup.version', 'Version')}</th>
+                                <th class="text-end">${t('backup.actions', 'Actions')}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${backups.map(b => `
+                                <tr>
+                                    <td><code class="small">${b.filename}</code></td>
+                                    <td><small>${new Date(b.created_at).toLocaleString()}</small></td>
+                                    <td><small>${formatFileSize(b.size)}</small></td>
+                                    <td><small>${b.devices}</small></td>
+                                    <td><small>${b.version}</small></td>
+                                    <td class="text-end text-nowrap">
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="downloadBackup('${b.filename}')" title="${t('backup.download', 'Download')}">
+                                            <i class="bi bi-download"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning me-1" onclick="confirmRestoreBackup('${b.filename}')" title="${t('backup.restore', 'Restore')}">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteBackup('${b.filename}')" title="${t('backup.delete', 'Delete')}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        async function createBackup() {
+            try {
+                showToast(t('backup.creating', 'Creating backup...'), 'info');
+                const response = await fetch(getApiUrl('/api/system/backup'), {method: 'POST'});
+                if (!response.ok) throw new Error(t('backup.failed', 'Backup failed'));
+                const result = await response.json();
+                showToast(`${t('backup.created_success', 'Backup created')}: ${result.filename}`, 'success');
+                loadBackups();
+            } catch (error) {
+                showToast(t('backup.failed', 'Backup failed') + ': ' + error.message, 'danger');
+            }
+        }
+
+        function downloadBackup(filename) {
+            const a = document.createElement('a');
+            a.href = getApiUrl(`/api/system/backup/download/${filename}`);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function confirmRestoreBackup(filename) {
+            showConfirmDialog(
+                t('backup.restore_title', 'Restore Backup'),
+                `<p>${t('backup.restore_confirm', 'Are you sure you want to restore from:')}</p>
+                 <p><strong><code>${filename}</code></strong></p>
+                 <p class="text-warning mb-0"><i class="bi bi-exclamation-triangle"></i>
+                 ${t('backup.restore_warning', 'This will overwrite your current devices, mappings, and custom profiles.')}</p>`,
+                t('backup.restore', 'Restore'),
+                'btn-warning',
+                async () => {
+                    try {
+                        showToast(t('backup.restoring', 'Restoring backup...'), 'info');
+                        const response = await fetch(getApiUrl(`/api/system/backup/restore/${filename}`), {method: 'POST'});
+                        if (!response.ok) {
+                            const err = await response.json().catch(() => null);
+                            throw new Error(err?.detail || t('backup.restore_failed', 'Restore failed'));
+                        }
+                        const result = await response.json();
+                        showToast(`${t('backup.restored', 'Backup restored')}: ${result.details.devices ? t('nav.devices', 'devices') + ', ' : ''}${result.details.mappings ? t('nav.mappings', 'mappings') + ', ' : ''}${result.details.custom_profiles} ${t('backup.custom_profiles', 'custom profiles')}`, 'success');
+                        loadStatus();
+                        loadDevices();
+                        loadProfiles();
+                    } catch (error) {
+                        showToast(t('backup.restore_failed', 'Restore failed') + ': ' + error.message, 'danger');
+                    }
+                }
+            );
+        }
+
+        function confirmDeleteBackup(filename) {
+            showConfirmDialog(
+                t('backup.delete_title', 'Delete Backup'),
+                `<p>${t('backup.delete_confirm', 'Are you sure you want to delete:')}</p>
+                 <p><strong><code>${filename}</code></strong></p>
+                 <p class="text-danger mb-0"><i class="bi bi-exclamation-triangle"></i>
+                 ${t('backup.delete_warning', 'This cannot be undone.')}</p>`,
+                t('backup.delete', 'Delete'),
+                'btn-danger',
+                async () => {
+                    try {
+                        const response = await fetch(getApiUrl(`/api/system/backup/${filename}`), {method: 'DELETE'});
+                        if (!response.ok) throw new Error(t('backup.delete_failed', 'Delete failed'));
+                        showToast(t('backup.deleted', 'Backup deleted'), 'success');
+                        loadBackups();
+                    } catch (error) {
+                        showToast(t('backup.delete_failed', 'Delete failed') + ': ' + error.message, 'danger');
+                    }
+                }
+            );
+        }
+
+        // ===== HA Mapping Builder =====
+
+        let _haRowCounter = 0;
+
+        function addHaMappingRow(shortcut = '', component = 'binary_sensor', name = '', deviceClass = '', icon = '', unit = '', opts = {}) {
+            const container = document.getElementById('ha-mapping-rows');
+            const emptyMsg = document.getElementById('ha-mapping-empty');
+            if (emptyMsg) emptyMsg.style.display = 'none';
+
+            const rowId = _haRowCounter++;
+            const stateClass = opts.state_class || '';
+            const entityCategory = opts.entity_category || '';
+            const expireAfter = opts.expire_after != null ? opts.expire_after : '';
+            const forceUpdate = opts.force_update || false;
+            const precision = opts.suggested_display_precision != null ? opts.suggested_display_precision : '';
+            const valueTemplate = opts.value_template || '';
+
+            const row = document.createElement('div');
+            row.className = 'ha-mapping-row border rounded p-2 mb-2';
+            row.innerHTML = `
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-2">
+                        <label class="form-label small">${t('mapping_editor.field_shortcut', 'Shortcut')}</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="AL" value="${shortcut}"
+                               data-field="shortcut">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">${t('mapping_editor.field_component', 'Component')}</label>
+                        <select class="form-select form-select-sm" data-field="component" onchange="onComponentChange(this)">
+                            <option value="binary_sensor" ${component === 'binary_sensor' ? 'selected' : ''}>binary_sensor</option>
+                            <option value="sensor" ${component === 'sensor' ? 'selected' : ''}>sensor</option>
+                            <option value="switch" ${component === 'switch' ? 'selected' : ''}>switch</option>
+                            <option value="light" ${component === 'light' ? 'selected' : ''}>light</option>
+                            <option value="cover" ${component === 'cover' ? 'selected' : ''}>cover</option>
+                            <option value="climate" ${component === 'climate' ? 'selected' : ''}>climate</option>
+                            <option value="fan" ${component === 'fan' ? 'selected' : ''}>fan</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">${t('mapping_editor.field_name', 'Name')}</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="Alarm" value="${name}"
+                               data-field="name">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">${t('mapping_editor.field_device_class', 'Device Class')}</label>
+                        <select class="form-select form-select-sm" data-field="device_class">
+                            ${getDeviceClassOptions(component, deviceClass)}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">${t('mapping_editor.field_icon', 'Icon')}</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="mdi:alert" value="${icon}"
+                               data-field="icon">
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label small">${t('mapping_editor.field_unit', 'Unit')}</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="" value="${unit}"
+                               data-field="unit_of_measurement">
+                    </div>
+                    <div class="col-md-1">
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeHaMappingRow(this)" title="${t('mapping_editor.field_remove', 'Remove')}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-1">
+                    <a class="small text-muted text-decoration-none" data-bs-toggle="collapse" href="#ha-adv-${rowId}" role="button" aria-expanded="false">
+                        <i class="bi bi-chevron-right"></i> ${t('mapping_editor.advanced', 'Advanced')}
+                    </a>
+                    <div class="collapse" id="ha-adv-${rowId}">
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-2">
+                                <label class="form-label small">${t('mapping_editor.field_state_class', 'State Class')}</label>
+                                <select class="form-select form-select-sm" data-field="state_class">
+                                    <option value="" ${!stateClass ? 'selected' : ''}>${t('mapping_editor.none', '(none)')}</option>
+                                    <option value="measurement" ${stateClass === 'measurement' ? 'selected' : ''}>measurement</option>
+                                    <option value="total" ${stateClass === 'total' ? 'selected' : ''}>total</option>
+                                    <option value="total_increasing" ${stateClass === 'total_increasing' ? 'selected' : ''}>total_increasing</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">${t('mapping_editor.field_entity_category', 'Entity Category')}</label>
+                                <select class="form-select form-select-sm" data-field="entity_category">
+                                    <option value="" ${!entityCategory ? 'selected' : ''}>${t('mapping_editor.none', '(none)')}</option>
+                                    <option value="diagnostic" ${entityCategory === 'diagnostic' ? 'selected' : ''}>diagnostic</option>
+                                    <option value="config" ${entityCategory === 'config' ? 'selected' : ''}>config</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">${t('mapping_editor.field_expire_after', 'Expire After (s)')}</label>
+                                <input type="number" class="form-control form-control-sm" placeholder="" value="${expireAfter}" data-field="expire_after" min="0">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">${t('mapping_editor.field_precision', 'Precision')}</label>
+                                <input type="number" class="form-control form-control-sm" placeholder="" value="${precision}" data-field="suggested_display_precision" min="0" max="10">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" data-field="force_update" ${forceUpdate ? 'checked' : ''}>
+                                    <label class="form-check-label small">${t('mapping_editor.field_force_update', 'Force Update')}</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-6">
+                                <label class="form-label small">${t('mapping_editor.field_value_template', 'Value Template')}</label>
+                                <input type="text" class="form-control form-control-sm font-monospace" placeholder="auto-generated" value="${valueTemplate.replace(/"/g, '&quot;')}" data-field="value_template">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Rotate chevron on collapse toggle
+            const collapseEl = row.querySelector('.collapse');
+            collapseEl.addEventListener('show.bs.collapse', () => {
+                row.querySelector('.bi-chevron-right')?.classList.replace('bi-chevron-right', 'bi-chevron-down');
+            });
+            collapseEl.addEventListener('hide.bs.collapse', () => {
+                row.querySelector('.bi-chevron-down')?.classList.replace('bi-chevron-down', 'bi-chevron-right');
+            });
+
+            container.appendChild(row);
+        }
+
+        function removeHaMappingRow(btn) {
+            const row = btn.closest('.ha-mapping-row');
+            row.remove();
+            const container = document.getElementById('ha-mapping-rows');
+            if (container.children.length === 0) {
+                document.getElementById('ha-mapping-empty').style.display = '';
+            }
+        }
+
+        function onComponentChange(select) {
+            const row = select.closest('.ha-mapping-row');
+            const dcSelect = row.querySelector('[data-field="device_class"]');
+            const component = select.value;
+            dcSelect.innerHTML = getDeviceClassOptions(component, '');
+        }
+
+        function getDeviceClassOptions(component, selected) {
+            const classes = {
+                'binary_sensor': ['', 'battery', 'cold', 'door', 'garage_door', 'gas', 'heat', 'moisture', 'motion', 'moving', 'occupancy', 'opening', 'plug', 'power', 'problem', 'safety', 'smoke', 'sound', 'vibration', 'window'],
+                'sensor': ['', 'battery', 'current', 'energy', 'humidity', 'illuminance', 'power', 'pressure', 'signal_strength', 'temperature', 'timestamp', 'voltage'],
+                'cover': ['', 'awning', 'blind', 'curtain', 'garage', 'gate', 'shade', 'shutter', 'window'],
+                'switch': ['', 'outlet', 'switch'],
+                'light': [''],
+                'climate': [''],
+                'fan': ['']
+            };
+            const options = classes[component] || [''];
+            return options.map(c =>
+                `<option value="${c}" ${c === selected ? 'selected' : ''}>${c || '(none)'}</option>`
+            ).join('');
+        }
+
+        function collectHaMapping() {
+            const rows = document.querySelectorAll('.ha-mapping-row');
+            if (rows.length === 0) return null;
+
+            const mapping = {};
+            let valid = true;
+
+            rows.forEach(row => {
+                const shortcut = (row.querySelector('[data-field="shortcut"]').value || '').trim();
+                if (!shortcut) {
+                    valid = false;
+                    return;
+                }
+
+                const entry = {
+                    component: row.querySelector('[data-field="component"]').value
+                };
+
+                const name = row.querySelector('[data-field="name"]').value.trim();
+                if (name) entry.name = name;
+
+                const dc = row.querySelector('[data-field="device_class"]').value;
+                if (dc) entry.device_class = dc;
+
+                const icon = row.querySelector('[data-field="icon"]').value.trim();
+                if (icon) entry.icon = icon;
+
+                const unit = row.querySelector('[data-field="unit_of_measurement"]').value.trim();
+                if (unit) entry.unit_of_measurement = unit;
+
+                // Advanced fields
+                const stateClass = row.querySelector('[data-field="state_class"]')?.value || '';
+                if (stateClass) entry.state_class = stateClass;
+                const entityCat = row.querySelector('[data-field="entity_category"]')?.value || '';
+                if (entityCat) entry.entity_category = entityCat;
+                const expireStr = row.querySelector('[data-field="expire_after"]')?.value || '';
+                if (expireStr !== '') entry.expire_after = parseInt(expireStr);
+                const precisionStr = row.querySelector('[data-field="suggested_display_precision"]')?.value || '';
+                if (precisionStr !== '') entry.suggested_display_precision = parseInt(precisionStr);
+                const forceUpdate = row.querySelector('[data-field="force_update"]')?.checked || false;
+                if (forceUpdate) entry.force_update = true;
+                const valTpl = row.querySelector('[data-field="value_template"]')?.value?.trim() || '';
+                if (valTpl) entry.value_template = valTpl;
+
+                mapping[shortcut] = entry;
+            });
+
+            if (!valid) return undefined; // signal validation error
+            return Object.keys(mapping).length > 0 ? mapping : null;
+        }
+
+        function populateHaMapping(haMapping) {
+            const container = document.getElementById('ha-mapping-rows');
+            container.innerHTML = '';
+
+            if (!haMapping || Object.keys(haMapping).length === 0) {
+                document.getElementById('ha-mapping-empty').style.display = '';
+                return;
+            }
+
+            document.getElementById('ha-mapping-empty').style.display = 'none';
+
+            for (const [shortcut, config] of Object.entries(haMapping)) {
+                addHaMappingRow(
+                    shortcut,
+                    config.component || 'binary_sensor',
+                    config.name || '',
+                    config.device_class || '',
+                    config.icon || '',
+                    config.unit_of_measurement || '',
+                    {
+                        state_class: config.state_class,
+                        entity_category: config.entity_category,
+                        expire_after: config.expire_after,
+                        force_update: config.force_update,
+                        suggested_display_precision: config.suggested_display_precision,
+                        value_template: config.value_template
+                    }
+                );
+            }
+        }
+
+        // ===== Save/Edit Custom Profile =====
+
+        async function saveCustomProfile() {
+            const form = document.getElementById('custom-profile-form');
+            const formData = new FormData(form);
+
+            // Validate required fields (HTML 'required' doesn't work with onclick)
+            const rorg = (formData.get('rorg') || '').trim();
+            const func = (formData.get('func') || '').trim();
+            const type = (formData.get('type') || '').trim();
+            const description = (formData.get('description') || '').trim();
+
+            if (!rorg || !func || !type) {
+                showToast(t('toast.rorg_func_type_required', 'RORG, FUNC, and TYPE are required'), 'danger');
+                return;
+            }
+            if (!description) {
+                showToast(t('toast.description_required', 'Description is required'), 'danger');
+                return;
+            }
+
+            try {
+                let fields = [];
+                const fieldsText = (formData.get('fields') || '').trim();
+                if (fieldsText) {
+                    fields = JSON.parse(fieldsText);
+                    if (!Array.isArray(fields)) {
+                        showToast(t('toast.fields_json_array', 'Fields must be a JSON array'), 'danger');
+                        return;
+                    }
+                }
+
+                // Collect HA mapping from builder (visual or text mode)
+                const haMapping = getHaMappingData();
+                if (haMapping === undefined) {
+                    showToast(t('mapping_editor.ha_need_shortcut', 'HA Mapping: All rows need a Shortcut (or fix YAML errors)'), 'danger');
+                    return;
+                }
+
+                // Check if we're editing or creating
+                const editEepId = form.dataset.editEepId;
+                const url = editEepId
+                    ? getApiUrl(`/api/eep/custom/${editEepId}`)
+                    : getApiUrl('/api/eep/custom');
+                const method = editEepId ? 'PUT' : 'POST';
+
+                const payload = {
+                    rorg: rorg,
+                    func: func,
+                    type: type,
+                    description: description,
+                    fields: fields
+                };
+                if (haMapping) {
+                    payload.ha_mapping = haMapping;
+                }
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => null);
+                    const detail = errData?.detail || `Server error (${response.status})`;
+                    throw new Error(detail);
+                }
+
+                bootstrap.Modal.getInstance(document.getElementById('customProfileModal')).hide();
+                form.reset();
+                delete form.dataset.editEepId;
+                document.querySelector('#customProfileModal .modal-title').textContent = t('modal.custom_profile_title', 'Create Custom EEP Profile');
+                // Clear HA mapping rows
+                document.getElementById('ha-mapping-rows').innerHTML = '';
+                document.getElementById('ha-mapping-empty').style.display = '';
+                loadProfiles();
+                showToast(editEepId ? t('modal.profile_updated', 'Custom profile updated') : t('modal.profile_saved', 'Custom profile created'), 'success');
+                // Show the profile details (use editEepId for updates, compute from form for new)
+                const showEepId = editEepId || `${rorg.toUpperCase().replace('0X','')}-${func.toUpperCase().replace('0X','').padStart(2,'0')}-${type.toUpperCase().replace('0X','').padStart(2,'0')}`;
+                showProfileDetails(showEepId);
+            } catch (error) {
+                showToast(error.message, 'danger');
+            }
+        }
+
+        function filterDevices() {
+            const query = document.getElementById('device-search').value.toLowerCase();
+            const cards = document.querySelectorAll('#device-list > .col-md-4');
+
+            cards.forEach(card => {
+                const text = card.dataset.search || card.textContent.toLowerCase();
+                card.style.display = text.includes(query) ? '' : 'none';
+            });
+        }
+
+        function filterProfiles() {
+            const query = document.getElementById('profile-search').value.toLowerCase();
+            const container = document.getElementById('eep-tree');
+            const allItems = container.querySelectorAll('.eep-item');
+
+            if (!query) {
+                // Reset: show all elements, then re-collapse standard tree nodes
+                container.querySelectorAll('*').forEach(el => el.style.display = '');
+                container.querySelectorAll('[id^="rorg-"], [id^="func-"]').forEach(el => {
+                    el.style.display = 'none';
+                });
+                return;
+            }
+
+            // Hide everything inside the container first
+            Array.from(container.children).forEach(child => child.style.display = 'none');
+            allItems.forEach(item => item.style.display = 'none');
+            container.querySelectorAll('[id^="rorg-"], [id^="func-"]').forEach(el => {
+                el.style.display = 'none';
+            });
+
+            // Show matching items and expand their parent chain
+            let matchCount = 0;
+            allItems.forEach(item => {
+                const text = item.dataset.search || item.textContent.toLowerCase();
+                if (text.includes(query)) {
+                    matchCount++;
+                    item.style.display = '';
+                    // Walk up and show all ancestor nodes up to the container
+                    let parent = item.parentElement;
+                    while (parent && parent !== container) {
+                        parent.style.display = '';
+                        parent = parent.parentElement;
+                    }
+                }
+            });
+        }
+
+        async function loadRecentTelegrams() {
+            try {
+                const response = await fetch(getApiUrl('/api/gateway/recent-telegrams?limit=10'));
+                const telegrams = await response.json();
+
+                const container = document.getElementById('recent-activity');
+
+                if (telegrams.length === 0) {
+                    container.innerHTML = `<p class="text-muted">${t('dashboard.no_telegrams', 'No telegrams received yet')}</p>`;
+                    return;
+                }
+
+                container.innerHTML = telegrams.map(tg => `
+                    <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                        <div>
+                            <strong>${tg.device_name || t('common.unknown', 'Unknown')}</strong>
+                            <small class="text-muted ms-2">${tg.sender_id}</small>
+                            ${tg.is_teach_in ? `<span class="badge bg-warning ms-2">${t('teach_in.teach_in_badge', 'Teach-In')}</span>` : ''}
+                        </div>
+                        <div>
+                            <span class="badge bg-secondary">${tg.rorg}</span>
+                            <small class="text-muted">${tg.dbm ? tg.dbm + ' dBm' : 'N/A'}</small>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load recent telegrams:', error);
+            }
+        }
+
+        async function clearTelegrams() {
+            try {
+                await fetch(getApiUrl('/api/gateway/clear-telegrams'), { method: 'POST' });
+                loadRecentTelegrams();
+                loadUnknownDevices();
+                showToast(t('toast.telegrams_cleared', 'Telegrams cleared'), 'success');
+            } catch (error) {
+                showToast(t('toast.telegrams_clear_failed', 'Failed to clear telegrams'), 'danger');
+            }
+        }
+
+        async function loadUnknownDevices() {
+            try {
+                const response = await fetch(getApiUrl('/api/gateway/unknown-devices'));
+                const devices = await response.json();
+
+                const container = document.getElementById('unknown-devices-list');
+
+                if (devices.length === 0) {
+                    container.innerHTML = `<p class="text-muted">${t('dashboard.no_unknown', 'No unknown devices detected')}</p>`;
+                    return;
+                }
+
+                container.innerHTML = `
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>${t('table.address', 'Address')}</th>
+                                    <th>${t('table.rorg', 'RORG')}</th>
+                                    <th>${t('table.signal', 'Signal')}</th>
+                                    <th>${t('table.count', 'Count')}</th>
+                                    <th>${t('table.last_seen', 'Last Seen')}</th>
+                                    <th>${t('table.action', 'Action')}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${devices.map(d => `
+                                    <tr>
+                                        <td><code>${d.sender_id}</code></td>
+                                        <td><span class="badge bg-primary">${d.rorg}</span></td>
+                                        <td>${d.dbm ? d.dbm + ' dBm' : '<span class="text-muted">N/A</span>'}</td>
+                                        <td>${d.count}</td>
+                                        <td><small>${new Date(d.last_seen).toLocaleTimeString()}</small></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="addUnknownDevice('${d.sender_id}', '${d.rorg}')">
+                                                <i class="bi bi-plus"></i> ${t('table.add', 'Add')}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Failed to load unknown devices:', error);
+            }
+        }
+
+        function addUnknownDevice(senderId, rorg) {
+            // Navigate to teach-in page and pre-fill the form
+            navigateTo('teach-in');
+            showManualEntry();
+            document.querySelector('[name="address"]').value = senderId;
+            document.querySelector('[name="rorg"]').value = rorg;
+        }
+
+        // === EEP.xml Upload Management ===
+
+        async function loadEepInfo() {
+            try {
+                const response = await fetch(getApiUrl('/api/system/eep-info'));
+                const data = await response.json();
+
+                const sourceLabels = {
+                    user: t('settings.eep_source_user', 'Custom (uploaded)'),
+                    bundled: t('settings.eep_source_bundled', 'Bundled (default)'),
+                    minimal: t('settings.eep_source_minimal', 'Minimal (fallback)')
+                };
+
+                document.getElementById('eep-source').textContent = sourceLabels[data.source] || data.source;
+
+                const fileSize = data.source === 'user' ? data.user_file_size : data.bundled_file_size;
+                document.getElementById('eep-file-size').textContent = fileSize > 0 ? formatFileSize(fileSize) : '-';
+                document.getElementById('eep-profile-count').textContent = data.profile_count;
+
+                document.getElementById('eep-delete-btn').style.display = data.user_file_exists ? '' : 'none';
+            } catch (error) {
+                console.error('Failed to load EEP info:', error);
+            }
+        }
+
+        async function uploadEep(input) {
+            if (!input.files.length) return;
+
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+
+            try {
+                const response = await fetch(getApiUrl('/api/system/upload-eep'), {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    showToast(t('settings.eep_upload_failed', 'EEP.xml upload failed') + ': ' + (error.detail || ''), 'danger');
+                    return;
+                }
+
+                showToast(t('settings.eep_upload_success', 'EEP.xml uploaded successfully'), 'success');
+                loadEepInfo();
+                loadStatus();
+                loadProfiles(); // Refresh tree to detect orphaned mappings
+            } catch (error) {
+                showToast(t('settings.eep_upload_failed', 'EEP.xml upload failed'), 'danger');
+            }
+
+            input.value = '';
+        }
+
+        async function deleteEep() {
+            if (!confirm(t('settings.eep_delete_confirm', 'Delete custom EEP.xml and revert to bundled version?'))) return;
+
+            try {
+                const response = await fetch(getApiUrl('/api/system/delete-eep'), {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    showToast(t('settings.eep_delete_failed', 'Failed to delete custom EEP.xml'), 'danger');
+                    return;
+                }
+
+                showToast(t('settings.eep_delete_success', 'Custom EEP.xml deleted, reverted to bundled'), 'success');
+                loadEepInfo();
+                loadStatus();
+                loadProfiles(); // Refresh tree to detect orphaned mappings
+            } catch (error) {
+                showToast(t('settings.eep_delete_failed', 'Failed to delete custom EEP.xml'), 'danger');
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center text-white bg-${type} border-0`;
+            toast.setAttribute('role', 'alert');
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+            container.appendChild(toast);
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+            toast.addEventListener('hidden.bs.toast', () => toast.remove());
+        }
+    </script>
+</body>
+</html>

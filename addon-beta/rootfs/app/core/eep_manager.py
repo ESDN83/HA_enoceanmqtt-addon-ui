@@ -1,0 +1,545 @@
+"""
+EEP Manager - Handles EnOcean Equipment Profile loading and parsing
+Supports official EEP.xml and custom overrides
+
+The EEP.xml is bundled with the addon - no external downloads required.
+"""
+
+import os
+import json
+import logging
+from typing import Dict, List, Optional, Any
+from pathlib import Path
+from lxml import etree
+import yaml
+import aiofiles
+
+logger = logging.getLogger(__name__)
+
+
+class EEPProfile:
+    """Represents a single EEP profile"""
+
+    def __init__(self, rorg: str, func: str, type_: str, description: str = ""):
+        self.rorg = rorg
+        self.func = func
+        self.type = type_
+        self.description = description
+        self.fields: List[Dict[str, Any]] = []
+        self.ha_mapping: Dict[str, Dict[str, Any]] = {}  # EEP field → HA entity mapping
+        self.is_custom = False
+
+    @property
+    def eep_id(self) -> str:
+        """Returns EEP identifier like A5-02-05"""
+        return f"{self.rorg}-{self.func}-{self.type}"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            "rorg": self.rorg,
+            "func": self.func,
+            "type": self.type,
+            "eep_id": self.eep_id,
+            "description": self.description,
+            "fields": self.fields,
+            "ha_mapping": self.ha_mapping,
+            "is_custom": self.is_custom
+        }
+
+
+class EEPManager:
+    """Manages EEP profiles from official XML and custom overrides"""
+
+    def __init__(self, config_path: str):
+        self.config_path = config_path
+        self.custom_eep_path = os.path.join(config_path, "custom_eep")
+        self.profiles: Dict[str, EEPProfile] = {}
+        self._xml_root = None
+        self._override_cache: Dict[str, Any] = {}
+
+    @property
+    def profile_count(self) -> int:
+        """Returns number of loaded profiles"""
+        return len(self.profiles)
+
+    def get_eep_info(self) -> Dict[str, Any]:
+        """Get information about loaded EEP.xml"""
+        user_eep = os.path.join(self.config_path, "EEP.xml")
+        bundled_eep = os.path.join(os.path.dirname(__file__), "..", "data", "EEP.xml")
+        user_exists = os.path.exists(user_eep)
+        bundled_exists = os.path.exists(bundled_eep)
+
+        if user_exists:
+            source = "user"
+        elif bundled_exists:
+            source = "bundled"
+        else:
+            source = "minimal"
+
+        return {
+            "source": source,
+            "profile_count": self.profile_count,
+            "user_file_exists": user_exists,
+            "user_file_size": os.path.getsize(user_eep) if user_exists else 0,
+            "bundled_file_size": os.path.getsize(bundled_eep) if bundled_exists else 0,
+        }
+
+    async def initialize(self):
+        """Initialize EEP manager - load base and custom profiles"""
+        # Load base EEP.xml
+        await self._load_base_eep()
+
+        # Seed bundled custom profiles to persistent storage
+        # (copies manufacturer profiles shipped with addon, updates if bundled has more fields)
+        await self._seed_bundled_profiles()
+
+        # Load custom overrides from persistent storage
+        await self._load_custom_profiles()
+
+        # Load mapping overrides into sync cache (used by mapping_manager)
+        await self._load_overrides()
+
+        logger.info(f"EEP Manager initialized with {self.profile_count} profiles")
+
+    async def _load_base_eep(self):
+        """Load and parse the base EEP.xml file
+
+        The EEP.xml is bundled with the addon in the data directory.
+        Users can also provide their own EEP.xml in the config directory.
+        No external downloads are performed.
+        """
+        # Bundled EEP.xml (shipped with addon)
+        bundled_eep = os.path.join(os.path.dirname(__file__), "..", "data", "EEP.xml")
+        # User-provided EEP.xml (optional override in config)
+        user_eep = os.path.join(self.config_path, "EEP.xml")
+
+        xml_content = None
+
+        # Try user-provided EEP.xml first (allows updates without addon rebuild)
+        if os.path.exists(user_eep):
+            logger.info(f"Loading user EEP.xml from: {user_eep}")
+            async with aiofiles.open(user_eep, 'rb') as f:
+                xml_content = await f.read()
+
+        # Use bundled version (default)
+        elif os.path.exists(bundled_eep):
+            logger.info(f"Loading bundled EEP.xml: {bundled_eep}")
+            async with aiofiles.open(bundled_eep, 'rb') as f:
+                xml_content = await f.read()
+
+        else:
+            logger.error(f"CRITICAL: Bundled EEP.xml not found at {bundled_eep}")
+
+        if xml_content:
+            await self._parse_eep_xml(xml_content)
+        else:
+            logger.warning("No EEP.xml found - using built-in minimal profiles")
+            self._load_minimal_profiles()
+
+    async def _parse_eep_xml(self, xml_content: bytes):
+        """Parse EEP.xml content and extract profiles"""
+        try:
+            self._xml_root = etree.fromstring(xml_content)
+
+            # Navigate the EEP.xml structure
+            # Structure: telegrams -> telegram (rorg) -> profiles (func) -> profile (type)
+            for telegram in self._xml_root.findall(".//telegram"):
+                rorg = telegram.get("rorg", "")
+                rorg_type = telegram.get("type", "")
+
+                for profiles in telegram.findall("profiles"):
+                    func = profiles.get("func", "")
+                    func_desc = profiles.get("description", "")
+
+                    for profile in profiles.findall("profile"):
+                        type_ = profile.get("type", "")
+                        type_desc = profile.get("description", func_desc)
+
+                        # Format RORG, FUNC, TYPE as hex strings like "A5", "02", "05"
+                        rorg_fmt = rorg.replace("0x", "").upper() if rorg.startswith("0x") else rorg.upper()
+                        func_fmt = func.replace("0x", "").upper().zfill(2) if func else "00"
+                        type_fmt = type_.replace("0x", "").upper().zfill(2) if type_ else "00"
+
+                        eep_profile = EEPProfile(rorg_fmt, func_fmt, type_fmt, type_desc)
+
+                        # Parse data fields
+                        eep_profile.fields = self._parse_profile_fields(profile)
+
+                        self.profiles[eep_profile.eep_id] = eep_profile
+
+            logger.info(f"Parsed {len(self.profiles)} profiles from EEP.xml")
+
+        except Exception as e:
+            logger.error(f"Failed to parse EEP.xml: {e}")
+
+    def _parse_profile_fields(self, profile_element) -> List[Dict[str, Any]]:
+        """Parse data fields from a profile element"""
+        fields = []
+
+        # Support multiple <data> elements (some profiles have data command="1", command="2", etc.)
+        data_elements = profile_element.findall("data")
+        if not data_elements:
+            return fields
+
+        for data_element in data_elements:
+            # Track which command this data block belongs to
+            command_id = data_element.get("command", None)
+
+            # Parse different field types
+            for field in data_element:
+                field_info = {
+                    "shortcut": field.get("shortcut", ""),
+                    "description": field.get("description", ""),
+                    "offset": int(field.get("offset", 0)),
+                    "size": int(field.get("size", 1)),
+                    "type": field.tag  # enum, value, status, command, etc.
+                }
+
+                # Tag with command ID if from a multi-command profile
+                if command_id is not None:
+                    field_info["command"] = command_id
+
+                # Parse enum values
+                if field.tag == "enum":
+                    field_info["values"] = []
+                    for item in field.findall("item"):
+                        field_info["values"].append({
+                            "value": item.get("value", ""),
+                            "description": item.get("description", "")
+                        })
+                    # Also parse range items (e.g., "3-127: reserved")
+                    for rangeitem in field.findall("rangeitem"):
+                        field_info["values"].append({
+                            "start": rangeitem.get("start", ""),
+                            "end": rangeitem.get("end", ""),
+                            "description": rangeitem.get("description", ""),
+                            "type": "range"
+                        })
+
+                # Parse value ranges (child elements, not attributes!)
+                elif field.tag == "value":
+                    field_info["unit"] = field.get("unit", "")
+                    range_elem = field.find("range")
+                    if range_elem is not None:
+                        min_el = range_elem.find("min")
+                        max_el = range_elem.find("max")
+                        field_info["min"] = float(min_el.text) if min_el is not None and min_el.text else 0
+                        field_info["max"] = float(max_el.text) if max_el is not None and max_el.text else 255
+                    scale_elem = field.find("scale")
+                    if scale_elem is not None:
+                        min_el = scale_elem.find("min")
+                        max_el = scale_elem.find("max")
+                        field_info["scale_min"] = float(min_el.text) if min_el is not None and min_el.text else 0
+                        field_info["scale_max"] = float(max_el.text) if max_el is not None and max_el.text else 255
+
+                # Parse command fields (similar to enum)
+                elif field.tag == "command":
+                    field_info["values"] = []
+                    for item in field.findall("item"):
+                        field_info["values"].append({
+                            "value": item.get("value", ""),
+                            "description": item.get("description", "")
+                        })
+
+                fields.append(field_info)
+
+        return fields
+
+    def _load_minimal_profiles(self):
+        """Load minimal built-in profiles as fallback"""
+        # Basic profiles for common devices
+        minimal = [
+            ("A5", "02", "05", "Temperature Sensor 0°C to +40°C"),
+            ("A5", "04", "01", "Temperature and Humidity Sensor"),
+            ("A5", "07", "01", "Occupancy Sensor"),
+            ("A5", "30", "03", "Digital Input (4 channels)"),
+            ("D5", "00", "01", "Single Input Contact"),
+            ("F6", "02", "01", "Rocker Switch, 2 Rockers"),
+            ("D2", "01", "0F", "Electronic Switch"),
+            ("D2", "05", "00", "Blinds Control"),
+        ]
+
+        for rorg, func, type_, desc in minimal:
+            profile = EEPProfile(rorg, func, type_, desc)
+            self.profiles[profile.eep_id] = profile
+
+    @staticmethod
+    def _profile_content_hash(data: dict) -> str:
+        """Create a comparable string from profile fields and ha_mapping.
+
+        Used to detect when bundled profiles have changed content
+        (e.g., corrected bit offsets) even if field count is the same.
+        """
+        import json
+        profile = data.get("profile", {})
+        fields = profile.get("fields", [])
+        ha_mapping = data.get("ha_mapping", {})
+        # Sort keys for deterministic comparison
+        return json.dumps({"fields": fields, "ha_mapping": ha_mapping}, sort_keys=True)
+
+    async def _seed_bundled_profiles(self):
+        """Seed bundled custom profiles to persistent storage.
+
+        Copies manufacturer profiles shipped with the addon (e.g., Kessel Staufix)
+        to /data/custom_eep/. Updates existing profiles if the bundled version
+        has different content (fields, offsets, ha_mapping).
+        """
+        bundled_path = os.path.join(os.path.dirname(__file__), "..", "data", "custom_eep")
+        if not os.path.exists(bundled_path):
+            return
+
+        os.makedirs(self.custom_eep_path, exist_ok=True)
+
+        for filename in os.listdir(bundled_path):
+            if not (filename.endswith(".yaml") or filename.endswith(".yml")):
+                continue
+
+            bundled_file = os.path.join(bundled_path, filename)
+            try:
+                async with aiofiles.open(bundled_file, 'r') as f:
+                    bundled_content = await f.read()
+                    bundled_data = yaml.safe_load(bundled_content)
+
+                if not bundled_data or "profile" not in bundled_data:
+                    continue
+
+                profile_data = bundled_data["profile"]
+                rorg = profile_data.get("rorg", "").upper()
+                func = profile_data.get("func", "").upper().zfill(2)
+                type_ = profile_data.get("type", "").upper().zfill(2)
+
+                # Target filename in persistent storage (canonical name)
+                target_file = os.path.join(self.custom_eep_path, f"{rorg}-{func}-{type_}.yaml")
+
+                should_copy = False
+
+                if os.path.exists(target_file):
+                    # Check if bundled profile differs from existing
+                    async with aiofiles.open(target_file, 'r') as f:
+                        existing_content = await f.read()
+                        existing_data = yaml.safe_load(existing_content)
+
+                    bundled_hash = self._profile_content_hash(bundled_data)
+                    existing_hash = self._profile_content_hash(existing_data)
+
+                    if bundled_hash != existing_hash:
+                        logger.info(
+                            f"Updating custom profile {rorg}-{func}-{type_}: "
+                            f"bundled content differs from existing (fields/offsets/mapping changed)"
+                        )
+                        should_copy = True
+                    else:
+                        logger.debug(f"Bundled profile {rorg}-{func}-{type_} unchanged, skipping")
+                else:
+                    logger.info(f"Seeding bundled custom profile: {rorg}-{func}-{type_}")
+                    should_copy = True
+
+                if should_copy:
+                    async with aiofiles.open(target_file, 'w') as f:
+                        await f.write(bundled_content)
+
+            except Exception as e:
+                logger.error(f"Failed to seed bundled profile {filename}: {e}")
+
+    async def _load_custom_profiles(self):
+        """Load custom EEP profile overrides from persistent storage"""
+        if not os.path.exists(self.custom_eep_path):
+            os.makedirs(self.custom_eep_path, exist_ok=True)
+            return
+
+        for filename in os.listdir(self.custom_eep_path):
+            if filename.endswith(".yaml") or filename.endswith(".yml"):
+                filepath = os.path.join(self.custom_eep_path, filename)
+                try:
+                    async with aiofiles.open(filepath, 'r') as f:
+                        content = await f.read()
+                        data = yaml.safe_load(content)
+
+                        if data and "profile" in data:
+                            profile_data = data["profile"]
+                            rorg = profile_data.get("rorg", "").upper()
+                            func = profile_data.get("func", "").upper().zfill(2)
+                            type_ = profile_data.get("type", "").upper().zfill(2)
+                            desc = profile_data.get("description", "Custom Profile")
+
+                            profile = EEPProfile(rorg, func, type_, desc)
+                            profile.fields = profile_data.get("fields", [])
+                            profile.is_custom = True
+
+                            # Load HA mapping if present (either in profile or top-level)
+                            ha_mapping = data.get("ha_mapping", {})
+                            if not ha_mapping:
+                                ha_mapping = profile_data.get("ha_mapping", {})
+                            profile.ha_mapping = ha_mapping
+
+                            self.profiles[profile.eep_id] = profile
+                            logger.info(f"Loaded custom profile: {profile.eep_id}"
+                                        f"{' with ha_mapping' if ha_mapping else ''}")
+
+                except Exception as e:
+                    logger.error(f"Failed to load custom profile {filename}: {e}")
+
+    def get_profile(self, eep_id: str) -> Optional[EEPProfile]:
+        """Get a profile by EEP ID"""
+        return self.profiles.get(eep_id.upper())
+
+    def get_profile_by_rorg_func_type(self, rorg: str, func: str, type_: str) -> Optional[EEPProfile]:
+        """Get a profile by RORG, FUNC, TYPE"""
+        eep_id = f"{rorg.upper()}-{func.upper().zfill(2)}-{type_.upper().zfill(2)}"
+        return self.profiles.get(eep_id)
+
+    def search_profiles(self, query: str) -> List[EEPProfile]:
+        """Search profiles by description or EEP ID"""
+        query = query.lower()
+        results = []
+        for profile in self.profiles.values():
+            if query in profile.eep_id.lower() or query in profile.description.lower():
+                results.append(profile)
+        return results
+
+    def get_all_profiles(self) -> List[Dict[str, Any]]:
+        """Get all profiles as dictionaries"""
+        return [p.to_dict() for p in self.profiles.values()]
+
+    def get_profiles_by_rorg(self, rorg: str) -> List[EEPProfile]:
+        """Get all profiles for a specific RORG"""
+        rorg = rorg.upper()
+        return [p for p in self.profiles.values() if p.rorg == rorg]
+
+    async def save_custom_profile(self, profile_data: Dict[str, Any],
+                                   ha_mapping: Optional[Dict[str, Dict[str, Any]]] = None) -> bool:
+        """Save a custom profile with optional HA mapping"""
+        try:
+            rorg = profile_data.get("rorg", "").upper()
+            func = profile_data.get("func", "").upper().zfill(2)
+            type_ = profile_data.get("type", "").upper().zfill(2)
+
+            filename = f"{rorg}-{func}-{type_}.yaml"
+            filepath = os.path.join(self.custom_eep_path, filename)
+
+            os.makedirs(self.custom_eep_path, exist_ok=True)
+
+            # Build YAML structure
+            save_data = {"profile": profile_data}
+            if ha_mapping:
+                save_data["ha_mapping"] = ha_mapping
+
+            async with aiofiles.open(filepath, 'w') as f:
+                await f.write(yaml.dump(save_data, default_flow_style=False, allow_unicode=True))
+
+            # Reload the profile
+            profile = EEPProfile(rorg, func, type_, profile_data.get("description", ""))
+            profile.fields = profile_data.get("fields", [])
+            profile.ha_mapping = ha_mapping or {}
+            profile.is_custom = True
+            self.profiles[profile.eep_id] = profile
+
+            logger.info(f"Saved custom profile: {profile.eep_id}"
+                        f"{' with ha_mapping' if ha_mapping else ''}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to save custom profile: {e}")
+            return False
+
+    async def delete_custom_profile(self, eep_id: str) -> bool:
+        """Delete a custom profile"""
+        try:
+            profile = self.profiles.get(eep_id.upper())
+            if not profile or not profile.is_custom:
+                return False
+
+            filename = f"{eep_id.upper()}.yaml"
+            filepath = os.path.join(self.custom_eep_path, filename)
+
+            if os.path.exists(filepath):
+                os.remove(filepath)
+
+            del self.profiles[eep_id.upper()]
+            logger.info(f"Deleted custom profile: {eep_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to delete custom profile: {e}")
+            return False
+
+    # === Mapping Overrides ===
+
+    def _overrides_file(self) -> str:
+        return os.path.join(self.config_path, "mapping_overrides.yaml")
+
+    def _legacy_overrides_file(self) -> str:
+        return os.path.join(self.config_path, "mapping_overrides.json")
+
+    async def _load_overrides(self) -> Dict[str, Any]:
+        path = self._overrides_file()
+        legacy_path = self._legacy_overrides_file()
+
+        # One-time migration from JSON to YAML
+        if not os.path.exists(path) and os.path.exists(legacy_path):
+            try:
+                async with aiofiles.open(legacy_path, 'r') as f:
+                    data = json.loads(await f.read())
+                await self._save_overrides(data)
+                logger.info("Migrated mapping_overrides.json -> mapping_overrides.yaml")
+                self._override_cache = data
+                return data
+            except Exception:
+                return {}
+
+        if not os.path.exists(path):
+            return {}
+        try:
+            async with aiofiles.open(path, 'r') as f:
+                data = yaml.safe_load(await f.read()) or {}
+                self._override_cache = data
+                return data
+        except Exception:
+            return {}
+
+    async def _save_overrides(self, overrides: Dict[str, Any]):
+        path = self._overrides_file()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        async with aiofiles.open(path, 'w') as f:
+            await f.write(yaml.dump(overrides, default_flow_style=False, allow_unicode=True))
+        self._override_cache = overrides
+
+    def get_mapping_override_sync(self, eep_id: str) -> Optional[Dict[str, Any]]:
+        """Get mapping override from in-memory cache (sync, for use by mapping_manager)"""
+        return self._override_cache.get(eep_id.upper())
+
+    async def get_mapping_override(self, eep_id: str) -> Optional[Dict[str, Any]]:
+        """Get mapping override for an EEP profile (None if no override)"""
+        overrides = await self._load_overrides()
+        return overrides.get(eep_id.upper())
+
+    async def save_mapping_override(self, eep_id: str, mapping: Dict[str, Dict[str, Any]]) -> bool:
+        """Save a mapping override for an EEP profile"""
+        try:
+            overrides = await self._load_overrides()
+            overrides[eep_id.upper()] = mapping
+            await self._save_overrides(overrides)
+            logger.info(f"Saved mapping override for {eep_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save mapping override for {eep_id}: {e}")
+            return False
+
+    async def delete_mapping_override(self, eep_id: str) -> bool:
+        """Delete a mapping override, reverting to EEP.xml default"""
+        try:
+            overrides = await self._load_overrides()
+            if eep_id.upper() not in overrides:
+                return False
+            del overrides[eep_id.upper()]
+            await self._save_overrides(overrides)
+            logger.info(f"Deleted mapping override for {eep_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete mapping override for {eep_id}: {e}")
+            return False
+
+    async def get_all_mapping_overrides(self) -> Dict[str, Any]:
+        """Get all mapping overrides"""
+        return await self._load_overrides()
