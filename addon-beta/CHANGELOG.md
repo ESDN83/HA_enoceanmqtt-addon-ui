@@ -1,6 +1,12 @@
 # Changelog
 
-## [1.4.0-beta1] - 2026-07-03 (test branch, unreleased)
+## [1.4.0-beta2] - 2026-07-03 (test branch, unreleased)
+
+### Bug Fixes (D2-05-00, issue #2 — needs field testing)
+- **Stop command now uses the correct telegram length** — Per EEP D2-05-00, the `Stop` command (CMD 2) is a **single data byte** (`CHN|CMD`), not the 4-byte `Go to Position and Angle` layout. The beta1 build sent 4 bytes (`7F7F0002`), which the actuator rejected — so Stop physically did nothing (confirmed in @EricGIRARD35's logs). Now sends the correct 1-byte `02`. Verified against the EnOcean EEP spec and the python-enocean reference profile.
+
+### New Features (D2-05-00, issue #2 — needs field testing)
+- **UTE (bidirectional) teach-in for NodOn D2-05-00 covers** — NodOn shutter modules put into bidirectional learn mode emit a UTE teach-in **query** (RORG `0xD4`). The beta1 build ignored these (`RORG mismatch: got 0xD4 … skipping decode`), so pairing never completed and the module stayed unresponsive to commands. The add-on now, while a teach-in session is open, answers a UTE query with a proper UTE teach-in **response** (`DB6=0x91` "accepted", EEP fields echoed) addressed back to the module, binding the gateway Sender ID `base_id + offset`. Telegram bytes verified against the python-enocean `UTETeachInPacket` reference. The teach-in wizard now pre-fills the bound Sender ID and pre-selects the Cover role so the new device is configured with the exact Sender ID the module was told to bind (the mismatch that otherwise breaks control).
 
 ### New Features (needs field testing)
 - **D2-05-00 Blind Actuators (NodOn/EnOcean VLD)** — Covers configured with EEP `D2-05-xx` now send proper structured VLD (RORG D2) command telegrams instead of simulated F6 rocker presses. This makes **Stop** work and adds a real **Position** slider (0–100 %) in Home Assistant. `Go to Position and Angle` (CMD 1) and `Stop` (CMD 2) are used; HA positions are inverted to the EnOcean convention (0 % = open). Eltako/RPS covers keep the existing F6 rocker-simulation path — the command handler branches on the configured EEP. (#2)

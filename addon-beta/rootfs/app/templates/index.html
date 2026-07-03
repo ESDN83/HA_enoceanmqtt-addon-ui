@@ -2415,6 +2415,21 @@
                     document.querySelector('[name="func"]').value = data.data.func;
                     document.querySelector('[name="type"]').value = data.data.type;
 
+                    // UTE (bidirectional, e.g. NodOn D2-05-00 covers): we already
+                    // answered with a UTE response binding response_sender. The
+                    // device MUST be configured with that exact Sender ID, so
+                    // pre-fill it and pre-select the Cover role to avoid a
+                    // sender-ID mismatch (see issue #2).
+                    if (data.data.teach_method === 'UTE' && data.data.response_sender) {
+                        const roleField = document.querySelector('[name="actuator_type"]');
+                        if (roleField && roleField.value === '') {
+                            roleField.value = 'cover';
+                            toggleSenderIdField(roleField);  // reveal the Sender ID field
+                        }
+                        const senderField = document.querySelector('[name="sender_id"]');
+                        if (senderField) senderField.value = data.data.response_sender;
+                    }
+
                     cancelTeachIn();
                     wizardNext();
 
