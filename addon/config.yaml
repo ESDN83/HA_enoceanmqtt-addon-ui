@@ -1,6 +1,6 @@
 ---
 name: "EnOcean MQTT UI"
-version: "1.2.5"
+version: "1.3.0"
 slug: "enocean-mqtt-ui"
 description: "All-in-One EnOcean to MQTT bridge with web UI. Configure devices visually, create custom EEP profiles, and manage MQTT mappings - no config files needed!"
 url: "https://github.com/ESDN83/HA_enoceanmqtt-addon-ui"
@@ -19,7 +19,7 @@ panel_title: "EnOcean"
 homeassistant_api: true
 hassio_api: true
 services:
-  - mqtt:need
+  - mqtt:want
 map:
   - config:rw
   - share:rw
@@ -30,6 +30,10 @@ options:
   log_level: "info"
   cache_device_states: true
   mqtt:
+    host: ""
+    port: 1883
+    username: ""
+    password: ""
     discovery_prefix: "homeassistant"
     prefix: "enoceanmqtt"
     client_id: "enocean_gateway"
@@ -40,6 +44,10 @@ schema:
   log_level: "list(debug|info|warning|error)"
   cache_device_states: "bool"
   mqtt:
+    host: "str?"
+    port: "port?"
+    username: "str?"
+    password: "password?"
     discovery_prefix: "str"
     prefix: "str"
     client_id: "str"

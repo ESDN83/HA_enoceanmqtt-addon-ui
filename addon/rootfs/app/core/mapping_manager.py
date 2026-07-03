@@ -18,6 +18,36 @@ import aiofiles
 
 logger = logging.getLogger(__name__)
 
+
+def _rocker_button_binary_sensors() -> Dict[str, Any]:
+    """Build the four per-button binary_sensor mappings for an RPS rocker
+    switch (F6-02-01 / F6-02-02).
+
+    Each button is ON while it is physically held (Energy Bow EB == 1 and the
+    rocker field points at that button) and OFF on release (EB == 0). Both the
+    first action (R1) and the optional second action (R2 when SA == 1) are
+    checked, so a two-button press lights up both sensors.
+
+    R1/R2 button encoding per EEP F6-02-0x:
+        0 = AI (Rocker A, bottom)   1 = AO (Rocker A, top)
+        2 = BI (Rocker B, bottom)   3 = BO (Rocker B, top)
+    """
+    buttons = {"AI": 0, "AO": 1, "BI": 2, "BO": 3}
+    mapping: Dict[str, Any] = {}
+    for shortcut, code in buttons.items():
+        mapping[shortcut] = {
+            "component": "binary_sensor",
+            "name": f"Button {shortcut}",
+            "icon": "mdi:gesture-tap-button",
+            "value_template": (
+                "{{ 1 if value_json.EB == 1 and "
+                f"(value_json.R1 == {code} or "
+                f"(value_json.SA == 1 and value_json.R2 == {code})) else 0 }}}}"
+            ),
+        }
+    return mapping
+
+
 # Default mappings for common EEP profiles
 DEFAULT_MAPPINGS = {
     # 4BS Temperature Sensors (A5-02-xx)
@@ -90,7 +120,9 @@ DEFAULT_MAPPINGS = {
             "device_class": "door"
         }
     },
-    # RPS Rocker Switch (F6-02-01)
+    # RPS Rocker Switch, 2 Rockers (F6-02-01)
+    # Keeps the existing Rocker A/B text sensors + Energy Bow (backwards
+    # compatible) and adds one momentary binary_sensor per button (AI/AO/BI/BO).
     "F6-02-01": {
         "R1": {
             "component": "sensor",
@@ -108,7 +140,26 @@ DEFAULT_MAPPINGS = {
             "component": "binary_sensor",
             "name": "Energy Bow",
             "device_class": "power"
-        }
+        },
+        **_rocker_button_binary_sensors()
+    },
+    # RPS Rocker Switch, 2 Rockers, Light and Blind Control (F6-02-02)
+    # e.g. Eltako FT55. One momentary binary_sensor per button (AI/AO/BI/BO)
+    # plus Rocker A/B text sensors for the last-pressed button.
+    "F6-02-02": {
+        "R1": {
+            "component": "sensor",
+            "name": "Rocker A",
+            "icon": "mdi:gesture-tap-button",
+            "value_template": "{{ value_json.R1_text }}"
+        },
+        "R2": {
+            "component": "sensor",
+            "name": "Rocker B",
+            "icon": "mdi:gesture-tap-button",
+            "value_template": "{{ value_json.R2_text }}"
+        },
+        **_rocker_button_binary_sensors()
     },
     # VLD Electronic Switch (D2-01-0F)
     "D2-01-0F": {
