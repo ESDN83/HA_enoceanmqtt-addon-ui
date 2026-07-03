@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/data")
 ENOCEAN_PORT = os.getenv("ENOCEAN_PORT", "")
 CACHE_DEVICE_STATES = os.getenv("CACHE_DEVICE_STATES", "true").lower() == "true"
-VERSION = "1.3.0"
+VERSION = "1.4.0-beta1"
 
 # Global instances
 mqtt_handler: MQTTHandler = None
@@ -354,6 +354,30 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             logger.warning(f"Unknown command '{command}' for {device_name}")
 
     elif device.actuator_type == "cover":
+        # D2-05-xx blind actuators (e.g. NodOn SIN-2-RS-01) speak structured
+        # VLD (RORG D2) commands, NOT F6 rocker presses. Branch on the
+        # configured EEP so Eltako/RPS covers keep the rocker-simulation path.
+        is_d2_05 = device.rorg.upper() == "D2" and str(device.func).zfill(2) == "05"
+
+        if is_d2_05:
+            # Position slider: entity == "position", payload is 0..100 (HA)
+            if entity == "position":
+                try:
+                    ha_pos = int(float(command))
+                except ValueError:
+                    logger.warning(f"Invalid position '{command}' for {device_name}")
+                    return
+                await serial_handler.send_d2_05_command(
+                    sender_id, destination, "POSITION", ha_position=ha_pos
+                )
+                logger.info(f"Sent D2-05 position={ha_pos}% to {device_name}")
+            elif command in ("OPEN", "CLOSE", "STOP"):
+                await serial_handler.send_d2_05_command(sender_id, destination, command)
+                logger.info(f"Sent D2-05 {command} to {device_name}")
+            else:
+                logger.warning(f"Unknown cover command '{command}' for {device_name}")
+            return
+
         if command == "OPEN":
             # BI press+release for open/up
             await serial_handler.send_telegram(

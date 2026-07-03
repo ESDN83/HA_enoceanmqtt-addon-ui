@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.0-beta1] - 2026-07-03 (test branch, unreleased)
+
+### New Features (needs field testing)
+- **D2-05-00 Blind Actuators (NodOn/EnOcean VLD)** — Covers configured with EEP `D2-05-xx` now send proper structured VLD (RORG D2) command telegrams instead of simulated F6 rocker presses. This makes **Stop** work and adds a real **Position** slider (0–100 %) in Home Assistant. `Go to Position and Angle` (CMD 1) and `Stop` (CMD 2) are used; HA positions are inverted to the EnOcean convention (0 % = open). Eltako/RPS covers keep the existing F6 rocker-simulation path — the command handler branches on the configured EEP. (#2)
+
 ## [1.3.0] - 2026-07-03
 
 ### New Features

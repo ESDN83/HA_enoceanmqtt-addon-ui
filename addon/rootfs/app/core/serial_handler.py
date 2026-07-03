@@ -915,6 +915,73 @@ class SerialHandler:
         )
         return success
 
+    async def send_d2_05_command(self, sender_id: int, destination: int,
+                                 command: str, ha_position: int = None,
+                                 channel: int = 0) -> bool:
+        """Send a D2-05-00 (Blinds Control for Position and Angle) VLD command.
+
+        Unlike Eltako actuators — which react to simulated F6 rocker presses —
+        NodOn/EnOcean D2-05-00 shutter modules expect a structured VLD telegram
+        (RORG 0xD2) that carries the command in the payload. This is an
+        *addressed* telegram: destination is the actuator's own ID.
+
+        D2-05-00 "TO" message layout (4 data bytes):
+            DB3 = POS  Position 0..100 %, 127 (0x7F) = "do not change / not used"
+            DB2 = ANG  Angle    0..100 %, 127 (0x7F) = not used
+            DB1 = REPO(bits 7..4) | LOCK(bits 3..0)  — 0 = normal repositioning
+            DB0 = CHN (bits 7..4) | CMD (bits 3..0)
+                  CMD 1 = Go to Position and Angle, CMD 2 = Stop
+
+        Position convention differs between EnOcean and Home Assistant:
+            EnOcean D2-05: 0 % = fully open (up), 100 % = fully closed (down)
+            Home Assistant: 100 = open, 0 = closed
+        so HA positions are inverted here (enocean_pos = 100 - ha_pos), and
+        OPEN maps to EnOcean 0 %, CLOSE to 100 %.
+
+        Args:
+            sender_id: Controller ID the actuator was taught in with (int)
+            destination: Actuator address (int) — addressed, not broadcast
+            command: "OPEN", "CLOSE", "STOP" or "POSITION"
+            ha_position: Target position 0..100 in HA convention (POSITION only)
+            channel: Output channel (default 0)
+        """
+        cmd = command.strip().upper()
+        chn_nibble = (channel & 0x0F) << 4
+
+        if cmd == "STOP":
+            # POS/ANG "not used" (0x7F), REPO/LOCK 0, CMD 2 (Stop)
+            data = bytes([0x7F, 0x7F, 0x00, chn_nibble | 0x02])
+        else:
+            if cmd == "OPEN":
+                enocean_pos = 0      # fully open (up)
+            elif cmd == "CLOSE":
+                enocean_pos = 100    # fully closed (down)
+            elif cmd == "POSITION":
+                if ha_position is None:
+                    logger.warning("D2-05 POSITION command without ha_position")
+                    return False
+                ha_pos = max(0, min(100, int(ha_position)))
+                enocean_pos = 100 - ha_pos   # invert HA -> EnOcean
+            else:
+                logger.warning(f"Unknown D2-05 command: {command}")
+                return False
+            # Go to Position (CMD 1); angle "not used" so the slat angle is
+            # left to the actuator's own logic.
+            data = bytes([enocean_pos & 0xFF, 0x7F, 0x00, chn_nibble | 0x01])
+
+        logger.info(
+            f"Sending D2-05-00 {cmd} (data={data.hex().upper()}) "
+            f"sender=0x{sender_id:08X} dest=0x{destination:08X}"
+        )
+
+        return await self.send_telegram(
+            sender_id=sender_id,
+            rorg=0xD2,
+            data=data,
+            destination=destination,
+            status=0x00
+        )
+
     def register_telegram_callback(self, callback: Callable):
         """Register callback for received telegrams"""
         self._telegram_callbacks.append(callback)
