@@ -1,0 +1,183 @@
+# EnOcean MQTT UI
+
+![EnOcean MQTT Dashboard](https://github.com/user-attachments/assets/6cc73258-3848-4ee0-9aef-250efa3b9080)
+
+## About
+
+All-in-One EnOcean to MQTT bridge with a modern web UI for Home Assistant.
+This add-on replaces the need for separate EnOcean bridges and YAML configuration.
+Add your EnOcean devices visually, browse EEP profiles, and manage MQTT mappings —
+all from within Home Assistant.
+
+### Key Features
+
+- **Visual Device Wizard** — Add, edit and remove EnOcean devices through a web UI
+- **Teach-In Mode** — Automatic device detection when pressing the learn button
+- **96+ EEP Profiles** — Built-in EnOcean Equipment Profile browser
+- **Custom Profiles** — Create profiles for non-standard devices (e.g., Kessel Staufix)
+- **EEP.xml Upload** — Upload your own EEP.xml profile database or use the bundled one
+- **MQTT Discovery** — Devices appear automatically in Home Assistant
+- **Live Telegram Monitor** — Debug incoming EnOcean telegrams in real-time
+- **Unknown Device Detection** — Detect and quick-add unconfigured devices
+- **State Persistence** — Restore device states after restart
+- **Actuator Control** — Control Eltako dimmers, switches, and blinds with teach-in support
+- **HA Entity Mapping Overrides** — Customize HA mappings per EEP profile with inline editor and auto-fill
+- **Advanced Mapping Fields** — state_class, entity_category, expire_after, force_update, display precision, value_template
+- **Visual & Text Mode Editor** — Toggle between visual form and YAML text editor for mapping overrides
+- **Fork Standard Profiles** — Create custom copies of standard EEP profiles to edit fields and mappings
+- **YAML-Based Config** — All configuration files (devices, mappings, overrides) stored as YAML
+- **Export/Import YAML** — Full configuration export/import as YAML files
+- **Local Backups** — Create, list, restore, and delete local backups (devices, mappings, custom profiles, overrides)
+- **Dark Mode** — Automatic light/dark theme based on your Home Assistant settings
+- **Multi-Language UI** — Auto-detects browser language (11 languages supported)
+- **Mobile Friendly** — Responsive UI with sidebar navigation
+
+## Supported Hardware
+
+- **EnOcean USB300** USB transceiver
+- **EnOcean TCM515** USB transceiver
+- Any serial-based EnOcean transceiver module
+
+## Supported EnOcean Profiles
+
+| RORG | Type | Examples |
+|------|------|----------|
+| **RPS (F6)** | Rocker switches | Wall switches, window handles |
+| **1BS (D5)** | Single contacts | Door/window contacts |
+| **4BS (A5)** | Sensors & actuators | Temperature, humidity, occupancy, light, dimmers (A5-38-08) |
+| **VLD (D2)** | Variable length | Electronic switches, blinds, metering |
+| **MSC (D1)** | Manufacturer-specific | Custom devices |
+
+## Quick Start
+
+1. **Configure** your EnOcean USB serial port in the add-on settings
+2. **Start** the add-on and open the Web UI via the sidebar
+3. **Add a device**: Click "Add Device", choose Teach-In, and press the learn button on your EnOcean device
+4. **Done** — The device appears automatically in Home Assistant via MQTT Discovery
+
+## Web UI
+
+![Devices](https://github.com/user-attachments/assets/0e7981a0-9db0-4e63-9bd1-2bd4d20c5c85)
+
+### Dashboard
+Overview with connection status, device counts, recent telegrams and unknown device detection.
+
+### Devices
+List and manage all configured EnOcean devices. Add, edit, or remove devices.
+
+### EEP Profiles
+Browse the complete EnOcean Equipment Profile tree with dedicated sections for
+Custom Profiles, Customized Mappings, and the standard EEP tree. Search across
+all profiles and view field definitions.
+
+![EEP Profiles](https://github.com/user-attachments/assets/fa4d4142-b873-4862-823e-815bec9fc7ac)
+
+### Entity Mappings
+Define how EEP profile fields map to Home Assistant entities (sensor, binary_sensor,
+switch, light, cover, etc.). Each EEP profile detail view includes a "Customize" button
+to override the default mapping — with auto-fill from EEP.xml field definitions and
+per-profile save/reset. Advanced fields like `state_class`, `entity_category`,
+`expire_after`, `force_update`, and `value_template` are supported.
+
+Toggle between Visual and Text (YAML) editing modes for full control:
+
+![Text Mode](https://github.com/user-attachments/assets/d6b188da-a61e-4ec1-aae3-c01bb805b45e)
+
+### Custom & Forked Profiles
+Create fully custom EEP profiles for non-standard devices, or "fork" a standard
+profile to customize its Telegram Fields and HA mappings together.
+
+![Custom Profile](https://github.com/user-attachments/assets/8da98b5c-14cf-4e4e-a26a-cc31aac98e67)
+
+### Add Device
+Wizard for adding new devices via Teach-In (automatic) or manual entry.
+
+### Settings
+Export/import full configuration as YAML, upload custom EEP.xml, local backups
+(create/list/restore/delete — includes devices, mappings, custom profiles, and overrides),
+view system information, restart services.
+
+![Settings](https://github.com/user-attachments/assets/370072b1-7219-4566-a733-2c9e58b018fa)
+
+## Configuration
+
+### Serial Port
+
+Select your EnOcean USB transceiver from the dropdown. Common ports:
+- `/dev/ttyUSB0` (USB300)
+- `/dev/ttyAMA0` (Raspberry Pi GPIO)
+
+Leave empty when using TCP connection.
+
+### TCP Port (Remote Connection)
+
+Connect to a remote EnOcean transceiver over the network. Use this when your
+EnOcean USB stick is connected to a USB-over-IP device (e.g., SMLIGHT SLZB-MR5U
+USB-Passthrough, Silex DS-700, or any ser2net-based setup).
+
+Format: `tcp:HOST:PORT` (e.g., `tcp:192.168.1.118:8638`)
+
+When both serial and TCP are configured, **TCP takes priority**.
+
+### MQTT Settings
+
+By default the add-on automatically connects to the MQTT broker provided by
+Home Assistant (the Mosquitto broker add-on) — leave **Host** empty for this.
+
+To use an **external MQTT broker** (e.g. a standalone Mosquitto container on
+UNRAID, Synology, or another server), fill in the **Host** field. When a host is
+set, the add-on connects there directly instead of using the HA broker, and the
+Port/Username/Password below apply. This also works when you have no MQTT broker
+add-on installed in Home Assistant at all.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| **Host** | *(empty)* | External broker hostname/IP. Leave empty to use Home Assistant's MQTT broker |
+| **Port** | `1883` | Broker port (used only when Host is set) |
+| **Username** | *(empty)* | Broker username (used only when Host is set; leave empty for anonymous) |
+| **Password** | *(empty)* | Broker password (used only when Host is set) |
+| **Discovery Prefix** | `homeassistant` | MQTT discovery prefix for HA auto-detection |
+| **Topic Prefix** | `enoceanmqtt` | Topics are created as `enoceanmqtt/{device}/state` |
+| **Client ID** | `enocean_gateway` | Unique MQTT client identifier |
+
+> **Note:** When using an external broker, make sure Home Assistant's own MQTT
+> integration points at the **same** broker — otherwise HA won't see the
+> discovery messages and no entities will appear.
+
+### Cache Device States
+
+When enabled (default), the add-on persists the last known state of all devices.
+After a restart, these states are republished so that infrequent sensors (like a
+Kessel Staufix that only reports every 8-10 hours) don't show as "unavailable".
+
+## Migration from ChristopheHD Addon
+
+If you are migrating from the ChristopheHD enocean-mqtt addon:
+
+1. Export your config from the old addon (if possible)
+2. Install this addon and stop the old one
+3. Import your devices via the Settings page
+4. The old `enoceanmqtt.devices` file format is supported for import
+5. MQTT topics are compatible — existing HA entities should continue working
+
+## Troubleshooting
+
+### EnOcean Gateway Not Connecting
+- Verify the correct serial port is selected in the addon settings
+- Check that no other addon is using the same serial port
+- Try unplugging and reconnecting the USB transceiver
+
+### Devices Not Appearing in Home Assistant
+- Check that MQTT is connected (green badge in the Web UI)
+- Verify the MQTT discovery prefix matches your HA config (default: `homeassistant`)
+- Check the addon log for errors
+
+### Teach-In Not Working
+- Make sure the EnOcean gateway shows "connected" (green status)
+- Press the teach-in button firmly on your device
+- Some devices require multiple presses or holding the button
+
+## Support
+
+- Report issues on [GitHub](https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/issues)
+- Check logs in Home Assistant: Settings > Add-ons > EnOcean MQTT UI > Log

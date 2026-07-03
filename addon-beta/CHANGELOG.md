@@ -1,0 +1,133 @@
+# Changelog
+
+## [1.4.0-beta1] - 2026-07-03 (test branch, unreleased)
+
+### New Features (needs field testing)
+- **D2-05-00 Blind Actuators (NodOn/EnOcean VLD)** — Covers configured with EEP `D2-05-xx` now send proper structured VLD (RORG D2) command telegrams instead of simulated F6 rocker presses. This makes **Stop** work and adds a real **Position** slider (0–100 %) in Home Assistant. `Go to Position and Angle` (CMD 1) and `Stop` (CMD 2) are used; HA positions are inverted to the EnOcean convention (0 % = open). Eltako/RPS covers keep the existing F6 rocker-simulation path — the command handler branches on the configured EEP. (#2)
+
+## [1.3.0] - 2026-07-03
+
+### New Features
+- **External MQTT Broker Support** — New `mqtt.host`, `mqtt.port`, `mqtt.username`, and `mqtt.password` add-on options. Leave `host` empty to keep the previous behaviour (auto-connect to Home Assistant's Mosquitto broker); set it to connect to a standalone external broker instead (e.g. a Mosquitto container on UNRAID/Synology). The MQTT service dependency was relaxed from `need` to `want` so the add-on also starts on systems with no HA MQTT broker add-on installed. (#3)
+
+### Bug Fixes
+- **F6-02-02 / F6-02-01 Button Binary Sensors** — Rocker switches (e.g. Eltako FT55, EEP F6-02-02) now create one momentary `binary_sensor` per button (AI/AO/BI/BO) via MQTT Discovery, ON while the button is held and OFF on release. Previously F6-02-02 had no mapping at all, so only the `RSSI` and `last_seen` diagnostic entities were created. F6-02-01 keeps its existing Rocker A/B text sensors and Energy Bow for backwards compatibility and gains the same four button sensors. (#1)
+
+## [1.2.5] - 2026-04-17
+
+### Improvements
+- **Debounced State Persistence** — `last_states.yaml` is no longer written on every single `publish_state()` call. Updates mark the cache dirty and a single background task flushes the full YAML every 10s (and always on shutdown via a cancelled-task fallback). Eliminates SD/flash write amplification for installations with chatty sensors.
+- **Startup Hardening** — If the EnOcean gateway is unreachable at addon start, the lifespan no longer crashes the whole app. Instead a background task retries `connect()` with backoff (5s → 60s) until the gateway comes up, so the Web UI stays available for reconfiguration and the supervisor doesn't restart in a loop.
+- **Typed Transceiver Errors** — `_send_command()` now raises `NotConnectedError` / `CommandTimeoutError` / `TransportLostError` instead of returning `None` for every failure mode. `read_base_id()` catches each and logs a distinct reason — "Base ID read skipped" vs "timed out" vs "transport lost" — so log output tells you *why*, not just *that* it failed.
+
+### Cleanup
+- **Removed Dead `/api/gateway/send` Endpoint** — Had placeholder command bytes that didn't match real EEP encodings and wasn't called from anywhere in the frontend. The working command paths are `/api/gateway/test-actuator` and the MQTT command bridge.
+
+## [1.2.4] - 2026-04-17
+
+### Bug Fixes
+- **False-Positive Teach-In for Non-Standard Devices** — A5 teach-in detection checks the LRN bit (bit 3 of data[3]). Some non-standard devices (e.g. Eltako Staufix boiler sensor) send regular data telegrams with LRN=0, which were mis-flagged as teach-ins on every received packet. Now only applies teach-in detection to senders that are NOT already configured — an already-known device cannot logically send a new teach-in.
+
+## [1.2.3] - 2026-04-17
+
+### Bug Fixes
+- **Reconnect Base-ID Deadlock** — After a TCP reconnect, the base-ID re-read used to run synchronously inside `_read_loop` via `_wait_and_reconnect`. But `_send_command()` depends on `_read_loop` to deliver the response packet — so awaiting it from inside `_read_loop` deadlocked until the 3s command timeout ("Timeout waiting for response to command 0x08 / Invalid base ID response: None" in the logs). The base-ID refresh now runs as an independent task so the read loop resumes immediately and the response round-trip completes.
+
+## [1.2.2] - 2026-04-17
+
+### Bug Fixes
+- **TCP Silent Disconnect Fix** — The read loop no longer silently loops when the TCP peer closes the connection. Previously, when an ESP32 gateway (or any TCP peer) sent a clean FIN, `recv()` returned empty bytes which the code treated as a read timeout — leaving the addon in a zombie state with no log output and no reconnect. `_serial_read()` now raises `ConnectionResetError` in that case so the read loop can trigger a reconnect.
+- **TCP Keepalive** — Enabled `SO_KEEPALIVE` on TCP connections with `TCP_KEEPIDLE=30s`, `TCP_KEEPINTVL=10s`, `TCP_KEEPCNT=3`. Half-open connections (ESP32 crash, WiFi drop, router reboot — anything without a clean FIN) are now detected in ~60s instead of the OS default of ~2 hours.
+- **Automatic Reconnect** — On transport loss (`ConnectionError`, `SerialException`, `OSError`), the read loop now closes the dead transport and retries the connect with exponential backoff (1s → 2s → … → 30s max). Previously the task died and `/health` kept reporting `enocean_connected: true`.
+- **Non-blocking Writes** — `send_telegram()` and `_send_command()` now write via `run_in_executor`. A full send buffer on a half-dead socket no longer freezes the entire FastAPI event loop (UI + MQTT).
+- **Command Race Condition** — `_send_command()` is now serialized via an `asyncio.Lock` so concurrent callers cannot clobber each other's `_response_future` slot and mis-route responses.
+
+## [1.2.1] - 2026-03-27
+
+### New Features
+- **TCP Port Configuration** — New `tcp_port` config option for connecting to remote EnOcean devices via TCP (e.g., `tcp:192.168.1.118:8638` for SLZB-MR5U USB-Passthrough or similar USB-over-IP devices). TCP takes priority over serial when both are configured.
+
+### Bug Fixes
+- **TCP Read Fix** — Fixed TCP socket read in serial handler. The `_serial_read()` method now correctly reads from TCP sockets (previously only serial devices were read, causing TCP connections to receive no data).
+
+## [1.2.0] - 2026-03-10
+
+### New Features
+- **Advanced Mapping Fields** — state_class, entity_category, expire_after, force_update, suggested_display_precision, and value_template support in mapping editor
+- **Visual & Text Mode Editor** — Toggle between visual form and YAML text editor for mapping overrides (inline and modal)
+- **Fork Standard Profiles** — Create custom copies of standard EEP profiles to edit Telegram Fields and HA mappings together
+- **YAML-Based Config** — All configuration files migrated from JSON to YAML (devices, mapping overrides) with automatic migration of existing JSON files
+- **YAML Export/Import** — Full configuration export/import as YAML files
+- **Pass-Through Fields** — Support for pass-through field mappings in the mapping editor
+
+### Improvements
+- **Profile Tree Sections** — Dedicated sections for Custom Profiles and Customized Mappings at the top of the EEP tree
+- **Orphaned Override Warnings** — Visual warning for mapping overrides that reference non-existent EEP profiles
+- **Enhanced Mapping Display** — Profile detail view now shows advanced mapping fields (state_class, expire_after, etc.)
+- **Tree Auto-Refresh** — Profile tree refreshes automatically after saving or resetting mapping overrides
+- **Text Mode State Reset** — Proper cleanup of text/visual mode state when opening/closing editors
+
+### Bug Fixes
+- **HA Ingress Compatibility** — Fixed js-yaml library loading through HA Ingress proxy (dynamic path resolution instead of absolute `/static/` path)
+- **Text Mode 400 Error** — Fixed form submission when clicking Text Mode button in Custom Profile modal (missing `type="button"`)
+- **Backup Restore** — Custom profiles (custom_eep/) now properly reloaded after restore (EEP manager re-initialization)
+- **Version Display** — Fixed version shown in UI sidebar (was stuck at 1.1.0)
+- **jsyaml Error Handling** — Added availability checks and try-catch around YAML serialization calls
+
+## [1.1.0] - 2026-03-08
+
+### New Features
+- **Multi-Language UI (i18n)** — Auto-detects browser language, supports 11 languages: English, German, Chinese, Hindi, Spanish, French, Arabic, Bengali, Portuguese, Russian, Japanese
+- **EEP.xml Upload** — Upload custom EEP.xml via Settings page, with validation, reload, and delete-to-revert
+- **EEP.xml in Backups** — Custom EEP.xml is included in export/import ZIP backups
+- **HA Entity Mapping Overrides** — Customize HA entity mappings per EEP profile directly from the profile detail view, with inline editor, auto-fill from EEP.xml fields, and save/reset functionality
+
+### Improvements
+- **Dark Mode Fixes** — Sidebar uses correct grey (#2b3035) instead of blue, removed `bg-light` from profile cards
+- **Consistent dashes** — All feature descriptions use em-dash style
+
+### Bug Fixes
+- **Mapping Overrides in Backups** — `mapping_overrides.json` is now included in backup export/import
+
+## [1.0.0] - 2026-03-07
+
+First stable release of **EnOcean MQTT UI** — a complete All-in-One Home Assistant Add-on for EnOcean devices.
+
+### Core Features
+- **Modern Web UI** — Bootstrap 5 single-page application with responsive design, sidebar navigation, and mobile hamburger menu
+- **Visual Device Wizard** — Add devices via teach-in or manual entry, no YAML editing needed
+- **96+ EEP Profiles** — Bundled EEP.xml from [ChristopheHD's enocean library](https://github.com/ChristopheHD/enocean) with F6 (RPS), D5 (1BS), A5 (4BS), D2 (VLD), and D1 (MSC) RORGs
+- **Custom EEP Profile Editor** — Create custom profiles with field definitions (enum, value, command types) and built-in HA Entity Mapping builder
+- **Home Assistant MQTT Discovery** — Automatic entity creation with per-device availability, LWT, and HA birth message support
+- **Live Telegram Monitor** — Real-time ESP3 telegram decoding with signal strength display
+- **Unknown Device Detection** — Auto-detect unconfigured EnOcean devices with quick-add buttons
+
+### Actuator Control
+- **Eltako dimmer/switch/blind control** — Send F6 rocker telegrams to Eltako FD62NPN, FSR61, FSB61 and similar actuators
+- **Actuator teach-in** — Send teach-in telegrams with configurable sender offset (1-127) per device
+- **A5-38-08 Central Command Dimming** — Brightness control for Eltako dimmers via HA light entities
+- **Test buttons** — ON/OFF/Open/Close/Stop directly from device detail view
+
+### Backup & Settings
+- **Local Backup System** — Create, list, download, restore, and delete local backup ZIPs from the Settings page
+- **Import/Export** — Download or upload configuration as ZIP files
+- **Confirmation popups** — Restore and delete actions require explicit confirmation
+- **Device state caching** — Persist sensor states across restarts (essential for infrequent senders like Kessel Staufix)
+
+### UI Polish
+- **Dark mode** — Automatically detects HA dark theme (Ingress) or OS `prefers-color-scheme`. All components adapt.
+- **Device & profile search** — Filter devices by name/address, search EEP profiles with auto-expanding tree nodes
+- **Teach-in countdown timer** — 60-second visual countdown with cancel button
+- **Custom Profile highlight** — Yellow button and highlighting for custom profiles
+
+### Architecture
+- **ChristopheHD MQTT compatibility** — Uses `enoceanmqtt` prefix, compatible topic patterns and discovery UIDs
+- **O(1) device lookup** — Hash map for address-to-device resolution on every telegram
+- **Correct value scaling** — XML child element parsing for range/scale values (not attributes)
+- **Configurable logging** — Log level properly applied to all loggers including uvicorn
+- **Repository metadata** — `repository.json` for "Add to Home Assistant" button
+
+### Credits
+- [ChristopheHD](https://github.com/ChristopheHD/enocean) — EEP.xml profile database and MQTT compatibility patterns
+- EnOcean Alliance for the EEP specification
+- Home Assistant community
