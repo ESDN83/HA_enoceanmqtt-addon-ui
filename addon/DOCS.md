@@ -121,13 +121,28 @@ When both serial and TCP are configured, **TCP takes priority**.
 
 ### MQTT Settings
 
-The add-on automatically connects to Home Assistant's MQTT broker (Mosquitto).
+By default the add-on automatically connects to the MQTT broker provided by
+Home Assistant (the Mosquitto broker add-on) — leave **Host** empty for this.
+
+To use an **external MQTT broker** (e.g. a standalone Mosquitto container on
+UNRAID, Synology, or another server), fill in the **Host** field. When a host is
+set, the add-on connects there directly instead of using the HA broker, and the
+Port/Username/Password below apply. This also works when you have no MQTT broker
+add-on installed in Home Assistant at all.
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| **Host** | *(empty)* | External broker hostname/IP. Leave empty to use Home Assistant's MQTT broker |
+| **Port** | `1883` | Broker port (used only when Host is set) |
+| **Username** | *(empty)* | Broker username (used only when Host is set; leave empty for anonymous) |
+| **Password** | *(empty)* | Broker password (used only when Host is set) |
 | **Discovery Prefix** | `homeassistant` | MQTT discovery prefix for HA auto-detection |
 | **Topic Prefix** | `enoceanmqtt` | Topics are created as `enoceanmqtt/{device}/state` |
 | **Client ID** | `enocean_gateway` | Unique MQTT client identifier |
+
+> **Note:** When using an external broker, make sure Home Assistant's own MQTT
+> integration points at the **same** broker — otherwise HA won't see the
+> discovery messages and no entities will appear.
 
 ### Cache Device States
 

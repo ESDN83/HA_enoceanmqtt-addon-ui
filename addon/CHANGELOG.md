@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0] - 2026-07-03
+
+### New Features
+- **External MQTT Broker Support** — New `mqtt.host`, `mqtt.port`, `mqtt.username`, and `mqtt.password` add-on options. Leave `host` empty to keep the previous behaviour (auto-connect to Home Assistant's Mosquitto broker); set it to connect to a standalone external broker instead (e.g. a Mosquitto container on UNRAID/Synology). The MQTT service dependency was relaxed from `need` to `want` so the add-on also starts on systems with no HA MQTT broker add-on installed. (#3)
+
+### Bug Fixes
+- **F6-02-02 / F6-02-01 Button Binary Sensors** — Rocker switches (e.g. Eltako FT55, EEP F6-02-02) now create one momentary `binary_sensor` per button (AI/AO/BI/BO) via MQTT Discovery, ON while the button is held and OFF on release. Previously F6-02-02 had no mapping at all, so only the `RSSI` and `last_seen` diagnostic entities were created. F6-02-01 keeps its existing Rocker A/B text sensors and Energy Bow for backwards compatibility and gains the same four button sensors. (#1)
+
 ## [1.2.5] - 2026-04-17
 
 ### Improvements
