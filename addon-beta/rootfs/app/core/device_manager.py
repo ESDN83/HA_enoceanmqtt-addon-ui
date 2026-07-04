@@ -27,6 +27,7 @@ class Device:
     room: str = ""
     manufacturer: str = ""
     actuator_type: str = ""  # "light", "switch", "cover", or "" for sensor-only
+    invert: bool = False  # Cover only: reverse Open/Close + position direction
 
     @property
     def eep_id(self) -> str:
@@ -57,7 +58,8 @@ class Device:
             description=data.get("description", ""),
             room=data.get("room", ""),
             manufacturer=data.get("manufacturer", ""),
-            actuator_type=data.get("actuator_type", "")
+            actuator_type=data.get("actuator_type", ""),
+            invert=bool(data.get("invert", False))
         )
 
 

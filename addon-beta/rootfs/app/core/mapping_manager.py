@@ -332,7 +332,8 @@ class MappingManager:
         device_sender: str,
         mqtt_prefix: str,
         device_info: Dict[str, Any],
-        actuator_type: str = ""
+        actuator_type: str = "",
+        invert: bool = False
     ) -> List[Dict[str, Any]]:
         """Generate Home Assistant MQTT discovery configurations.
 
@@ -408,13 +409,16 @@ class MappingManager:
                 # D2-05-xx blind actuators (e.g. NodOn) support a real position
                 # command. Add a position slider driven via {device}/set/position
                 # (fits the existing {prefix}/+/set/# subscription). Position is
-                # reported back as POS if the actuator replies (inverted:
-                # EnOcean 0 % = open, HA 100 = open).
+                # reported back as POS if the actuator replies. Normally EnOcean
+                # 0 % = open, HA 100 = open, so POS is inverted here; `invert`
+                # (reverse-wired shutter) keeps POS as-is. This must match the
+                # command-side inversion in send_d2_05_command.
                 if eep_id.upper().startswith("D2-05"):
                     config["set_position_topic"] = f"{mqtt_prefix}/{device_name}/set/position"
                     config["position_topic"] = f"{mqtt_prefix}/{device_name}/state"
+                    pos_expr = "value_json.POS" if invert else "(100 - value_json.POS)"
                     config["position_template"] = (
-                        "{{ (100 - value_json.POS) if value_json.POS is defined else none }}"
+                        f"{{{{ {pos_expr} if value_json.POS is defined else none }}}}"
                     )
                     config["position_open"] = 100
                     config["position_closed"] = 0
