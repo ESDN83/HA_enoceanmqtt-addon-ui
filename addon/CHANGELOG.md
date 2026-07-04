@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0] - 2026-07-04
+
+Field-tested in the Beta channel (issue #2) and confirmed working by users before this stable release.
+
+### New Features
+- **D2-05-00 Blind Actuators (NodOn/EnOcean VLD)** — Covers configured with EEP `D2-05-xx` send proper structured VLD (RORG D2) command telegrams instead of simulated F6 rocker presses. This makes **Stop** work (correct 1-byte `Stop` telegram per the EEP spec) and adds a real **Position** slider (0–100 %) in Home Assistant. `Go to Position and Angle` (CMD 1) and `Stop` (CMD 2) are used. Eltako/RPS covers keep the existing F6 rocker-simulation path — the handler branches on the configured EEP. (#2)
+- **UTE (bidirectional) teach-in** — NodOn D2-05/D2-01 modules in bidirectional learn mode emit a UTE teach-in query (RORG `0xD4`); the add-on now answers with a proper UTE response while a teach-in session is open, completing pairing. The wizard pre-fills the bound Sender ID and pre-selects the Cover role. (#2)
+- **D2-01 switches (e.g. NodOn relay / boiler contact)** — Switch actuators with EEP `D2-01-xx` now receive addressed `Actuator Set Output` VLD commands (`010064` = ON / `010000` = OFF) instead of F6 rocker broadcasts, so they actually switch — and no longer make unrelated D2-05 blinds move via the broadcast. (#2)
+- **Reverse direction (invert) option for covers** — Per-device **Invert** flag reverses Open/Close and the position mapping on both the command side and the HA position feedback, for reverse-wired/mounted shutters. Shown in the device form for the Cover role. (#2)
+
+### Bug Fixes
+- **Teach-in timeout popup no longer spams** — the 60 s countdown could orphan its `setInterval` and fire the timeout toast every second unstoppably; the countdown now clears itself and re-starting cancels any prior session.
+- **Web UI version no longer goes stale** — the displayed version is read from `config.yaml` at runtime (single source of truth via `app_version.py`) instead of being hard-coded, so it can no longer disagree with the store version.
+
 ## [1.3.0] - 2026-07-03
 
 ### New Features

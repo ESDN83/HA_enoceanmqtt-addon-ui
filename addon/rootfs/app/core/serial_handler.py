@@ -129,6 +129,12 @@ class SerialHandler:
         self._read_task: Optional[asyncio.Task] = None
         self._telegram_callbacks: List[Callable] = []
         self._teach_in_callback: Optional[Callable] = None
+        # UTE (RORG D4) auto-response sender offset. NodOn D2-05-00 covers in
+        # bidirectional learn mode expect a UTE teach-in *response* carrying the
+        # controller Sender ID they must bind to (base_id + offset). Commands
+        # are addressed (destination = actuator), so one gateway sender can
+        # drive many covers — a single offset is fine. Set per teach-in session.
+        self._ute_response_offset: int = 1
         self._base_id: Optional[int] = None
         self._response_future: Optional[asyncio.Future] = None
         # Serializes _send_command() so concurrent callers don't clobber
@@ -478,9 +484,20 @@ class SerialHandler:
             self.device_manager is not None
             and self.device_manager.get_device_by_address(telegram.sender_hex) is not None
         )
-        is_teach_in = False if already_configured else self._is_teach_in(telegram)
-        if is_teach_in:
-            await self._handle_teach_in(telegram)
+        if telegram.rorg == 0xD4:
+            # UTE (RORG 0xD4) teach-in queries — e.g. NodOn D2-05-00 in
+            # bidirectional learn mode — must be answered with a UTE response
+            # to complete pairing. This is handled independently of
+            # `already_configured` (re-pairing a known device must work too),
+            # but only while a teach-in session is active so stray UTE traffic
+            # from neighbouring modules is ignored.
+            is_teach_in = self._is_ute_teach_in_query(telegram)
+            if is_teach_in and self._teach_in_callback is not None:
+                await self._handle_ute_teach_in(telegram)
+        else:
+            is_teach_in = False if already_configured else self._is_teach_in(telegram)
+            if is_teach_in:
+                await self._handle_teach_in(telegram)
 
         # Find matching device and process
         device_name, eep_id, decoded = await self._process_telegram(telegram)
@@ -546,6 +563,98 @@ class SerialHandler:
                 "type": f"{type_:02X}",
                 "dbm": telegram.dbm
             })
+
+    def _is_ute_teach_in_query(self, telegram: RadioTelegram) -> bool:
+        """True if telegram is a UTE (RORG 0xD4) EEP teach-in *query*.
+
+        UTE query layout (7 data bytes, DB6..DB0):
+            DB6: bit7 uni(0)/bidirectional(1), bit6 response expected(0)/not(1),
+                 bits5-4 request type, bits3-0 command id (0x0 = teach-in query)
+        We only treat command id 0x0 as an inbound query to answer; our own
+        responses use command id 0x1 and must not be re-processed.
+        """
+        if telegram.rorg != 0xD4 or len(telegram.data) < 7:
+            return False
+        return (telegram.data[0] & 0x0F) == 0x0
+
+    async def _handle_ute_teach_in(self, telegram: RadioTelegram):
+        """Parse a UTE teach-in query and answer it so the module pairs.
+
+        UTE query DB6..DB0 (data[0..6]):
+            DB6 = command/flags (see _is_ute_teach_in_query)
+            DB5 = number of channels
+            DB4 = manufacturer ID LSB
+            DB3 = bits2-0 manufacturer ID MSB (rest reserved)
+            DB2 = EEP TYPE, DB1 = EEP FUNC, DB0 = EEP RORG
+        """
+        d = telegram.data
+        db6 = d[0]
+        bidirectional = bool(db6 & 0x80)
+        response_expected = (db6 & 0x40) == 0   # bit6 = 0 -> response expected
+        channels = d[1]
+        manuf = ((d[3] & 0x07) << 8) | d[2]
+        eep_type, eep_func, eep_rorg = d[4], d[5], d[6]
+
+        logger.info(
+            f"UTE TEACH-IN [{telegram.sender_hex}] "
+            f"EEP={eep_rorg:02X}-{eep_func:02X}-{eep_type:02X} manuf=0x{manuf:03X} "
+            f"channels={channels} bidir={bidirectional} resp_expected={response_expected}"
+        )
+
+        response_sender = self.get_sender_id(self._ute_response_offset)
+
+        # Only bidirectional queries that expect a response get answered; a
+        # unidirectional module just wants us to remember its EEP.
+        if bidirectional and response_expected:
+            if response_sender is None:
+                logger.warning("UTE teach-in: base ID not read yet — cannot send response")
+            else:
+                await self.send_ute_response(
+                    destination=telegram.sender_id,
+                    response_sender=response_sender,
+                    query_data=d,
+                )
+
+        if self._teach_in_callback:
+            await self._teach_in_callback({
+                "sender_id": telegram.sender_hex,
+                "rorg": f"0x{eep_rorg:02X}",
+                "func": f"{eep_func:02X}",
+                "type": f"{eep_type:02X}",
+                "dbm": telegram.dbm,
+                "teach_method": "UTE",
+                # Sender ID the module was told to bind — the new device MUST be
+                # configured with exactly this value for commands to reach it.
+                "response_sender": f"0x{response_sender:08X}" if response_sender else None,
+            })
+
+    async def send_ute_response(self, destination: int, response_sender: int,
+                                query_data: bytes) -> bool:
+        """Send a UTE (RORG 0xD4) EEP teach-in *response* accepting the pairing.
+
+        Byte layout follows the python-enocean reference (UTETeachInPacket):
+            DB6 = 0x91  bit7=1 bidirectional, bits5-4=01 "request accepted,
+                        teach-in successful", bits3-0=0001 command = response
+            DB5..DB0 = echoed unchanged from the query (channels, manufacturer,
+                       EEP TYPE/FUNC/RORG) so the module confirms the same EEP.
+        The telegram is *addressed* back to the requesting module, and its
+        sender field carries the controller Sender ID the module binds to.
+        """
+        # DB6: 1001 0001 = accepted + teach-in response (command id 1)
+        db6 = 0x91
+        data = bytes([db6]) + bytes(query_data[1:7])  # DB6 + echoed DB5..DB0
+
+        logger.info(
+            f"Sending UTE teach-in response (accepted) to 0x{destination:08X} "
+            f"data={data.hex().upper()} sender=0x{response_sender:08X}"
+        )
+        return await self.send_telegram(
+            sender_id=response_sender,
+            rorg=0xD4,
+            data=data,
+            destination=destination,
+            status=0x00,
+        )
 
     async def _process_telegram(self, telegram: RadioTelegram):
         """Process telegram and publish to MQTT
@@ -914,6 +1023,129 @@ class SerialHandler:
             destination=0xFFFFFFFF  # broadcast
         )
         return success
+
+    async def send_d2_05_command(self, sender_id: int, destination: int,
+                                 command: str, ha_position: int = None,
+                                 channel: int = 0, invert: bool = False) -> bool:
+        """Send a D2-05-00 (Blinds Control for Position and Angle) VLD command.
+
+        Unlike Eltako actuators — which react to simulated F6 rocker presses —
+        NodOn/EnOcean D2-05-00 shutter modules expect a structured VLD telegram
+        (RORG 0xD2) that carries the command in the payload. This is an
+        *addressed* telegram: destination is the actuator's own ID.
+
+        D2-05-00 message layouts differ per command:
+          "Go to Position and Angle" (CMD 1) — 4 data bytes:
+            DB3 = POS  Position 0..100 %, 127 (0x7F) = "do not change / not used"
+            DB2 = ANG  Angle    0..100 %, 127 (0x7F) = not used
+            DB1 = REPO(bits 7..4) | LOCK(bits 3..0)  — 0 = normal repositioning
+            DB0 = CHN (bits 7..4) | CMD (bits 3..0) = 1
+          "Stop" (CMD 2) — 1 data byte:
+            DB0 = CHN (bits 7..4) | CMD (bits 3..0) = 2
+        The Stop command carries no POS/ANG/REPO fields, so it MUST be a
+        single byte — sending the 4-byte layout makes the actuator reject it
+        (the reason Stop did nothing in issue #2).
+
+        Position convention differs between EnOcean and Home Assistant:
+            EnOcean D2-05: 0 % = fully open (up), 100 % = fully closed (down)
+            Home Assistant: 100 = open, 0 = closed
+        so HA positions are inverted here (enocean_pos = 100 - ha_pos), and
+        OPEN maps to EnOcean 0 %, CLOSE to 100 %.
+
+        Args:
+            sender_id: Controller ID the actuator was taught in with (int)
+            destination: Actuator address (int) — addressed, not broadcast
+            command: "OPEN", "CLOSE", "STOP" or "POSITION"
+            ha_position: Target position 0..100 in HA convention (POSITION only)
+            channel: Output channel (default 0)
+            invert: Reverse direction for shutters wired/mounted the other way —
+                OPEN/CLOSE are swapped and the HA->EnOcean position mapping is
+                not inverted. Must match the position-feedback inversion in the
+                MQTT discovery config (see mapping_manager).
+        """
+        cmd = command.strip().upper()
+        chn_nibble = (channel & 0x0F) << 4
+
+        if cmd == "STOP":
+            # Stop is a single-byte message: CHN | CMD 2. No POS/ANG/REPO.
+            data = bytes([chn_nibble | 0x02])
+        else:
+            # Normal wiring: EnOcean 0 % = fully open, 100 % = fully closed,
+            # HA 100 = open. `invert` flips this for reverse-wired shutters.
+            if cmd == "OPEN":
+                enocean_pos = 100 if invert else 0
+            elif cmd == "CLOSE":
+                enocean_pos = 0 if invert else 100
+            elif cmd == "POSITION":
+                if ha_position is None:
+                    logger.warning("D2-05 POSITION command without ha_position")
+                    return False
+                ha_pos = max(0, min(100, int(ha_position)))
+                enocean_pos = ha_pos if invert else (100 - ha_pos)
+            else:
+                logger.warning(f"Unknown D2-05 command: {command}")
+                return False
+            # Go to Position (CMD 1); angle "not used" so the slat angle is
+            # left to the actuator's own logic.
+            data = bytes([enocean_pos & 0xFF, 0x7F, 0x00, chn_nibble | 0x01])
+
+        logger.info(
+            f"Sending D2-05-00 {cmd} (data={data.hex().upper()}) "
+            f"sender=0x{sender_id:08X} dest=0x{destination:08X}"
+        )
+
+        return await self.send_telegram(
+            sender_id=sender_id,
+            rorg=0xD2,
+            data=data,
+            destination=destination,
+            status=0x00
+        )
+
+    async def send_d2_01_command(self, sender_id: int, destination: int,
+                                 command: str, channel: int = 0) -> bool:
+        """Send a D2-01 (Electronic switch/dimmer) "Actuator Set Output" command.
+
+        D2-01-xx actuators (e.g. NodOn In-Wall relay / boiler contact,
+        EEP D2-01-0F) are VLD (RORG 0xD2) devices — they do NOT react to F6
+        rocker presses. Driving them with an F6 broadcast both fails to switch
+        them AND makes other broadcast-listening actuators (e.g. a D2-05 blind)
+        move by mistake (issue #2). This sends the proper addressed telegram.
+
+        "Actuator Set Output" (CMD 1) — 3 data bytes:
+            DB2 = ...CMD(bits 3..0) = 1
+            DB1 = DV(bits 7..5) | IO(bits 4..0)   DV 0 = switch to new value
+            DB0 = OV(bits 6..0)                    0 = OFF, 1..100 = ON at %
+        Verified against the EnOcean EEP D2-01 profile (python-enocean).
+
+        Args:
+            sender_id: Controller ID the actuator was taught in with (int)
+            destination: Actuator address (int) — addressed, not broadcast
+            command: "ON" / "OFF"
+            channel: I/O channel (default 0)
+        """
+        cmd = command.strip().upper()
+        io = channel & 0x1F                 # IO channel, DV = 0 (switch)
+        if cmd == "ON":
+            ov = 100                        # fully on
+        elif cmd == "OFF":
+            ov = 0
+        else:
+            logger.warning(f"Unknown D2-01 command: {command}")
+            return False
+
+        data = bytes([0x01, io, ov & 0x7F])
+        logger.info(
+            f"Sending D2-01 {cmd} (data={data.hex().upper()}) "
+            f"sender=0x{sender_id:08X} dest=0x{destination:08X}"
+        )
+        return await self.send_telegram(
+            sender_id=sender_id,
+            rorg=0xD2,
+            data=data,
+            destination=destination,
+            status=0x00
+        )
 
     def register_telegram_callback(self, callback: Callable):
         """Register callback for received telegrams"""
