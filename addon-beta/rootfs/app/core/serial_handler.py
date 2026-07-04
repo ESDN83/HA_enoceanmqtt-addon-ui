@@ -1026,7 +1026,7 @@ class SerialHandler:
 
     async def send_d2_05_command(self, sender_id: int, destination: int,
                                  command: str, ha_position: int = None,
-                                 channel: int = 0) -> bool:
+                                 channel: int = 0, invert: bool = False) -> bool:
         """Send a D2-05-00 (Blinds Control for Position and Angle) VLD command.
 
         Unlike Eltako actuators — which react to simulated F6 rocker presses —
@@ -1058,6 +1058,10 @@ class SerialHandler:
             command: "OPEN", "CLOSE", "STOP" or "POSITION"
             ha_position: Target position 0..100 in HA convention (POSITION only)
             channel: Output channel (default 0)
+            invert: Reverse direction for shutters wired/mounted the other way —
+                OPEN/CLOSE are swapped and the HA->EnOcean position mapping is
+                not inverted. Must match the position-feedback inversion in the
+                MQTT discovery config (see mapping_manager).
         """
         cmd = command.strip().upper()
         chn_nibble = (channel & 0x0F) << 4
@@ -1066,16 +1070,18 @@ class SerialHandler:
             # Stop is a single-byte message: CHN | CMD 2. No POS/ANG/REPO.
             data = bytes([chn_nibble | 0x02])
         else:
+            # Normal wiring: EnOcean 0 % = fully open, 100 % = fully closed,
+            # HA 100 = open. `invert` flips this for reverse-wired shutters.
             if cmd == "OPEN":
-                enocean_pos = 0      # fully open (up)
+                enocean_pos = 100 if invert else 0
             elif cmd == "CLOSE":
-                enocean_pos = 100    # fully closed (down)
+                enocean_pos = 0 if invert else 100
             elif cmd == "POSITION":
                 if ha_position is None:
                     logger.warning("D2-05 POSITION command without ha_position")
                     return False
                 ha_pos = max(0, min(100, int(ha_position)))
-                enocean_pos = 100 - ha_pos   # invert HA -> EnOcean
+                enocean_pos = ha_pos if invert else (100 - ha_pos)
             else:
                 logger.warning(f"Unknown D2-05 command: {command}")
                 return False
@@ -1088,6 +1094,51 @@ class SerialHandler:
             f"sender=0x{sender_id:08X} dest=0x{destination:08X}"
         )
 
+        return await self.send_telegram(
+            sender_id=sender_id,
+            rorg=0xD2,
+            data=data,
+            destination=destination,
+            status=0x00
+        )
+
+    async def send_d2_01_command(self, sender_id: int, destination: int,
+                                 command: str, channel: int = 0) -> bool:
+        """Send a D2-01 (Electronic switch/dimmer) "Actuator Set Output" command.
+
+        D2-01-xx actuators (e.g. NodOn In-Wall relay / boiler contact,
+        EEP D2-01-0F) are VLD (RORG 0xD2) devices — they do NOT react to F6
+        rocker presses. Driving them with an F6 broadcast both fails to switch
+        them AND makes other broadcast-listening actuators (e.g. a D2-05 blind)
+        move by mistake (issue #2). This sends the proper addressed telegram.
+
+        "Actuator Set Output" (CMD 1) — 3 data bytes:
+            DB2 = ...CMD(bits 3..0) = 1
+            DB1 = DV(bits 7..5) | IO(bits 4..0)   DV 0 = switch to new value
+            DB0 = OV(bits 6..0)                    0 = OFF, 1..100 = ON at %
+        Verified against the EnOcean EEP D2-01 profile (python-enocean).
+
+        Args:
+            sender_id: Controller ID the actuator was taught in with (int)
+            destination: Actuator address (int) — addressed, not broadcast
+            command: "ON" / "OFF"
+            channel: I/O channel (default 0)
+        """
+        cmd = command.strip().upper()
+        io = channel & 0x1F                 # IO channel, DV = 0 (switch)
+        if cmd == "ON":
+            ov = 100                        # fully on
+        elif cmd == "OFF":
+            ov = 0
+        else:
+            logger.warning(f"Unknown D2-01 command: {command}")
+            return False
+
+        data = bytes([0x01, io, ov & 0x7F])
+        logger.info(
+            f"Sending D2-01 {cmd} (data={data.hex().upper()}) "
+            f"sender=0x{sender_id:08X} dest=0x{destination:08X}"
+        )
         return await self.send_telegram(
             sender_id=sender_id,
             rorg=0xD2,

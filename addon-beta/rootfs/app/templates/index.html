@@ -743,6 +743,13 @@
                                     <label class="form-label" data-i18n="teach_in.sender_id">Sender ID (for bidirectional devices)</label>
                                     <input type="text" class="form-control" name="sender_id" placeholder="0xFFBD7480">
                                 </div>
+                                <div class="col-md-6 mb-3" id="invert-group" style="display: none;">
+                                    <label class="form-label" data-i18n="teach_in.invert">Direction</label>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="checkbox" name="invert" id="invert-checkbox">
+                                        <label class="form-check-label" for="invert-checkbox" data-i18n="teach_in.invert_label">Reverse direction (Open/Close inverted)</label>
+                                    </div>
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label" data-i18n="teach_in.manufacturer">Manufacturer</label>
@@ -2467,6 +2474,16 @@
                     if (input) input.value = '';
                 }
             }
+            // Reverse-direction option only applies to covers/blinds
+            const invertGroup = document.getElementById('invert-group');
+            if (invertGroup) {
+                const isCover = select.value === 'cover';
+                invertGroup.style.display = isCover ? '' : 'none';
+                if (!isCover) {
+                    const cb = invertGroup.querySelector('input[name="invert"]');
+                    if (cb) cb.checked = false;
+                }
+            }
         }
 
         function resetTeachInPage() {
@@ -2528,6 +2545,10 @@
             const form = e.target;
             const formData = new FormData(form);
             const device = Object.fromEntries(formData);
+            // Checkboxes are absent from FormData when unchecked; send an
+            // explicit boolean so unchecking "invert" is persisted too.
+            const invertCb = form.querySelector('input[name="invert"]');
+            device.invert = !!(invertCb && invertCb.checked);
             const editMode = form.dataset.editMode;
 
             try {
@@ -2609,6 +2630,11 @@
                 // Show/hide sender_id field based on actuator type
                 const senderGroup = document.getElementById('sender-id-group');
                 if (senderGroup) senderGroup.style.display = device.actuator_type ? '' : 'none';
+                // Reverse-direction option: populate + show only for covers
+                const invertCb = document.querySelector('[name="invert"]');
+                if (invertCb) invertCb.checked = !!device.invert;
+                const invertGroup = document.getElementById('invert-group');
+                if (invertGroup) invertGroup.style.display = device.actuator_type === 'cover' ? '' : 'none';
 
                 // Mark as edit mode
                 const form = document.getElementById('device-form');

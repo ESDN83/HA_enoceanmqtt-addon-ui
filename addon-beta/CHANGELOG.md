@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0-beta3] - 2026-07-04 (test branch, unreleased)
+
+### Bug Fixes (issue #2 — needs field testing)
+- **D2-01 switches (e.g. NodOn relay / boiler contact) now use the correct command** — Switch actuators with EEP `D2-01-xx` were driven with F6 rocker *broadcasts*, which they ignore (they are VLD/RORG D2 devices) — and worse, the broadcast (`Dest=FFFFFFFF`) also moved unrelated D2-05 blinds. They now receive a proper addressed `Actuator Set Output` VLD command (`010064` = ON, `010000` = OFF). Fixes both the boiler not switching and the phantom shutter movement reported in #2. Verified against the EnOcean EEP D2-01 profile (python-enocean).
+
+### New Features (issue #2)
+- **Reverse direction (invert) option for covers** — Covers can now be flagged **Invert** in the device form. For reverse-wired/mounted shutters this swaps Open/Close and the position mapping on both the command side (`send_d2_05_command`) and the HA position feedback (MQTT discovery `position_template`), so 100 % = open stays correct without rewiring the motor. Per-device, defaults off; the option appears in the Add/Edit device form when the Cover role is selected.
+
 ## [1.4.0-beta2] - 2026-07-03 (test branch, unreleased)
 
 ### Bug Fixes (D2-05-00, issue #2 — needs field testing)
