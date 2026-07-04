@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.0-beta4] - 2026-07-04 (test branch, unreleased)
+
+### Bug Fixes
+- **Teach-in timeout no longer spams an unstoppable popup** — Starting teach-in again (or leaving it running) could orphan the 60 s countdown's `setInterval`: its handle was overwritten and could no longer be cleared, so once the counter went negative it fired the "Teach-in timed out — no device detected" toast every second with no way to stop it. `startTeachIn()` now cancels any prior session first, and the countdown clears its own interval on timeout.
+- **Web UI showed a stale version** — the displayed version was hard-coded in `main.py` (and `api/system.py`), so it drifted from `config.yaml` (UI still said `1.4.0-beta1`). The version is now read from `config.yaml` at runtime via `app_version.py` (a single source of truth, copied into the image by the Dockerfile), so the UI/API can no longer disagree with the store version.
+
 ## [1.4.0-beta3] - 2026-07-04 (test branch, unreleased)
 
 ### Bug Fixes (issue #2 — needs field testing)

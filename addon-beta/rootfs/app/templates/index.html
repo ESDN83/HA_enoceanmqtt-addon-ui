@@ -2391,6 +2391,12 @@
         let teachInTimer = null;
 
         function startTeachIn() {
+            // Cancel any previous session first — otherwise a second start
+            // orphans the old setInterval (its handle is overwritten and can no
+            // longer be cleared). The orphan keeps firing every second once
+            // `remaining` goes negative, spamming the timeout toast unstoppably.
+            cancelTeachIn();
+
             // Auto-close actuator panel if open
             document.getElementById('actuator-teach-in-panel').style.display = 'none';
 
@@ -2401,14 +2407,19 @@
             let remaining = 60;
             const countdownEl = document.getElementById('teach-in-countdown');
             countdownEl.textContent = `(${remaining}s)`;
-            teachInTimer = setInterval(() => {
+            const timer = setInterval(() => {
                 remaining--;
                 countdownEl.textContent = `(${remaining}s)`;
                 if (remaining <= 0) {
+                    // Stop THIS interval no matter what the shared handle points
+                    // at, so it can never keep firing.
+                    clearInterval(timer);
+                    if (teachInTimer === timer) teachInTimer = null;
                     cancelTeachIn();
                     showToast(t('teach_in.timeout', 'Teach-in timed out — no device detected'), 'warning');
                 }
             }, 1000);
+            teachInTimer = timer;
 
             // Connect to WebSocket
             teachInSocket = new WebSocket(getWsUrl('/api/gateway/teach-in'));
