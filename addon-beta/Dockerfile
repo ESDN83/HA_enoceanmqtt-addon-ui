@@ -19,6 +19,10 @@ RUN apk add --no-cache \
 # Copy application files
 COPY rootfs /
 
+# Copy the add-on manifest so the app can read its version at runtime
+# (single source of truth for the UI/API version — see app_version.py)
+COPY config.yaml /app/config.yaml
+
 # Install Python dependencies with retry logic for network issues
 RUN pip3 install --no-cache-dir --timeout=120 --retries=3 -r /app/requirements.txt
 
