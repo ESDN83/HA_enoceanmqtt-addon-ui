@@ -743,6 +743,13 @@
                                     <label class="form-label" data-i18n="teach_in.sender_id">Sender ID (for bidirectional devices)</label>
                                     <input type="text" class="form-control" name="sender_id" placeholder="0xFFBD7480">
                                 </div>
+                                <div class="col-md-6 mb-3" id="invert-group" style="display: none;">
+                                    <label class="form-label" data-i18n="teach_in.invert">Direction</label>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="checkbox" name="invert" id="invert-checkbox">
+                                        <label class="form-check-label" for="invert-checkbox" data-i18n="teach_in.invert_label">Reverse direction (Open/Close inverted)</label>
+                                    </div>
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label" data-i18n="teach_in.manufacturer">Manufacturer</label>
@@ -2384,6 +2391,12 @@
         let teachInTimer = null;
 
         function startTeachIn() {
+            // Cancel any previous session first — otherwise a second start
+            // orphans the old setInterval (its handle is overwritten and can no
+            // longer be cleared). The orphan keeps firing every second once
+            // `remaining` goes negative, spamming the timeout toast unstoppably.
+            cancelTeachIn();
+
             // Auto-close actuator panel if open
             document.getElementById('actuator-teach-in-panel').style.display = 'none';
 
@@ -2394,14 +2407,19 @@
             let remaining = 60;
             const countdownEl = document.getElementById('teach-in-countdown');
             countdownEl.textContent = `(${remaining}s)`;
-            teachInTimer = setInterval(() => {
+            const timer = setInterval(() => {
                 remaining--;
                 countdownEl.textContent = `(${remaining}s)`;
                 if (remaining <= 0) {
+                    // Stop THIS interval no matter what the shared handle points
+                    // at, so it can never keep firing.
+                    clearInterval(timer);
+                    if (teachInTimer === timer) teachInTimer = null;
                     cancelTeachIn();
                     showToast(t('teach_in.timeout', 'Teach-in timed out — no device detected'), 'warning');
                 }
             }, 1000);
+            teachInTimer = timer;
 
             // Connect to WebSocket
             teachInSocket = new WebSocket(getWsUrl('/api/gateway/teach-in'));
@@ -2414,6 +2432,21 @@
                     document.querySelector('[name="rorg"]').value = data.data.rorg;
                     document.querySelector('[name="func"]').value = data.data.func;
                     document.querySelector('[name="type"]').value = data.data.type;
+
+                    // UTE (bidirectional, e.g. NodOn D2-05-00 covers): we already
+                    // answered with a UTE response binding response_sender. The
+                    // device MUST be configured with that exact Sender ID, so
+                    // pre-fill it and pre-select the Cover role to avoid a
+                    // sender-ID mismatch (see issue #2).
+                    if (data.data.teach_method === 'UTE' && data.data.response_sender) {
+                        const roleField = document.querySelector('[name="actuator_type"]');
+                        if (roleField && roleField.value === '') {
+                            roleField.value = 'cover';
+                            toggleSenderIdField(roleField);  // reveal the Sender ID field
+                        }
+                        const senderField = document.querySelector('[name="sender_id"]');
+                        if (senderField) senderField.value = data.data.response_sender;
+                    }
 
                     cancelTeachIn();
                     wizardNext();
@@ -2450,6 +2483,16 @@
                 if (!select.value) {
                     const input = senderGroup.querySelector('input[name="sender_id"]');
                     if (input) input.value = '';
+                }
+            }
+            // Reverse-direction option only applies to covers/blinds
+            const invertGroup = document.getElementById('invert-group');
+            if (invertGroup) {
+                const isCover = select.value === 'cover';
+                invertGroup.style.display = isCover ? '' : 'none';
+                if (!isCover) {
+                    const cb = invertGroup.querySelector('input[name="invert"]');
+                    if (cb) cb.checked = false;
                 }
             }
         }
@@ -2513,6 +2556,10 @@
             const form = e.target;
             const formData = new FormData(form);
             const device = Object.fromEntries(formData);
+            // Checkboxes are absent from FormData when unchecked; send an
+            // explicit boolean so unchecking "invert" is persisted too.
+            const invertCb = form.querySelector('input[name="invert"]');
+            device.invert = !!(invertCb && invertCb.checked);
             const editMode = form.dataset.editMode;
 
             try {
@@ -2594,6 +2641,11 @@
                 // Show/hide sender_id field based on actuator type
                 const senderGroup = document.getElementById('sender-id-group');
                 if (senderGroup) senderGroup.style.display = device.actuator_type ? '' : 'none';
+                // Reverse-direction option: populate + show only for covers
+                const invertCb = document.querySelector('[name="invert"]');
+                if (invertCb) invertCb.checked = !!device.invert;
+                const invertGroup = document.getElementById('invert-group');
+                if (invertGroup) invertGroup.style.display = device.actuator_type === 'cover' ? '' : 'none';
 
                 // Mark as edit mode
                 const form = document.getElementById('device-form');

@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/data")
 ENOCEAN_PORT = os.getenv("ENOCEAN_PORT", "")
 CACHE_DEVICE_STATES = os.getenv("CACHE_DEVICE_STATES", "true").lower() == "true"
-VERSION = "1.3.0"
+from app_version import VERSION  # single source of truth (reads config.yaml)
 
 # Global instances
 mqtt_handler: MQTTHandler = None
@@ -222,7 +222,8 @@ async def _publish_all_discoveries():
                 device_sender=device.sender_id,
                 mqtt_prefix=mqtt_handler.prefix,
                 device_info=device_info,
-                actuator_type=device.actuator_type
+                actuator_type=device.actuator_type,
+                invert=device.invert
             )
 
             # Publish each entity discovery config
@@ -322,6 +323,20 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                 logger.warning(f"Unknown command '{command}' for dimmer {device_name}")
 
     elif device.actuator_type == "switch":
+        # D2-01-xx switches (e.g. NodOn relay / boiler contact) are VLD (RORG D2)
+        # actuators and need addressed "Actuator Set Output" commands — NOT F6
+        # rocker broadcasts. An F6 broadcast neither switches them nor stays
+        # contained: it also triggers other broadcast-listening actuators like
+        # a D2-05 blind (issue #2). Branch on the configured EEP.
+        is_d2_01 = device.rorg.upper() == "D2" and str(device.func).zfill(2) == "01"
+        if is_d2_01:
+            if command in ("ON", "OFF"):
+                await serial_handler.send_d2_01_command(sender_id, destination, command)
+                logger.info(f"Sent D2-01 {command} to {device_name}")
+            else:
+                logger.warning(f"Unknown switch command '{command}' for {device_name}")
+            return
+
         if command == "ON":
             # F6 Rocker B top (BI) pressed: data=0x50, status=0x30 (T21+NU)
             await serial_handler.send_telegram(
@@ -354,6 +369,35 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             logger.warning(f"Unknown command '{command}' for {device_name}")
 
     elif device.actuator_type == "cover":
+        # D2-05-xx blind actuators (e.g. NodOn SIN-2-RS-01) speak structured
+        # VLD (RORG D2) commands, NOT F6 rocker presses. Branch on the
+        # configured EEP so Eltako/RPS covers keep the rocker-simulation path.
+        is_d2_05 = device.rorg.upper() == "D2" and str(device.func).zfill(2) == "05"
+
+        if is_d2_05:
+            # Position slider: entity == "position", payload is 0..100 (HA)
+            if entity == "position":
+                try:
+                    ha_pos = int(float(command))
+                except ValueError:
+                    logger.warning(f"Invalid position '{command}' for {device_name}")
+                    return
+                await serial_handler.send_d2_05_command(
+                    sender_id, destination, "POSITION", ha_position=ha_pos,
+                    invert=device.invert
+                )
+                logger.info(f"Sent D2-05 position={ha_pos}% to {device_name}"
+                            f"{' (inverted)' if device.invert else ''}")
+            elif command in ("OPEN", "CLOSE", "STOP"):
+                await serial_handler.send_d2_05_command(
+                    sender_id, destination, command, invert=device.invert
+                )
+                logger.info(f"Sent D2-05 {command} to {device_name}"
+                            f"{' (inverted)' if device.invert else ''}")
+            else:
+                logger.warning(f"Unknown cover command '{command}' for {device_name}")
+            return
+
         if command == "OPEN":
             # BI press+release for open/up
             await serial_handler.send_telegram(
