@@ -3448,21 +3448,49 @@
                 }
 
                 container.innerHTML = telegrams.map(tg => `
-                    <div class="d-flex justify-content-between align-items-center border-bottom py-2">
-                        <div>
-                            <strong>${tg.device_name || t('common.unknown', 'Unknown')}</strong>
-                            <small class="text-muted ms-2">${tg.sender_id}</small>
-                            ${tg.is_teach_in ? `<span class="badge bg-warning ms-2">${t('teach_in.teach_in_badge', 'Teach-In')}</span>` : ''}
+                    <div class="border-bottom py-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${tg.device_name || t('common.unknown', 'Unknown')}</strong>
+                                <small class="text-muted ms-2">${tg.sender_id}</small>
+                                ${tg.is_teach_in ? `<span class="badge bg-warning ms-2">${t('teach_in.teach_in_badge', 'Teach-In')}</span>` : ''}
+                            </div>
+                            <div>
+                                <span class="badge bg-secondary">${tg.rorg}</span>
+                                <small class="text-muted">${tg.dbm ? tg.dbm + ' dBm' : 'N/A'}</small>
+                            </div>
                         </div>
-                        <div>
-                            <span class="badge bg-secondary">${tg.rorg}</span>
-                            <small class="text-muted">${tg.dbm ? tg.dbm + ' dBm' : 'N/A'}</small>
-                        </div>
+                        ${formatTelegramDetails(tg)}
                     </div>
                 `).join('');
             } catch (error) {
                 console.error('Failed to load recent telegrams:', error);
             }
+        }
+
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[c]);
+        }
+
+        // Render the decoded payload of a telegram as a compact second line:
+        // prefers the human-readable *_text enum values over raw numbers and
+        // hides transport/meta fields. Falls back to the raw hex data.
+        const TELEGRAM_META_FIELDS = new Set(['sender_id', 'rssi', 'last_seen', 'raw', '_last_update', '_restored']);
+
+        function formatTelegramDetails(tg) {
+            const parts = [];
+            const d = tg.decoded || {};
+            for (const [key, value] of Object.entries(d)) {
+                if (TELEGRAM_META_FIELDS.has(key) || key.endsWith('_text')) continue;
+                const text = d[key + '_text'];
+                const shown = (text !== undefined && text !== '') ? text : value;
+                parts.push(`${escapeHtml(key)}: <strong>${escapeHtml(String(shown))}</strong>`);
+            }
+            const hex = tg.data ? `<code class="text-muted">0x${escapeHtml(tg.data)}</code>` : '';
+            if (!parts.length && !hex) return '';
+            return `<div class="small text-muted mt-1">${parts.join(' &middot; ')}${parts.length && hex ? ' &nbsp;' : ''}${hex}</div>`;
         }
 
         async function clearTelegrams() {

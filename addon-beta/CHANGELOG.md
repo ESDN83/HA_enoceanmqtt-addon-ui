@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.0-beta3] - 2026-07-10 (beta channel)
+
+### Improvements
+- **Recent Telegrams show decoded payload** — Each entry on the dashboard now has a second line with the decoded telegram fields (human-readable enum texts preferred, e.g. `R1: Button BI · EB: pressed`, or `TMP: 21.5`) plus the raw hex data. Previously only device, sender ID, RORG and signal strength were shown, so you couldn't see what a telegram actually meant.
+
 ## [1.5.0-beta2] - 2026-07-10 (beta channel)
 
 ### New Features
