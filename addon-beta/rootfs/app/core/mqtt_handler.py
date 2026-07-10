@@ -76,6 +76,18 @@ class MQTTHandler:
         self._save_task: Optional[asyncio.Task] = None
         self._save_interval = 10.0
 
+        # Multi-channel VLD devices (e.g. NodOn SIN-2-2-01, D2-01-12): one
+        # telegram only carries the state of the channel that changed (IO
+        # field selects the channel). Cache both channels per device and
+        # merge on publish so HA always sees both values.
+        # EEP -> (io_discriminator_field, channel0_field, channel1_field)
+        # Ported from arno0392's fork.
+        self._channel_cache: Dict[str, Dict[str, Any]] = {}
+        self._multichannel_eeps = {
+            "D2-01-11": ("IO", "OV", "OV_CH1"),
+            "D2-01-12": ("IO", "OV", "OV_CH1"),
+        }
+
     @property
     def is_connected(self) -> bool:
         return self._connected
@@ -290,6 +302,9 @@ class MQTTHandler:
         # Add timestamp
         state["_last_update"] = datetime.now().isoformat()
 
+        # Merge cached other-channel values for multi-channel devices
+        state = self._merge_multichannel_state(device_name, state)
+
         # Persist state for recovery (only if caching enabled).
         # Writes are debounced: updates just mark the cache dirty and a
         # single background task flushes the full YAML every _save_interval.
@@ -300,6 +315,55 @@ class MQTTHandler:
                 self._save_task = asyncio.create_task(self._debounced_save())
 
         await self.publish(topic, state, retain=True)
+
+    def _merge_multichannel_state(self, device_name: str, state: Dict[str, Any]) -> Dict[str, Any]:
+        """For multi-channel EEP devices, merge the incoming channel state with
+        the cached state of the other channel, so the published payload always
+        contains all channel values.
+
+        Example for D2-01-12 with IO=0, OV=100:
+          - Stores OV=100 in cache for channel 0
+          - Reads cached OV for channel 1 (default 0)
+          - Returns state enriched with OV_CH1=<cached value>
+
+        Ported from arno0392's fork; channel-1 payload handling is still
+        being field-confirmed (see fork changelog 1.4.2).
+        """
+        if not self.device_manager:
+            return state
+
+        device = self.device_manager.get_device(device_name)
+        if not device:
+            return state
+
+        eep_id = device.eep_id
+        if eep_id not in self._multichannel_eeps:
+            return state
+
+        io_field, ov_field, ch1_shortcut = self._multichannel_eeps[eep_id]
+
+        # Only process if the IO discriminator field is present
+        if io_field not in state:
+            return state
+
+        io_val = state[io_field]
+        ov_val = state.get(ov_field, 0)
+
+        if device_name not in self._channel_cache:
+            self._channel_cache[device_name] = {"ch0": 0, "ch1": 0}
+
+        # Update the cache for the channel that just reported
+        if io_val == 0:
+            self._channel_cache[device_name]["ch0"] = ov_val
+        elif io_val == 1:
+            self._channel_cache[device_name]["ch1"] = ov_val
+
+        # Build merged state: OV = channel 0, OV_CH1 = channel 1
+        merged = dict(state)
+        merged[ov_field] = self._channel_cache[device_name]["ch0"]
+        merged[ch1_shortcut] = self._channel_cache[device_name]["ch1"]
+
+        return merged
 
     async def _debounced_save(self):
         """Wait out the debounce window, then flush dirty states to disk.
