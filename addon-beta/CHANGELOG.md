@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.0-beta1] - 2026-07-10 (beta channel)
+
+### New Features
+- **EEP profile library: 9 → 71 profiles** — 62 new default HA mappings, contributed by [@arno0392](https://github.com/arno0392)'s fork (thank you!): full A5-02 temperature family (01–30), A5-04-02/03 temp+humidity, A5-06-01 light, A5-07-02/03 occupancy, A5-08-01/02/03 combo sensors, A5-09-02/04/05 air quality (CO₂/VOC), A5-10-01/06 HVAC panels, A5-12-01/02/03 meters (electricity/gas/water with `state_class: total_increasing`), A5-14-01/05/09/0A vibration/window/illuminance, A5-30-01/02 digital inputs, D2-01 electronic switch family (01–0E, 11 two-channel dimmer, 12 two-channel switch), D2-05-01 blinds, F6-03-01/02 four-rocker switches, F6-10-00 window handle. Existing profiles (incl. the F6-02-01/02 per-button binary sensors) are unchanged.
+- **Multi-channel state merge (D2-01-11/12)** — Two-channel devices report only the changed channel per telegram (`IO` field selects the channel). The add-on now caches both channels per device and publishes a merged payload (`OV` = channel 0, `OV_CH1` = channel 1), so one channel update no longer wipes the other in HA. Also from @arno0392's fork; channel-1 payload handling is still being field-confirmed — feedback welcome.
+
 ## [1.4.0-beta4] - 2026-07-04 (test branch, unreleased)
 
 ### Bug Fixes

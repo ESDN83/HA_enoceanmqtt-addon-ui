@@ -1,9 +1,9 @@
 ---
 name: "EnOcean MQTT UI (Beta)"
-version: "1.4.0-beta4"
+version: "1.5.0-beta1"
 slug: "enocean-mqtt-ui-beta"
-description: "BETA test build of EnOcean MQTT UI. For field-testing unreleased features (currently: D2-05-00 blind actuators, issue #2). Install alongside the stable add-on; do not run both against the same gateway/MQTT prefix at once."
-url: "https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/tree/test/d2-05-00-cover"
+description: "BETA test build of EnOcean MQTT UI. For field-testing unreleased features (currently: 71-profile EEP library, multi-channel D2-01, D2-05 covers). Install alongside the stable add-on; do not run both against the same gateway/MQTT prefix at once."
+url: "https://github.com/ESDN83/HA_enoceanmqtt-addon-ui"
 stage: experimental
 arch:
   - aarch64

@@ -186,7 +186,763 @@ DEFAULT_MAPPINGS = {
             "name": "Angle",
             "unit_of_measurement": "°"
         }
-    }
+    },
+    # 4BS Temperature Sensors (A5-02 family) — from arno0392 fork
+    "A5-02-01": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-02": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-03": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-04": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-06": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-07": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-08": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-09": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-0A": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-0B": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-10": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-11": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-12": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-13": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-14": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-15": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-16": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-17": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-18": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-19": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-1A": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-1B": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-20": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-02-30": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    # 4BS Temperature and Humidity (A5-04) — from arno0392 fork
+    "A5-04-02": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        },
+        "HUM": {
+            "component": "sensor",
+            "name": "Humidity",
+            "device_class": "humidity",
+            "unit_of_measurement": "%"
+        }
+    },
+    "A5-04-03": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        },
+        "HUM": {
+            "component": "sensor",
+            "name": "Humidity",
+            "device_class": "humidity",
+            "unit_of_measurement": "%"
+        }
+    },
+    # 4BS Light Sensors (A5-06) — from arno0392 fork
+    "A5-06-01": {
+        "ILL": {
+            "component": "sensor",
+            "name": "Illuminance",
+            "device_class": "illuminance",
+            "unit_of_measurement": "lx"
+        },
+        "SVC": {
+            "component": "sensor",
+            "name": "Supply Voltage",
+            "device_class": "voltage",
+            "unit_of_measurement": "V"
+        }
+    },
+    # 4BS Occupancy Sensors (A5-07) — from arno0392 fork
+    "A5-07-02": {
+        "PIR": {
+            "component": "binary_sensor",
+            "name": "Occupancy",
+            "device_class": "occupancy"
+        },
+        "SVC": {
+            "component": "sensor",
+            "name": "Supply Voltage",
+            "device_class": "voltage",
+            "unit_of_measurement": "V"
+        }
+    },
+    "A5-07-03": {
+        "PIR": {
+            "component": "binary_sensor",
+            "name": "Occupancy",
+            "device_class": "occupancy"
+        },
+        "ILL": {
+            "component": "sensor",
+            "name": "Illuminance",
+            "device_class": "illuminance",
+            "unit_of_measurement": "lx"
+        },
+        "SVC": {
+            "component": "sensor",
+            "name": "Supply Voltage",
+            "device_class": "voltage",
+            "unit_of_measurement": "V"
+        }
+    },
+    # 4BS Light/Temp/Occupancy combos (A5-08) — from arno0392 fork
+    "A5-08-01": {
+        "ILL": {
+            "component": "sensor",
+            "name": "Illuminance",
+            "device_class": "illuminance",
+            "unit_of_measurement": "lx"
+        },
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        },
+        "PIR": {
+            "component": "binary_sensor",
+            "name": "Occupancy",
+            "device_class": "occupancy"
+        },
+        "SVC": {
+            "component": "sensor",
+            "name": "Supply Voltage",
+            "device_class": "voltage",
+            "unit_of_measurement": "V"
+        }
+    },
+    "A5-08-02": {
+        "ILL": {
+            "component": "sensor",
+            "name": "Illuminance",
+            "device_class": "illuminance",
+            "unit_of_measurement": "lx"
+        },
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        },
+        "PIR": {
+            "component": "binary_sensor",
+            "name": "Occupancy",
+            "device_class": "occupancy"
+        },
+        "SVC": {
+            "component": "sensor",
+            "name": "Supply Voltage",
+            "device_class": "voltage",
+            "unit_of_measurement": "V"
+        }
+    },
+    "A5-08-03": {
+        "ILL": {
+            "component": "sensor",
+            "name": "Illuminance",
+            "device_class": "illuminance",
+            "unit_of_measurement": "lx"
+        },
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        },
+        "PIR": {
+            "component": "binary_sensor",
+            "name": "Occupancy",
+            "device_class": "occupancy"
+        },
+        "SVC": {
+            "component": "sensor",
+            "name": "Supply Voltage",
+            "device_class": "voltage",
+            "unit_of_measurement": "V"
+        }
+    },
+    # 4BS Air Quality: CO2 / VOC (A5-09) — from arno0392 fork
+    "A5-09-02": {
+        "CO2": {
+            "component": "sensor",
+            "name": "CO2",
+            "device_class": "carbon_dioxide",
+            "unit_of_measurement": "ppm"
+        },
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    "A5-09-04": {
+        "CO2": {
+            "component": "sensor",
+            "name": "CO2",
+            "device_class": "carbon_dioxide",
+            "unit_of_measurement": "ppm"
+        },
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        },
+        "HUM": {
+            "component": "sensor",
+            "name": "Humidity",
+            "device_class": "humidity",
+            "unit_of_measurement": "%"
+        }
+    },
+    "A5-09-05": {
+        "VOC": {
+            "component": "sensor",
+            "name": "VOC",
+            "device_class": "volatile_organic_compounds",
+            "unit_of_measurement": "ppb"
+        },
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        },
+        "HUM": {
+            "component": "sensor",
+            "name": "Humidity",
+            "device_class": "humidity",
+            "unit_of_measurement": "%"
+        }
+    },
+    # 4BS HVAC / Room Panels (A5-10) — from arno0392 fork
+    "A5-10-01": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        },
+        "SP": {
+            "component": "sensor",
+            "name": "Set Point",
+            "icon": "mdi:thermometer-auto",
+            "unit_of_measurement": "Â°C"
+        },
+        "FAN": {
+            "component": "sensor",
+            "name": "Fan Speed",
+            "icon": "mdi:fan"
+        }
+    },
+    "A5-10-06": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "Â°C"
+        },
+        "SP": {
+            "component": "sensor",
+            "name": "Set Point",
+            "icon": "mdi:thermometer-auto",
+            "unit_of_measurement": "Â°C"
+        }
+    },
+    # 4BS Meters: electricity/gas/water (A5-12) — from arno0392 fork
+    "A5-12-01": {
+        "MR": {
+            "component": "sensor",
+            "name": "Energy",
+            "device_class": "energy",
+            "unit_of_measurement": "Wh",
+            "state_class": "total_increasing"
+        },
+        "TMP": {
+            "component": "sensor",
+            "name": "Current Power",
+            "device_class": "power",
+            "unit_of_measurement": "W"
+        }
+    },
+    "A5-12-02": {
+        "MR": {
+            "component": "sensor",
+            "name": "Gas Volume",
+            "unit_of_measurement": "mÂ³",
+            "icon": "mdi:meter-gas",
+            "state_class": "total_increasing"
+        }
+    },
+    "A5-12-03": {
+        "MR": {
+            "component": "sensor",
+            "name": "Water Volume",
+            "unit_of_measurement": "L",
+            "icon": "mdi:water",
+            "state_class": "total_increasing"
+        }
+    },
+    # 4BS Multi-sensors: vibration/window/lux (A5-14) — from arno0392 fork
+    "A5-14-01": {
+        "VIB": {
+            "component": "binary_sensor",
+            "name": "Vibration",
+            "device_class": "vibration"
+        },
+        "SVC": {
+            "component": "sensor",
+            "name": "Supply Voltage",
+            "device_class": "voltage",
+            "unit_of_measurement": "V"
+        }
+    },
+    "A5-14-05": {
+        "OC": {
+            "component": "binary_sensor",
+            "name": "Contact",
+            "device_class": "door"
+        },
+        "VIB": {
+            "component": "binary_sensor",
+            "name": "Vibration",
+            "device_class": "vibration"
+        },
+        "SVC": {
+            "component": "sensor",
+            "name": "Supply Voltage",
+            "device_class": "voltage",
+            "unit_of_measurement": "V"
+        }
+    },
+    "A5-14-09": {
+        "OC": {
+            "component": "binary_sensor",
+            "name": "Contact",
+            "device_class": "window"
+        },
+        "ILL": {
+            "component": "sensor",
+            "name": "Illuminance",
+            "device_class": "illuminance",
+            "unit_of_measurement": "lx"
+        },
+        "SVC": {
+            "component": "sensor",
+            "name": "Supply Voltage",
+            "device_class": "voltage",
+            "unit_of_measurement": "V"
+        }
+    },
+    "A5-14-0A": {
+        "OC": {
+            "component": "binary_sensor",
+            "name": "Contact",
+            "device_class": "window"
+        },
+        "VIB": {
+            "component": "binary_sensor",
+            "name": "Vibration",
+            "device_class": "vibration"
+        },
+        "ILL": {
+            "component": "sensor",
+            "name": "Illuminance",
+            "device_class": "illuminance",
+            "unit_of_measurement": "lx"
+        },
+        "SVC": {
+            "component": "sensor",
+            "name": "Supply Voltage",
+            "device_class": "voltage",
+            "unit_of_measurement": "V"
+        }
+    },
+    # 4BS Digital Input (A5-30) — from arno0392 fork
+    "A5-30-01": {
+        "DI0": {
+            "component": "binary_sensor",
+            "name": "Input 0",
+            "device_class": "power"
+        },
+        "SVC": {
+            "component": "sensor",
+            "name": "Supply Voltage",
+            "device_class": "voltage",
+            "unit_of_measurement": "V"
+        }
+    },
+    "A5-30-02": {
+        "DI0": {
+            "component": "binary_sensor",
+            "name": "Input 0",
+            "device_class": "power"
+        }
+    },
+    # VLD Electronic Switches and Dimmers (D2-01) — from arno0392 fork
+    "D2-01-01": {
+        "OV": {
+            "component": "binary_sensor",
+            "name": "Output",
+            "device_class": "power",
+            "payload_on": "100",
+            "payload_off": "0",
+            "value_template": "{{ value_json.OV }}"
+        }
+    },
+    "D2-01-02": {
+        "OV": {
+            "component": "binary_sensor",
+            "name": "Output",
+            "device_class": "power",
+            "payload_on": "100",
+            "payload_off": "0",
+            "value_template": "{{ value_json.OV }}"
+        }
+    },
+    "D2-01-06": {
+        "OV": {
+            "component": "binary_sensor",
+            "name": "Output",
+            "device_class": "power",
+            "payload_on": "100",
+            "payload_off": "0",
+            "value_template": "{{ value_json.OV }}"
+        }
+    },
+    "D2-01-08": {
+        "OV": {
+            "component": "sensor",
+            "name": "Brightness",
+            "unit_of_measurement": "%",
+            "icon": "mdi:brightness-6",
+            "value_template": "{{ value_json.OV }}"
+        }
+    },
+    "D2-01-09": {
+        "OV": {
+            "component": "sensor",
+            "name": "Brightness",
+            "unit_of_measurement": "%",
+            "icon": "mdi:brightness-6",
+            "value_template": "{{ value_json.OV }}"
+        }
+    },
+    "D2-01-0A": {
+        "OV": {
+            "component": "sensor",
+            "name": "Brightness",
+            "unit_of_measurement": "%",
+            "icon": "mdi:brightness-6",
+            "value_template": "{{ value_json.OV }}"
+        }
+    },
+    "D2-01-0B": {
+        "OV": {
+            "component": "sensor",
+            "name": "Brightness",
+            "unit_of_measurement": "%",
+            "icon": "mdi:brightness-6",
+            "value_template": "{{ value_json.OV }}"
+        }
+    },
+    "D2-01-0C": {
+        "OV": {
+            "component": "sensor",
+            "name": "Brightness",
+            "unit_of_measurement": "%",
+            "icon": "mdi:brightness-6",
+            "value_template": "{{ value_json.OV }}"
+        }
+    },
+    "D2-01-0D": {
+        "OV": {
+            "component": "binary_sensor",
+            "name": "Output",
+            "device_class": "power",
+            "payload_on": "100",
+            "payload_off": "0",
+            "value_template": "{{ value_json.OV }}"
+        }
+    },
+    "D2-01-0E": {
+        "OV": {
+            "component": "binary_sensor",
+            "name": "Output",
+            "device_class": "power",
+            "payload_on": "100",
+            "payload_off": "0",
+            "value_template": "{{ value_json.OV }}"
+        }
+    },
+    "D2-01-11": {
+        "OV": {
+            "component": "sensor",
+            "name": "Channel 0 Brightness",
+            "unit_of_measurement": "%",
+            "icon": "mdi:brightness-6",
+            "value_template": "{{ value_json.OV | string }}"
+        },
+        "OV_CH1": {
+            "component": "sensor",
+            "name": "Channel 1 Brightness",
+            "unit_of_measurement": "%",
+            "icon": "mdi:brightness-6",
+            "value_template": "{{ value_json.OV_CH1 | string }}"
+        }
+    },
+    "D2-01-12": {
+        "OV": {
+            "component": "binary_sensor",
+            "name": "Channel 0",
+            "device_class": "light",
+            "payload_on": "100",
+            "payload_off": "0",
+            "value_template": "{{ value_json.OV | string }}"
+        },
+        "OV_CH1": {
+            "component": "binary_sensor",
+            "name": "Channel 1",
+            "device_class": "light",
+            "payload_on": "100",
+            "payload_off": "0",
+            "value_template": "{{ value_json.OV_CH1 | string }}"
+        }
+    },
+    # VLD Blinds Control variants (D2-05) — from arno0392 fork
+    "D2-05-01": {
+        "POS": {
+            "component": "cover",
+            "name": "Position",
+            "device_class": "blind"
+        },
+        "ANG": {
+            "component": "sensor",
+            "name": "Angle",
+            "unit_of_measurement": "Â°"
+        }
+    },
+    # RPS Rocker Switch, 4 Rockers (F6-03) — from arno0392 fork
+    "F6-03-01": {
+        "R1": {
+            "component": "sensor",
+            "name": "Rocker A",
+            "icon": "mdi:gesture-tap-button",
+            "value_template": "{{ value_json.R1_text }}"
+        },
+        "R2": {
+            "component": "sensor",
+            "name": "Rocker B",
+            "icon": "mdi:gesture-tap-button",
+            "value_template": "{{ value_json.R2_text }}"
+        },
+        "EB": {
+            "component": "binary_sensor",
+            "name": "Energy Bow",
+            "device_class": "power"
+        }
+    },
+    "F6-03-02": {
+        "R1": {
+            "component": "sensor",
+            "name": "Rocker A",
+            "icon": "mdi:gesture-tap-button",
+            "value_template": "{{ value_json.R1_text }}"
+        },
+        "R2": {
+            "component": "sensor",
+            "name": "Rocker B",
+            "icon": "mdi:gesture-tap-button",
+            "value_template": "{{ value_json.R2_text }}"
+        },
+        "EB": {
+            "component": "binary_sensor",
+            "name": "Energy Bow",
+            "device_class": "power"
+        }
+    },
+    # RPS Window Handle (F6-10) — from arno0392 fork
+    "F6-10-00": {
+        "WIN": {
+            "component": "sensor",
+            "name": "Window Handle",
+            "icon": "mdi:window-open",
+            "value_template": "{{ value_json.WIN_text }}"
+        }
+    },
 }
 
 def _normalize_address(address: str) -> str:
