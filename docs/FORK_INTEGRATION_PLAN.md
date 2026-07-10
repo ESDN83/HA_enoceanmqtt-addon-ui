@@ -60,12 +60,14 @@ Fork lets users edit MQTT broker settings in the web UI (not just HA add-on conf
 Fork uses different option key names (`mqtt.mqtt_host` vs our `mqtt.host`) — **normalize to our names** (`mqtt.host/port/username/password`).
 Careful: writing `/data/options.json` from inside the addon is unusual but works; validate JSON before write, keep backup of previous file.
 
-### 2.4 UI rework — **DO NOT MERGE WHOLESALE**
-Fork `index.html` = 2972 lines vs our beta 3578. Same feature set present (textMode, fork-profiles, backup, teach-in,
-custom profiles all present in both) but fork is based on the older 1.2.5 UI and LACKS our 1.4.0 additions
-(cover invert ×16 refs, newer teach-in timeout fixes, version handling via `app_version.py`).
-Only take: the MQTT-config settings panel markup/JS (small, isolated).
-Optionally later: review fork UI for genuine simplifications as inspiration, low priority.
+### 2.4 UI rework — **RESOLVED 2026-07-10: nothing to merge**
+Detailed review done: fork `index.html` (2972 lines) vs common base 1.2.5 (3526 lines) differs by only
+−4,882 chars (−2.5%). Function inventory diff shows **zero removed/refactored functions** — the fork only
+(a) reformatted (fewer blank lines: 311→201, longer lines: avg 54.5→63.1 chars) and (b) added 4 MQTT-broker
+panel functions (`mqttBrokerLoad/Save`, badge/alert helpers, no reset capability).
+Verdict: no genuine code optimizations exist; reformatting would create huge diffs for zero benefit.
+The MQTT panel idea was implemented independently (better: Reset to Defaults + Supervisor self-restart)
+in beta 1.5.0-beta2. **This work item is closed.**
 
 ### 2.5 Not portable / skip
 - Fork's external-MQTT implementation (we have our own since v1.3.0; fork's differs in option names)
