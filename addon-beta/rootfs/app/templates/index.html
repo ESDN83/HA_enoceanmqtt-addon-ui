@@ -811,6 +811,55 @@
                 </div>
             </div>
 
+            <!-- MQTT Settings -->
+            <div class="card mb-4">
+                <div class="card-header"><i class="bi bi-broadcast-pin"></i> <span data-i18n="settings.mqtt_title">MQTT Settings</span></div>
+                <div class="card-body">
+                    <p class="text-muted small" data-i18n="settings.mqtt_hint">Leave Host empty to use Home Assistant's MQTT broker automatically. Set a host to connect to an external broker. Changes apply after the add-on restarts.</p>
+                    <div class="row g-3" style="max-width: 720px;">
+                        <div class="col-md-8">
+                            <label class="form-label" data-i18n="settings.mqtt_host">Host (empty = auto)</label>
+                            <input type="text" class="form-control" id="mqtt-cfg-host" placeholder="e.g. 192.168.1.10">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" data-i18n="settings.mqtt_port">Port</label>
+                            <input type="number" class="form-control" id="mqtt-cfg-port" min="1" max="65535">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" data-i18n="settings.mqtt_username">Username</label>
+                            <input type="text" class="form-control" id="mqtt-cfg-username" autocomplete="off">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" data-i18n="settings.mqtt_password">Password</label>
+                            <input type="password" class="form-control" id="mqtt-cfg-password" autocomplete="new-password">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" data-i18n="settings.mqtt_discovery_prefix">Discovery Prefix</label>
+                            <input type="text" class="form-control" id="mqtt-cfg-discovery-prefix">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" data-i18n="settings.mqtt_prefix">Topic Prefix</label>
+                            <input type="text" class="form-control" id="mqtt-cfg-prefix">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" data-i18n="settings.mqtt_client_id">Client ID</label>
+                            <input type="text" class="form-control" id="mqtt-cfg-client-id">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-primary me-2" onclick="saveMqttConfig(false)">
+                            <i class="bi bi-save"></i> <span data-i18n="settings.mqtt_save">Save</span>
+                        </button>
+                        <button class="btn btn-warning me-2" onclick="saveMqttConfig(true)">
+                            <i class="bi bi-arrow-clockwise"></i> <span data-i18n="settings.mqtt_save_restart">Save &amp; Restart Add-on</span>
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="resetMqttConfig()">
+                            <i class="bi bi-arrow-counterclockwise"></i> <span data-i18n="settings.mqtt_reset">Reset to Defaults</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Local Backups -->
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -846,6 +895,9 @@
                             </tr>
                         </table>
                     </div>
+                    <button class="btn btn-outline-secondary me-2" onclick="downloadEep()">
+                        <i class="bi bi-download"></i> <span data-i18n="settings.eep_download">Download EEP.xml</span>
+                    </button>
                     <label class="btn btn-outline-primary me-2">
                         <i class="bi bi-upload"></i> <span data-i18n="settings.eep_upload">Upload EEP.xml</span>
                         <input type="file" id="eep-upload-file" style="display: none;" accept=".xml" onchange="uploadEep(this)">
@@ -1206,7 +1258,7 @@
             // Load page-specific data
             if (page === 'devices') loadDevices();
             if (page === 'profiles') loadProfiles();
-            if (page === 'settings') { loadBackups(); loadEepInfo(); }
+            if (page === 'settings') { loadBackups(); loadEepInfo(); loadMqttConfig(); }
             if (page === 'teach-in') resetTeachInPage();
         }
 
@@ -3555,6 +3607,94 @@
             } catch (error) {
                 showToast(t('settings.eep_delete_failed', 'Failed to delete custom EEP.xml'), 'danger');
             }
+        }
+
+        async function downloadEep() {
+            try {
+                const response = await fetch(getApiUrl('/api/system/download-eep'));
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'EEP.xml';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                showToast(t('settings.eep_download_failed', 'EEP.xml download failed') + ': ' + error.message, 'danger');
+            }
+        }
+
+        // === MQTT Settings (Web UI editor for /data/options.json mqtt block) ===
+        const MQTT_CFG_FIELDS = ['host', 'port', 'username', 'password', 'discovery_prefix', 'prefix', 'client_id'];
+
+        function mqttCfgInput(key) {
+            return document.getElementById('mqtt-cfg-' + key.replace(/_/g, '-'));
+        }
+
+        async function loadMqttConfig() {
+            try {
+                const response = await fetch(getApiUrl('/api/system/mqtt-config'));
+                if (!response.ok) return;
+                const data = await response.json();
+                for (const key of MQTT_CFG_FIELDS) {
+                    const el = mqttCfgInput(key);
+                    if (el) el.value = data.mqtt[key] ?? '';
+                }
+            } catch (error) {
+                console.error('loadMqttConfig failed', error);
+            }
+        }
+
+        async function saveMqttConfig(restart) {
+            const mqtt = {};
+            for (const key of MQTT_CFG_FIELDS) {
+                const el = mqttCfgInput(key);
+                if (el) mqtt[key] = el.value;
+            }
+            try {
+                const response = await fetch(getApiUrl('/api/system/mqtt-config'), {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({mqtt: mqtt, restart: !!restart})
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'HTTP ' + response.status);
+                if (data.restarting) {
+                    showToast(t('settings.mqtt_saved_restarting', 'MQTT settings saved — add-on is restarting...'), 'success');
+                } else {
+                    showToast(t('settings.mqtt_saved', 'MQTT settings saved — restart the add-on to apply'), 'success');
+                }
+                loadMqttConfig();
+            } catch (error) {
+                showToast(t('settings.mqtt_save_failed', 'Failed to save MQTT settings') + ': ' + error.message, 'danger');
+            }
+        }
+
+        function resetMqttConfig() {
+            showConfirmDialog(
+                t('settings.mqtt_reset_confirm_title', 'Reset MQTT settings?'),
+                t('settings.mqtt_reset_confirm', 'This restores all MQTT options to their defaults (auto-discovery via Home Assistant broker). The add-on must be restarted to apply.'),
+                t('settings.mqtt_reset', 'Reset to Defaults'),
+                'btn-danger',
+                async () => {
+                    try {
+                        const response = await fetch(getApiUrl('/api/system/mqtt-config'), {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({reset: true})
+                        });
+                        const data = await response.json();
+                        if (!response.ok) throw new Error(data.detail || 'HTTP ' + response.status);
+                        showToast(t('settings.mqtt_reset_done', 'MQTT settings reset to defaults — restart the add-on to apply'), 'success');
+                        loadMqttConfig();
+                    } catch (error) {
+                        showToast(t('settings.mqtt_save_failed', 'Failed to save MQTT settings') + ': ' + error.message, 'danger');
+                    }
+                }
+            );
         }
 
         function showToast(message, type = 'info') {
