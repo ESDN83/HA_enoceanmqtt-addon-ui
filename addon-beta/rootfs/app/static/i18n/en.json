@@ -6,11 +6,9 @@
   "nav.add_device": "Add Device",
   "nav.settings": "Settings",
   "nav.version": "Version",
-
   "navbar.brand": "EnOcean MQTT",
   "navbar.mqtt": "MQTT",
   "navbar.enocean": "EnOcean",
-
   "dashboard.title": "Dashboard",
   "dashboard.mqtt_broker": "MQTT Broker",
   "dashboard.enocean_gateway": "EnOcean Gateway",
@@ -28,12 +26,10 @@
   "dashboard.unknown_devices_desc": "Devices sending telegrams but not yet configured",
   "dashboard.no_unknown": "No unknown devices detected",
   "dashboard.no_telegrams": "No telegrams received yet",
-
   "status.connected": "Connected",
   "status.disconnected": "Disconnected",
   "status.not_configured": "Not configured",
   "status.checking": "Checking...",
-
   "devices.title": "Devices",
   "devices.add": "Add Device",
   "devices.search_placeholder": "Search devices...",
@@ -42,7 +38,6 @@
   "devices.deleted": "Device deleted",
   "devices.delete_failed": "Failed to delete device",
   "devices.load_failed": "Failed to load devices",
-
   "profiles.title": "EEP Profiles",
   "profiles.create": "Create Custom Profile",
   "profiles.info_line1": "standard profiles from the EnOcean protocol are included.",
@@ -53,7 +48,6 @@
   "profiles.select_hint": "Select a profile to view details",
   "profiles.load_failed": "Failed to load profiles",
   "profiles.details_failed": "Failed to load profile details",
-
   "mappings.title": "Entity Mappings",
   "mappings.help": "Help",
   "mappings.templates": "Templates",
@@ -74,7 +68,6 @@
   "mappings.templates_title": "Mapping Templates",
   "mappings.templates_hint": "Click a template to insert it into the editor:",
   "mappings.template_inserted": "Template inserted",
-
   "teach_in.title": "Add New Device",
   "teach_in.step1": "Step 1: Detect Device",
   "teach_in.step1_desc": "Choose how to add your device",
@@ -132,7 +125,6 @@
   "teach_in.next_step": "Next",
   "teach_in.next_step_desc": "Use \"Manual Entry\" to add this device with sender ID",
   "teach_in.and_actuator_type": "and actuator type",
-
   "settings.title": "Settings",
   "settings.import_export": "Import / Export",
   "settings.export_all": "Export All",
@@ -148,7 +140,6 @@
   "settings.import_success": "Import successful",
   "settings.import_failed": "Import failed",
   "settings.export_failed": "Export failed",
-
   "settings.eep_title": "EEP.xml Profile Database",
   "settings.eep_source": "Source",
   "settings.eep_source_user": "Custom (uploaded)",
@@ -164,7 +155,6 @@
   "settings.eep_delete_success": "Custom EEP.xml deleted, reverted to bundled",
   "settings.eep_delete_failed": "Failed to delete custom EEP.xml",
   "settings.eep_invalid": "Invalid EEP.xml file",
-
   "modal.custom_profile_title": "Create Custom EEP Profile",
   "modal.fork_title": "Fork Standard Profile",
   "modal.rorg": "RORG",
@@ -185,7 +175,6 @@
   "modal.guide_desc": "for step-by-step examples with real devices (bit offsets, field types, HA mappings).",
   "modal.confirm": "Confirm",
   "modal.are_you_sure": "Are you sure?",
-
   "mapping_editor.title": "Mapping Editor",
   "mapping_editor.customize": "Customize",
   "mapping_editor.reset": "Reset",
@@ -231,7 +220,6 @@
   "mapping_editor.field_force_update": "Force Update",
   "mapping_editor.field_value_template": "Value Template",
   "mapping_editor.none": "(none)",
-
   "profile.edit": "Edit Profile",
   "profile.delete": "Delete",
   "profile.fork": "Fork as Custom Profile",
@@ -249,7 +237,6 @@
   "profile.deleted": "Profile deleted",
   "profile.load_edit_failed": "Failed to load profile for editing",
   "profile.load_fork_failed": "Failed to load profile for forking",
-
   "device.back": "Back to Devices",
   "device.edit": "Edit Device",
   "device.save": "Save Device",
@@ -276,13 +263,11 @@
   "device.save_failed": "Failed to save device",
   "device.load_failed": "Failed to load device",
   "device.details_failed": "Failed to load device details",
-
   "telegram.time": "Time",
   "telegram.rorg": "RORG",
   "telegram.data": "Data",
   "telegram.dbm": "dBm",
   "telegram.teach_in": "Teach-In",
-
   "backup.no_backups": "No backups yet. Click \"Create Backup\" to save your current configuration.",
   "backup.filename": "Filename",
   "backup.created": "Created",
@@ -310,10 +295,8 @@
   "backup.restore_failed": "Restore failed",
   "backup.delete_failed": "Delete failed",
   "backup.custom_profiles": "custom profiles",
-
   "export.success": "Config exported successfully",
   "export.failed": "Export failed",
-
   "toast.yaml_not_loaded": "YAML library not loaded. Please reload the page.",
   "toast.fix_validation": "Fix validation errors before switching to text mode",
   "toast.yaml_serialize_failed": "Failed to serialize to YAML",
@@ -324,7 +307,6 @@
   "toast.telegrams_cleared": "Telegrams cleared",
   "toast.telegrams_clear_failed": "Failed to clear telegrams",
   "toast.failed_load_mapping": "Failed to load mapping",
-
   "label.name": "Name",
   "label.class": "Class",
   "label.icon": "Icon",
@@ -334,13 +316,11 @@
   "label.expire": "Expire",
   "label.force_update": "Force Update",
   "label.precision": "Precision",
-
   "eep.custom_profiles": "Custom Profiles",
   "eep.customized_mappings": "Customized Mappings",
   "eep.orphaned_mappings": "Orphaned Mappings",
   "eep.orphaned_hint": "These mapping overrides reference EEP profiles that no longer exist in the current EEP.xml. Consider removing them.",
   "eep.orphaned_profile_missing": "profile not found",
-
   "table.address": "Address",
   "table.rorg": "RORG",
   "table.signal": "Signal",
@@ -348,11 +328,30 @@
   "table.last_seen": "Last Seen",
   "table.action": "Action",
   "table.add": "Add",
-
   "common.unknown": "Unknown",
   "common.loading": "Loading...",
   "common.error": "Error",
   "common.status_failed": "Failed to load status",
   "common.unknown_error": "Unknown error",
-  "common.cannot_undo": "This cannot be undone."
+  "common.cannot_undo": "This cannot be undone.",
+  "settings.mqtt_title": "MQTT Settings",
+  "settings.mqtt_hint": "Leave Host empty to use Home Assistant's MQTT broker automatically. Set a host to connect to an external broker. Changes apply after the add-on restarts.",
+  "settings.mqtt_host": "Host (empty = auto)",
+  "settings.mqtt_port": "Port",
+  "settings.mqtt_username": "Username",
+  "settings.mqtt_password": "Password",
+  "settings.mqtt_discovery_prefix": "Discovery Prefix",
+  "settings.mqtt_prefix": "Topic Prefix",
+  "settings.mqtt_client_id": "Client ID",
+  "settings.mqtt_save": "Save",
+  "settings.mqtt_save_restart": "Save & Restart Add-on",
+  "settings.mqtt_reset": "Reset to Defaults",
+  "settings.mqtt_saved": "MQTT settings saved — restart the add-on to apply",
+  "settings.mqtt_saved_restarting": "MQTT settings saved — add-on is restarting...",
+  "settings.mqtt_save_failed": "Failed to save MQTT settings",
+  "settings.mqtt_reset_confirm_title": "Reset MQTT settings?",
+  "settings.mqtt_reset_confirm": "This restores all MQTT options to their defaults (auto-discovery via Home Assistant broker). The add-on must be restarted to apply.",
+  "settings.mqtt_reset_done": "MQTT settings reset to defaults — restart the add-on to apply",
+  "settings.eep_download": "Download EEP.xml",
+  "settings.eep_download_failed": "EEP.xml download failed"
 }

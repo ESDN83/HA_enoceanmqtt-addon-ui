@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.0-beta2] - 2026-07-10 (beta channel)
+
+### New Features
+- **MQTT Settings in the Web UI** — New card on the Settings page to view and edit all MQTT options (host, port, username, password, discovery prefix, topic prefix, client ID) with **Save**, **Save & Restart Add-on** (via Supervisor API), and **Reset to Defaults** buttons. Reset restores auto-discovery via Home Assistant's broker — previously there was no way to get the original values back once edited in the add-on Configuration tab. Reads/writes the same `/data/options.json` the Configuration tab uses, so both stay in sync (atomic write with `.bak` backup; password never echoed back). Idea from @arno0392's fork, adapted.
+- **Download EEP.xml** — New download button next to the upload on the Settings page. Exports the currently active profile database (user-uploaded or bundled), so you can inspect/edit it before re-uploading.
+
 ## [1.5.0-beta1] - 2026-07-10 (beta channel)
 
 ### New Features
