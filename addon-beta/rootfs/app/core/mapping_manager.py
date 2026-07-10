@@ -193,7 +193,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-02": {
@@ -201,7 +201,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-03": {
@@ -209,7 +209,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-04": {
@@ -217,7 +217,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-06": {
@@ -225,7 +225,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-07": {
@@ -233,7 +233,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-08": {
@@ -241,7 +241,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-09": {
@@ -249,7 +249,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-0A": {
@@ -257,7 +257,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-0B": {
@@ -265,7 +265,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-10": {
@@ -273,7 +273,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-11": {
@@ -281,7 +281,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-12": {
@@ -289,7 +289,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-13": {
@@ -297,7 +297,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-14": {
@@ -305,7 +305,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-15": {
@@ -313,7 +313,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-16": {
@@ -321,7 +321,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-17": {
@@ -329,7 +329,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-18": {
@@ -337,7 +337,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-19": {
@@ -345,7 +345,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-1A": {
@@ -353,7 +353,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-1B": {
@@ -361,7 +361,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-20": {
@@ -369,7 +369,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-02-30": {
@@ -377,7 +377,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     # 4BS Temperature and Humidity (A5-04) — from arno0392 fork
@@ -386,7 +386,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         },
         "HUM": {
             "component": "sensor",
@@ -400,7 +400,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         },
         "HUM": {
             "component": "sensor",
@@ -469,7 +469,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         },
         "PIR": {
             "component": "binary_sensor",
@@ -494,7 +494,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         },
         "PIR": {
             "component": "binary_sensor",
@@ -519,7 +519,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         },
         "PIR": {
             "component": "binary_sensor",
@@ -545,7 +545,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     "A5-09-04": {
@@ -559,7 +559,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         },
         "HUM": {
             "component": "sensor",
@@ -579,7 +579,7 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         },
         "HUM": {
             "component": "sensor",
@@ -594,13 +594,13 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         },
         "SP": {
             "component": "sensor",
             "name": "Set Point",
             "icon": "mdi:thermometer-auto",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         },
         "FAN": {
             "component": "sensor",
@@ -613,13 +613,13 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         },
         "SP": {
             "component": "sensor",
             "name": "Set Point",
             "icon": "mdi:thermometer-auto",
-            "unit_of_measurement": "Â°C"
+            "unit_of_measurement": "°C"
         }
     },
     # 4BS Meters: electricity/gas/water (A5-12) — from arno0392 fork
@@ -642,7 +642,7 @@ DEFAULT_MAPPINGS = {
         "MR": {
             "component": "sensor",
             "name": "Gas Volume",
-            "unit_of_measurement": "mÂ³",
+            "unit_of_measurement": "m³",
             "icon": "mdi:meter-gas",
             "state_class": "total_increasing"
         }
@@ -892,7 +892,7 @@ DEFAULT_MAPPINGS = {
         "ANG": {
             "component": "sensor",
             "name": "Angle",
-            "unit_of_measurement": "Â°"
+            "unit_of_measurement": "°"
         }
     },
     # RPS Rocker Switch, 4 Rockers (F6-03) — from arno0392 fork

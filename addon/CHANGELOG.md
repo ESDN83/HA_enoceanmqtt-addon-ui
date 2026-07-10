@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5.0] - 2026-07-10
+
+Field-tested in the Beta channel (1.5.0-beta1…beta3) before this stable release.
+
+### New Features
+- **EEP profile library: 9 → 71 profiles** — 62 new default HA mappings, contributed by [@arno0392](https://github.com/arno0392)'s fork (thank you!): full A5-02 temperature family, A5-04-02/03 temp+humidity, A5-06-01 light, A5-07-02/03 occupancy, A5-08-01/02/03 combo sensors, A5-09-02/04/05 air quality (CO₂/VOC), A5-10-01/06 HVAC panels, A5-12-01/02/03 meters (electricity/gas/water with `state_class: total_increasing`), A5-14-01/05/09/0A vibration/window/illuminance, A5-30-01/02 digital inputs, D2-01 electronic switch family (01–0E, 11 two-channel dimmer, 12 two-channel switch), D2-05-01 blinds, F6-03-01/02 four-rocker switches, F6-10-00 window handle.
+- **Multi-channel state merge (D2-01-11/12)** — Two-channel devices report only the changed channel per telegram (`IO` field selects the channel). The add-on now caches both channels per device and publishes a merged payload (`OV` = channel 0, `OV_CH1` = channel 1), so one channel update no longer wipes the other in HA. Also from @arno0392's fork.
+- **MQTT Settings in the Web UI** — New card on the Settings page to view and edit all MQTT options (host, port, username, password, discovery prefix, topic prefix, client ID) with **Save**, **Save & Restart Add-on** (via Supervisor API), and **Reset to Defaults** buttons. Reset restores auto-discovery via Home Assistant's broker — previously there was no way to get the original values back once edited in the add-on Configuration tab. Reads/writes the same `/data/options.json` the Configuration tab uses (atomic write with `.bak` backup; password never echoed back).
+- **Download EEP.xml** — New download button next to the upload on the Settings page. Exports the currently active profile database (user-uploaded or bundled).
+
+### Improvements
+- **Recent Telegrams show decoded payload** — Each dashboard entry now has a second line with the decoded telegram fields (human-readable enum texts preferred, e.g. `R1: Button BI · EB: pressed`) plus the raw hex data.
+
 ## [1.4.0] - 2026-07-04
 
 Field-tested in the Beta channel (issue #2) and confirmed working by users before this stable release.

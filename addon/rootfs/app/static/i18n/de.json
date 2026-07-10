@@ -6,11 +6,9 @@
   "nav.add_device": "Gerät hinzufügen",
   "nav.settings": "Einstellungen",
   "nav.version": "Version",
-
   "navbar.brand": "EnOcean MQTT",
   "navbar.mqtt": "MQTT",
   "navbar.enocean": "EnOcean",
-
   "dashboard.title": "Dashboard",
   "dashboard.mqtt_broker": "MQTT-Broker",
   "dashboard.enocean_gateway": "EnOcean-Gateway",
@@ -28,12 +26,10 @@
   "dashboard.unknown_devices_desc": "Geräte, die Telegramme senden, aber noch nicht konfiguriert sind",
   "dashboard.no_unknown": "Keine unbekannten Geräte erkannt",
   "dashboard.no_telegrams": "Noch keine Telegramme empfangen",
-
   "status.connected": "Verbunden",
   "status.disconnected": "Getrennt",
   "status.not_configured": "Nicht konfiguriert",
   "status.checking": "Wird geprüft...",
-
   "devices.title": "Geräte",
   "devices.add": "Gerät hinzufügen",
   "devices.search_placeholder": "Geräte suchen...",
@@ -42,7 +38,6 @@
   "devices.deleted": "Gerät gelöscht",
   "devices.delete_failed": "Gerät konnte nicht gelöscht werden",
   "devices.load_failed": "Geräte konnten nicht geladen werden",
-
   "profiles.title": "EEP-Profile",
   "profiles.create": "Eigenes Profil erstellen",
   "profiles.info_line1": "Standardprofile des EnOcean-Protokolls sind enthalten.",
@@ -53,7 +48,6 @@
   "profiles.select_hint": "Profil auswählen, um Details anzuzeigen",
   "profiles.load_failed": "Profile konnten nicht geladen werden",
   "profiles.details_failed": "Profildetails konnten nicht geladen werden",
-
   "mappings.title": "Entitätszuordnungen",
   "mappings.help": "Hilfe",
   "mappings.templates": "Vorlagen",
@@ -74,7 +68,6 @@
   "mappings.templates_title": "Zuordnungsvorlagen",
   "mappings.templates_hint": "Vorlage anklicken, um sie in den Editor einzufügen:",
   "mappings.template_inserted": "Vorlage eingefügt",
-
   "teach_in.title": "Neues Gerät hinzufügen",
   "teach_in.step1": "Schritt 1: Gerät erkennen",
   "teach_in.step1_desc": "Wählen Sie, wie Sie Ihr Gerät hinzufügen möchten",
@@ -132,7 +125,6 @@
   "teach_in.next_step": "Nächster Schritt",
   "teach_in.next_step_desc": "Verwenden Sie \"Manuelle Eingabe\" um dieses Gerät mit Sender-ID hinzuzufügen",
   "teach_in.and_actuator_type": "und Aktor-Typ",
-
   "settings.title": "Einstellungen",
   "settings.import_export": "Import / Export",
   "settings.export_all": "Alles exportieren",
@@ -148,7 +140,6 @@
   "settings.import_success": "Import erfolgreich",
   "settings.import_failed": "Import fehlgeschlagen",
   "settings.export_failed": "Export fehlgeschlagen",
-
   "settings.eep_title": "EEP.xml-Profildatenbank",
   "settings.eep_source": "Quelle",
   "settings.eep_source_user": "Benutzerdefiniert (hochgeladen)",
@@ -164,7 +155,6 @@
   "settings.eep_delete_success": "Eigene EEP.xml gelöscht, mitgelieferte Version wiederhergestellt",
   "settings.eep_delete_failed": "Eigene EEP.xml konnte nicht gelöscht werden",
   "settings.eep_invalid": "Ungültige EEP.xml-Datei",
-
   "modal.custom_profile_title": "Eigenes EEP-Profil erstellen",
   "modal.fork_title": "Standardprofil kopieren",
   "modal.rorg": "RORG",
@@ -185,7 +175,6 @@
   "modal.guide_desc": "für Schritt-für-Schritt Beispiele mit echten Geräten (Bit-Offsets, Feldtypen, HA-Mappings).",
   "modal.confirm": "Bestätigen",
   "modal.are_you_sure": "Sind Sie sicher?",
-
   "mapping_editor.title": "Mapping-Editor",
   "mapping_editor.customize": "Anpassen",
   "mapping_editor.reset": "Zurücksetzen",
@@ -231,7 +220,6 @@
   "mapping_editor.field_force_update": "Update erzwingen",
   "mapping_editor.field_value_template": "Wertvorlage",
   "mapping_editor.none": "(keine)",
-
   "profile.edit": "Profil bearbeiten",
   "profile.delete": "Löschen",
   "profile.fork": "Als eigenes Profil kopieren",
@@ -249,7 +237,6 @@
   "profile.deleted": "Profil gelöscht",
   "profile.load_edit_failed": "Profil konnte nicht zum Bearbeiten geladen werden",
   "profile.load_fork_failed": "Profil konnte nicht zum Kopieren geladen werden",
-
   "device.back": "Zurück zu Geräten",
   "device.edit": "Gerät bearbeiten",
   "device.save": "Gerät speichern",
@@ -276,13 +263,11 @@
   "device.save_failed": "Gerät konnte nicht gespeichert werden",
   "device.load_failed": "Gerät konnte nicht geladen werden",
   "device.details_failed": "Gerätedetails konnten nicht geladen werden",
-
   "telegram.time": "Zeit",
   "telegram.rorg": "RORG",
   "telegram.data": "Daten",
   "telegram.dbm": "dBm",
   "telegram.teach_in": "Teach-In",
-
   "backup.no_backups": "Noch keine Sicherungen. Klicken Sie auf \"Sicherung erstellen\", um Ihre aktuelle Konfiguration zu speichern.",
   "backup.filename": "Dateiname",
   "backup.created": "Erstellt",
@@ -310,10 +295,8 @@
   "backup.restore_failed": "Wiederherstellung fehlgeschlagen",
   "backup.delete_failed": "Löschen fehlgeschlagen",
   "backup.custom_profiles": "benutzerdefinierte Profile",
-
   "export.success": "Konfiguration erfolgreich exportiert",
   "export.failed": "Export fehlgeschlagen",
-
   "toast.yaml_not_loaded": "YAML-Bibliothek nicht geladen. Bitte Seite neu laden.",
   "toast.fix_validation": "Validierungsfehler beheben, bevor zum Textmodus gewechselt wird",
   "toast.yaml_serialize_failed": "YAML-Serialisierung fehlgeschlagen",
@@ -324,7 +307,6 @@
   "toast.telegrams_cleared": "Telegramme gelöscht",
   "toast.telegrams_clear_failed": "Telegramme konnten nicht gelöscht werden",
   "toast.failed_load_mapping": "Mapping konnte nicht geladen werden",
-
   "label.name": "Name",
   "label.class": "Klasse",
   "label.icon": "Symbol",
@@ -334,13 +316,11 @@
   "label.expire": "Ablauf",
   "label.force_update": "Update erzwingen",
   "label.precision": "Genauigkeit",
-
   "eep.custom_profiles": "Eigene Profile",
   "eep.customized_mappings": "Angepasste Zuordnungen",
   "eep.orphaned_mappings": "Verwaiste Zuordnungen",
   "eep.orphaned_hint": "Diese Zuordnungen verweisen auf EEP-Profile, die in der aktuellen EEP.xml nicht mehr existieren. Bitte entfernen Sie diese.",
   "eep.orphaned_profile_missing": "Profil nicht gefunden",
-
   "table.address": "Adresse",
   "table.rorg": "RORG",
   "table.signal": "Signal",
@@ -348,11 +328,30 @@
   "table.last_seen": "Zuletzt gesehen",
   "table.action": "Aktion",
   "table.add": "Hinzufügen",
-
   "common.unknown": "Unbekannt",
   "common.loading": "Wird geladen...",
   "common.error": "Fehler",
   "common.status_failed": "Status konnte nicht geladen werden",
   "common.unknown_error": "Unbekannter Fehler",
-  "common.cannot_undo": "Dies kann nicht rückgängig gemacht werden."
+  "common.cannot_undo": "Dies kann nicht rückgängig gemacht werden.",
+  "settings.mqtt_title": "MQTT-Einstellungen",
+  "settings.mqtt_hint": "Host leer lassen, um automatisch den MQTT-Broker von Home Assistant zu verwenden. Host setzen, um einen externen Broker zu nutzen. Änderungen gelten nach einem Add-on-Neustart.",
+  "settings.mqtt_host": "Host (leer = automatisch)",
+  "settings.mqtt_port": "Port",
+  "settings.mqtt_username": "Benutzername",
+  "settings.mqtt_password": "Passwort",
+  "settings.mqtt_discovery_prefix": "Discovery-Präfix",
+  "settings.mqtt_prefix": "Topic-Präfix",
+  "settings.mqtt_client_id": "Client-ID",
+  "settings.mqtt_save": "Speichern",
+  "settings.mqtt_save_restart": "Speichern & Add-on neu starten",
+  "settings.mqtt_reset": "Auf Standard zurücksetzen",
+  "settings.mqtt_saved": "MQTT-Einstellungen gespeichert — zum Übernehmen Add-on neu starten",
+  "settings.mqtt_saved_restarting": "MQTT-Einstellungen gespeichert — Add-on startet neu...",
+  "settings.mqtt_save_failed": "MQTT-Einstellungen konnten nicht gespeichert werden",
+  "settings.mqtt_reset_confirm_title": "MQTT-Einstellungen zurücksetzen?",
+  "settings.mqtt_reset_confirm": "Setzt alle MQTT-Optionen auf die Standardwerte zurück (automatische Erkennung über den Home-Assistant-Broker). Zum Übernehmen muss das Add-on neu gestartet werden.",
+  "settings.mqtt_reset_done": "MQTT-Einstellungen zurückgesetzt — zum Übernehmen Add-on neu starten",
+  "settings.eep_download": "EEP.xml herunterladen",
+  "settings.eep_download_failed": "EEP.xml-Download fehlgeschlagen"
 }
