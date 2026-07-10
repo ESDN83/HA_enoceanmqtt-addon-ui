@@ -566,3 +566,190 @@ async def restart_services(request: Request) -> Dict[str, str]:
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Restart failed: {e}")
+
+
+@router.get("/download-eep")
+async def download_eep(request: Request):
+    """Download the currently active EEP.xml (user-uploaded or bundled).
+
+    Companion to /upload-eep: lets users grab the active profile database
+    to inspect or edit it before re-uploading.
+    """
+    config_path = request.app.state.config_path
+
+    user_eep = os.path.join(config_path, "EEP.xml")
+    bundled_eep = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "data", "EEP.xml"
+    )
+
+    if os.path.exists(user_eep):
+        return FileResponse(user_eep, filename="EEP.xml", media_type="application/xml")
+    if os.path.exists(bundled_eep):
+        return FileResponse(bundled_eep, filename="EEP.xml", media_type="application/xml")
+    raise HTTPException(status_code=404, detail="No EEP.xml found")
+
+
+# === MQTT configuration via Web UI ===
+# The HA add-on Configuration tab renders these options too, but offers no
+# per-section reset. These endpoints read/write the same /data/options.json
+# the Supervisor uses, so both editors stay in sync. Changes take effect on
+# the next add-on restart (run.sh re-reads the options with priority
+# mqtt.host set -> external broker, empty -> Supervisor auto-discovery).
+# Idea from arno0392's fork, adapted to our option key names.
+
+MQTT_DEFAULTS = {
+    "host": "",
+    "port": 1883,
+    "username": "",
+    "password": "",
+    "discovery_prefix": "homeassistant",
+    "prefix": "enoceanmqtt",
+    "client_id": "enocean_gateway",
+}
+
+_PASSWORD_MASK = "********"
+
+
+def _options_file() -> str:
+    return "/data/options.json"
+
+
+def _read_options() -> Dict[str, Any]:
+    path = _options_file()
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f) or {}
+    except Exception:
+        return {}
+
+
+def _write_options(data: Dict[str, Any]) -> None:
+    """Atomically write options.json, keeping a .bak of the previous file."""
+    path = _options_file()
+    tmp = path + ".tmp"
+    # Validate serializability before touching anything
+    payload = json.dumps(data, indent=2)
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                prev = f.read()
+            with open(path + ".bak", "w", encoding="utf-8") as f:
+                f.write(prev)
+        except Exception:
+            pass  # backup is best-effort
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(payload)
+    os.replace(tmp, path)
+
+
+@router.get("/mqtt-config")
+async def get_mqtt_config() -> Dict[str, Any]:
+    """Get MQTT options as saved in /data/options.json (password masked)."""
+    options = _read_options()
+    mqtt = options.get("mqtt") or {}
+
+    merged = dict(MQTT_DEFAULTS)
+    for key in MQTT_DEFAULTS:
+        if key in mqtt and mqtt[key] is not None:
+            merged[key] = mqtt[key]
+
+    password_set = bool(merged.get("password"))
+    merged["password"] = _PASSWORD_MASK if password_set else ""
+
+    return {
+        "mqtt": merged,
+        "password_set": password_set,
+        "defaults": {**MQTT_DEFAULTS, "password": ""},
+        "note": "Changes apply after the add-on restarts. Empty host = "
+                "use Home Assistant's MQTT broker (auto-discovery).",
+    }
+
+
+@router.post("/mqtt-config")
+async def save_mqtt_config(payload: Dict[str, Any], request: Request) -> Dict[str, Any]:
+    """Save MQTT options to /data/options.json.
+
+    Body: {mqtt: {host, port, username, password, discovery_prefix, prefix,
+    client_id}, reset: bool, restart: bool}
+    - reset=true ignores mqtt and restores MQTT_DEFAULTS.
+    - password equal to the mask sentinel keeps the stored password.
+    - restart=true asks the Supervisor to restart this add-on so the new
+      settings take effect immediately.
+    """
+    reset = bool(payload.get("reset"))
+    incoming = payload.get("mqtt") or {}
+
+    options = _read_options()
+    current = options.get("mqtt") or {}
+
+    if reset:
+        new_mqtt = dict(MQTT_DEFAULTS)
+    else:
+        new_mqtt = dict(MQTT_DEFAULTS)
+        new_mqtt.update({k: v for k, v in current.items() if k in MQTT_DEFAULTS})
+        for key in MQTT_DEFAULTS:
+            if key in incoming and incoming[key] is not None:
+                new_mqtt[key] = incoming[key]
+        # Mask sentinel means "keep existing password"
+        if new_mqtt.get("password") == _PASSWORD_MASK:
+            new_mqtt["password"] = current.get("password", "")
+
+    # Basic validation
+    try:
+        new_mqtt["port"] = int(new_mqtt.get("port") or 1883)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="port must be a number")
+    if not (1 <= new_mqtt["port"] <= 65535):
+        raise HTTPException(status_code=400, detail="port must be 1-65535")
+    for key in ("host", "username", "password", "discovery_prefix", "prefix", "client_id"):
+        if not isinstance(new_mqtt.get(key), str):
+            raise HTTPException(status_code=400, detail=f"{key} must be a string")
+    if not new_mqtt["discovery_prefix"] or not new_mqtt["prefix"] or not new_mqtt["client_id"]:
+        raise HTTPException(
+            status_code=400,
+            detail="discovery_prefix, prefix and client_id must not be empty"
+        )
+
+    options["mqtt"] = new_mqtt
+    try:
+        _write_options(options)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write options: {e}")
+
+    restarting = False
+    if payload.get("restart"):
+        restarting = await _supervisor_self_restart()
+
+    return {
+        "status": "reset" if reset else "saved",
+        "restarting": restarting,
+        "restart_required": not restarting,
+    }
+
+
+async def _supervisor_self_restart() -> bool:
+    """Ask the Supervisor to restart this add-on (needs hassio_api: true)."""
+    import asyncio
+    import urllib.request
+
+    token = os.getenv("SUPERVISOR_TOKEN", "")
+    if not token:
+        return False
+
+    def _call():
+        req = urllib.request.Request(
+            "http://supervisor/addons/self/restart",
+            method="POST",
+            headers={"Authorization": f"Bearer {token}"},
+            data=b"",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return 200 <= resp.status < 300
+
+    try:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, _call)
+    except Exception:
+        return False

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0-beta4] - 2026-07-10 (beta channel)
+
+### Bug Fixes
+- **Broken unit strings in the new EEP profiles** — The 62 profiles ported in beta1 carried a text-encoding artifact: `°C` was stored as `Â°C` and `m³` as `mÂ³`, so HA showed garbled units for all new temperature profiles and the gas meter. All 38 occurrences fixed.
+
+This beta matches stable release 1.5.0.
+
 ## [1.5.0-beta3] - 2026-07-10 (beta channel)
 
 ### Improvements
