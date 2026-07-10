@@ -113,6 +113,14 @@ in CHANGELOG, point out fork is 14+ commits behind (missing D2-05 VLD covers, UT
 external MQTT via config panel), invite future contributions as PRs against upstream. Friendly tone; EN or FR/DE.
 
 ### Step F — Optional cleanups (backlog, low priority)
+- **Periodic EEP.xml sync with ChristopheHD/enocean** — Our bundled `addon/rootfs/app/data/EEP.xml`
+  (and `addon-beta/.../data/EEP.xml`) was verified byte-identical (after EOL normalization) with
+  https://github.com/ChristopheHD/enocean `enocean/protocol/EEP.xml` on 2026-07-10 (v2.6.4, incl. their
+  MSC extension and the D1-repeater MID offset fix). When that repo updates its EEP.xml again (watch for
+  new profiles/fixed offsets), re-sync: download raw file, normalize line endings, replace both copies,
+  reload-test, bump version. Their other 2026 changes (remote-DoS parser hardening, TCP listener security,
+  set_values optimization) were reviewed 2026-07-10 and do NOT apply to our standalone ESP3 stack —
+  our parser is already bounds-checked and our TCP is a client, not a listener.
 - Local branch cleanup: `git branch -d chore/beta-addon-channel chore/beta-experimental-stage feature/f6-02-02-and-external-mqtt` (merged; safe). Unknown local branches `exciting-nightingale`, `festive-austin`, `loving-hodgkin` — inspect before deleting.
 - Remove stale remote branches: `fix/*`, `release/stable-1.4.0`, `test/d2-05-00-cover` (all merged into main per v1.4.0).
 - `.pyc`/`__pycache__` not tracked — OK. `addon/rootfs/app/api/__pycache__` exists locally only.
