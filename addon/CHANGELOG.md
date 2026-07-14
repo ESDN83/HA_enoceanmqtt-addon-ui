@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.2] - 2026-07-14
+
+### Fixed
+- **Saving the configuration with a TCP transceiver failed** with "Device '' does not exist" when Serial Port was left empty: the Supervisor validated the empty string against the tty device list. `serial_port` is now a plain optional text field.
+
+### Documentation
+- Getting Started corrected: TCP transceivers are configured in the separate **TCP Port** field (`tcp:HOST:PORT`), not in Serial Port; `tcp_port` added to the options table.
+
 ## [1.5.1] - 2026-07-14
 
 ### Changed

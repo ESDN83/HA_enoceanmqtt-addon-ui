@@ -1,6 +1,6 @@
 ---
 name: "EnOcean MQTT UI"
-version: "1.5.1"
+version: "1.5.2"
 slug: "enocean-mqtt-ui"
 description: "All-in-One EnOcean to MQTT bridge with web UI. Configure devices visually, create custom EEP profiles, and manage MQTT mappings - no config files needed!"
 url: "https://github.com/ESDN83/HA_enoceanmqtt-addon-ui"
@@ -39,7 +39,7 @@ options:
     client_id: "enocean_gateway"
 
 schema:
-  serial_port: "device(subsystem=tty)?"
+  serial_port: "str?"
   tcp_port: "str?"
   log_level: "list(debug|info|warning|error)"
   cache_device_states: "bool"

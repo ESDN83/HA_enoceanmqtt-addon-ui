@@ -53,7 +53,9 @@ https://github.com/ESDN83/HA_enoceanmqtt-addon-ui
 ### Step 2 — Install and configure
 
 1. Find **EnOcean MQTT UI** in the store (reload the page if it doesn't appear) and click **Install**
-2. Open the app's **Configuration** tab and set the **Serial Port** to your transceiver — e.g. `/dev/ttyUSB0` (pick it from the dropdown) or `tcp:192.168.1.100:9637` for a network transceiver
+2. Open the app's **Configuration** tab and point it at your transceiver:
+   - **USB stick**: set **Serial Port**, e.g. `/dev/ttyUSB0` (leave **TCP Port** empty)
+   - **Network transceiver**: set **TCP Port** in the form `tcp:HOST:PORT`, e.g. `tcp:192.168.1.100:9637` (leave **Serial Port** empty — TCP takes priority if both are set)
 3. MQTT needs no configuration — the app automatically uses Home Assistant's broker. Only if you run an external broker, set host and credentials later in the Web UI under *Settings → MQTT*
 
 ### Step 3 — Start and add your first device
@@ -68,7 +70,8 @@ https://github.com/ESDN83/HA_enoceanmqtt-addon-ui
 
 | Option | Description |
 |--------|-------------|
-| `serial_port` | Serial port of EnOcean USB transceiver (e.g., `/dev/ttyUSB0` or `tcp:host:port`) |
+| `serial_port` | Serial port of the EnOcean USB transceiver (e.g., `/dev/ttyUSB0`); leave empty when using TCP |
+| `tcp_port` | Remote EnOcean transceiver via TCP, format `tcp:HOST:PORT` (e.g., `tcp:192.168.1.100:9637`); takes priority over serial |
 | `log_level` | Logging level (debug, info, warning, error) |
 | `cache_device_states` | Persist device states across restarts (default: true) |
 | `mqtt.discovery_prefix` | Home Assistant MQTT discovery prefix (default: `homeassistant`) |

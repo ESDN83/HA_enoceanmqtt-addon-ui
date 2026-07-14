@@ -105,7 +105,7 @@ view system information, restart services.
 
 ### Serial Port
 
-Select your EnOcean USB transceiver from the dropdown. Common ports:
+Enter the serial port of your EnOcean USB transceiver. Common ports:
 - `/dev/ttyUSB0` (USB300)
 - `/dev/ttyAMA0` (Raspberry Pi GPIO)
 
