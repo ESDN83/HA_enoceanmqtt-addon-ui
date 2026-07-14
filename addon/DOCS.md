@@ -5,7 +5,7 @@
 ## About
 
 All-in-One EnOcean to MQTT bridge with a modern web UI for Home Assistant.
-This add-on replaces the need for separate EnOcean bridges and YAML configuration.
+This app replaces the need for separate EnOcean bridges and YAML configuration.
 Add your EnOcean devices visually, browse EEP profiles, and manage MQTT mappings —
 all from within Home Assistant.
 
@@ -50,8 +50,8 @@ all from within Home Assistant.
 
 ## Quick Start
 
-1. **Configure** your EnOcean USB serial port in the add-on settings
-2. **Start** the add-on and open the Web UI via the sidebar
+1. **Configure** your EnOcean USB serial port in the app settings
+2. **Start** the app and open the Web UI via the sidebar
 3. **Add a device**: Click "Add Device", choose Teach-In, and press the learn button on your EnOcean device
 4. **Done** — The device appears automatically in Home Assistant via MQTT Discovery
 
@@ -121,14 +121,14 @@ When both serial and TCP are configured, **TCP takes priority**.
 
 ### MQTT Settings
 
-By default the add-on automatically connects to the MQTT broker provided by
-Home Assistant (the Mosquitto broker add-on) — leave **Host** empty for this.
+By default the app automatically connects to the MQTT broker provided by
+Home Assistant (the Mosquitto broker app) — leave **Host** empty for this.
 
 To use an **external MQTT broker** (e.g. a standalone Mosquitto container on
 UNRAID, Synology, or another server), fill in the **Host** field. When a host is
-set, the add-on connects there directly instead of using the HA broker, and the
+set, the app connects there directly instead of using the HA broker, and the
 Port/Username/Password below apply. This also works when you have no MQTT broker
-add-on installed in Home Assistant at all.
+app installed in Home Assistant at all.
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -146,16 +146,16 @@ add-on installed in Home Assistant at all.
 
 ### Cache Device States
 
-When enabled (default), the add-on persists the last known state of all devices.
+When enabled (default), the app persists the last known state of all devices.
 After a restart, these states are republished so that infrequent sensors (like a
 Kessel Staufix that only reports every 8-10 hours) don't show as "unavailable".
 
-## Migration from ChristopheHD Addon
+## Migration from ChristopheHD Add-on
 
-If you are migrating from the ChristopheHD enocean-mqtt addon:
+If you are migrating from the ChristopheHD enocean-mqtt add-on:
 
-1. Export your config from the old addon (if possible)
-2. Install this addon and stop the old one
+1. Export your config from the old add-on (if possible)
+2. Install this app and stop the old one
 3. Import your devices via the Settings page
 4. The old `enoceanmqtt.devices` file format is supported for import
 5. MQTT topics are compatible — existing HA entities should continue working
@@ -163,14 +163,14 @@ If you are migrating from the ChristopheHD enocean-mqtt addon:
 ## Troubleshooting
 
 ### EnOcean Gateway Not Connecting
-- Verify the correct serial port is selected in the addon settings
-- Check that no other addon is using the same serial port
+- Verify the correct serial port is selected in the app settings
+- Check that no other app is using the same serial port
 - Try unplugging and reconnecting the USB transceiver
 
 ### Devices Not Appearing in Home Assistant
 - Check that MQTT is connected (green badge in the Web UI)
 - Verify the MQTT discovery prefix matches your HA config (default: `homeassistant`)
-- Check the addon log for errors
+- Check the app log for errors
 
 ### Teach-In Not Working
 - Make sure the EnOcean gateway shows "connected" (green status)
@@ -180,4 +180,4 @@ If you are migrating from the ChristopheHD enocean-mqtt addon:
 ## Support
 
 - Report issues on [GitHub](https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/issues)
-- Check logs in Home Assistant: Settings > Add-ons > EnOcean MQTT UI > Log
+- Check logs in Home Assistant: Settings > Apps > EnOcean MQTT UI > Log

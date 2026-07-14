@@ -23,4 +23,4 @@ configuration:
     description: MQTT topic prefix for EnOcean devices (e.g., 'enocean' creates topics like enocean/device/state).
   mqtt.client_id:
     name: Client ID
-    description: MQTT client identifier for this add-on.
+    description: MQTT client identifier for this app.

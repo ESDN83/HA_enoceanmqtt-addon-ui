@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.1] - 2026-07-14
+
+### Changed
+- **Terminology: "add-on" is now "app"** across the Web UI (EN/DE), documentation, and repository metadata — following Home Assistant's rename of add-ons to Apps in HA 2026.2. No functional changes.
+
 ## [1.5.0] - 2026-07-10
 
 Field-tested in the Beta channel (1.5.0-beta1…beta3) before this stable release.

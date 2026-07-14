@@ -1,16 +1,16 @@
-# EnOcean MQTT UI - All-in-One Home Assistant Add-on
+# EnOcean MQTT UI - All-in-One Home Assistant App
 
 [![Add to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/ESDN83/HA_enoceanmqtt-addon-ui)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Add--on-41BDF5.svg)](https://www.home-assistant.io/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-App-41BDF5.svg)](https://www.home-assistant.io/)
 [![GitHub Release](https://img.shields.io/github/v/release/ESDN83/HA_enoceanmqtt-addon-ui)](https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/releases)
 [![EnOcean](https://img.shields.io/badge/EnOcean-MQTT%20Bridge-green.svg)](https://www.enocean.com/)
 
 Modern web-based EnOcean to MQTT bridge for Home Assistant with visual device configuration.
 
-**This is an All-in-One solution** — No separate addon required!
+**This is an All-in-One solution** — No separate app required!
 
-Questions or feedback? Join the discussion in the [Home Assistant Community forum](https://community.home-assistant.io/t/enocean-mqtt-ui-enocean-add-on-with-web-based-device-configuration/1017264).
+Questions or feedback? Join the discussion in the [Home Assistant Community forum](https://community.home-assistant.io/t/enocean-mqtt-ui-enocean-app-with-web-based-device-configuration/1017264).
 
 <img width="1492" height="874" alt="EnOcean MQTT Dashboard" src="https://github.com/user-attachments/assets/6cc73258-3848-4ee0-9aef-250efa3b9080" />
 
@@ -34,23 +34,23 @@ Questions or feedback? Join the discussion in the [Home Assistant Community foru
 
 ## Installation
 
-### Via Home Assistant Add-on Store (Recommended)
+### Via Home Assistant App Store (Recommended)
 
-1. Click the button above or add this repository URL to your Home Assistant Add-on Store:
+1. Click the button above or add this repository URL to your Home Assistant App Store (called 'Add-on Store' before HA 2026.2):
    ```
    https://github.com/ESDN83/HA_enoceanmqtt-addon-ui
    ```
 
-2. Install the "EnOcean MQTT UI" add-on
+2. Install the "EnOcean MQTT UI" app
 
-3. Configure the add-on:
+3. Configure the app:
    - **Serial Port**: Select your EnOcean USB transceiver (e.g., `/dev/ttyUSB0` or TCP: `tcp:192.168.1.100:9637`)
 
-4. Start the add-on and open the Web UI via the sidebar
+4. Start the app and open the Web UI via the sidebar
 
 ## Quick Start
 
-1. **Start the add-on** and open the Web UI
+1. **Start the app** and open the Web UI
 2. **Add your first device**:
    - Click "Add Device" in the sidebar
    - Choose "Automatic (Teach-In)" and press the button on your EnOcean device
@@ -59,7 +59,7 @@ Questions or feedback? Join the discussion in the [Home Assistant Community foru
 
 ## Configuration
 
-### Add-on Options
+### App Options
 
 | Option | Description |
 |--------|-------------|
@@ -72,7 +72,7 @@ Questions or feedback? Join the discussion in the [Home Assistant Community foru
 
 ### Supported EnOcean Profiles
 
-This add-on bundles the EnOcean EEP.xml (sourced from [ChristopheHD's enocean library](https://github.com/ChristopheHD/enocean)) containing 96+ standard profiles including:
+This app bundles the EnOcean EEP.xml (sourced from [ChristopheHD's enocean library](https://github.com/ChristopheHD/enocean)) containing 96+ standard profiles including:
 
 - **RPS (F6)** — Rocker switches, window handles
 - **1BS (D5)** — Single input contacts
@@ -257,7 +257,7 @@ The mapping editor supports all MQTT discovery fields for Home Assistant. In add
 
 **Local Backup:**
 1. Go to "Settings" > "Local Backups"
-2. Click "Create Backup" — saves a ZIP to the addon's data directory
+2. Click "Create Backup" — saves a ZIP to the app's data directory
 3. The backup list shows all local backups with date, size, and device count
 4. Use the download, restore, or delete buttons per backup
 5. Restore and delete actions require confirmation via popup dialog
@@ -358,7 +358,7 @@ Access the web UI via Home Assistant sidebar (EnOcean icon).
 
 ## API Reference
 
-The add-on provides a REST API for automation:
+The app provides a REST API for automation:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -398,7 +398,7 @@ The add-on provides a REST API for automation:
 
 ## Configuration Files
 
-All configuration files are stored in YAML format in the addon's `/data` directory:
+All configuration files are stored in YAML format in the app's `/data` directory:
 
 | File | Description |
 |------|-------------|
@@ -410,7 +410,7 @@ All configuration files are stored in YAML format in the addon's `/data` directo
 | `enoceanmqtt.devices` | Legacy INI format (auto-generated for enocean-mqtt compatibility) |
 | `EEP.xml` | Optional user-uploaded EEP profile database |
 
-The `mapping_overrides.yaml` and `mapping.yaml` files can be edited manually if needed. Changes take effect after restarting the addon.
+The `mapping_overrides.yaml` and `mapping.yaml` files can be edited manually if needed. Changes take effect after restarting the app.
 
 **Backup format:** Export and backup ZIP files contain YAML files. Old backups with JSON files (from versions before 1.2.0) are automatically converted on import/restore.
 
@@ -429,12 +429,12 @@ The `mapping_overrides.yaml` and `mapping.yaml` files can be edited manually if 
 +---------------------------------------------------------+
 ```
 
-## Migration from ChristopheHD addon
+## Migration from ChristopheHD app (enocean-mqtt)
 
-If you are migrating from the ChristopheHD enocean-mqtt addon:
+If you are migrating from the ChristopheHD enocean-mqtt app:
 
-1. **Export your config** from the old addon (if possible)
-2. **Install this addon** and stop the old one
+1. **Export your config** from the old app (if possible)
+2. **Install this app** and stop the old one
 3. **Import your devices** via the Settings page or manually re-add them
 4. Your existing `enoceanmqtt.devices` file format is supported for import
 5. MQTT topics are compatible — existing HA entities should continue working
@@ -452,7 +452,7 @@ python main.py
 
 Access at `http://localhost:8099`
 
-### Building the Add-on
+### Building the App
 
 ```bash
 cd addon
@@ -469,12 +469,12 @@ docker build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.1
 ### MQTT Not Connected
 - Ensure MQTT broker is running
 - Check MQTT credentials in Home Assistant
-- Verify mosquitto or similar MQTT broker addon is installed
+- Verify mosquitto or similar MQTT broker app is installed
 
 ### Devices Not Appearing in Home Assistant
 - Check MQTT Discovery is enabled in HA
 - Verify the `homeassistant` prefix matches your MQTT configuration
-- Check the addon logs for errors
+- Check the app logs for errors
 
 ### Sensors Show Wrong Values
 - The EEP profile may not match your device — try creating a Custom EEP Profile
@@ -488,7 +488,7 @@ docker build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.1
 ## Support
 
 - Report issues on [GitHub Issues](https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/issues)
-- Check logs in Home Assistant: Settings > Add-ons > EnOcean MQTT UI > Log
+- Check logs in Home Assistant: Settings > Apps > EnOcean MQTT UI > Log
 
 ## Credits
 
@@ -502,7 +502,7 @@ MIT License - see LICENSE file
 
 ---
 
-**Note**: This addon is not affiliated with EnOcean Alliance or Home Assistant. It is a community project to improve the EnOcean integration experience.
+**Note**: This app is not affiliated with EnOcean Alliance or Home Assistant. It is a community project to improve the EnOcean integration experience.
 
 ---
 

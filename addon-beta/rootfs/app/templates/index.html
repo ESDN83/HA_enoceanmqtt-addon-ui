@@ -815,7 +815,7 @@
             <div class="card mb-4">
                 <div class="card-header"><i class="bi bi-broadcast-pin"></i> <span data-i18n="settings.mqtt_title">MQTT Settings</span></div>
                 <div class="card-body">
-                    <p class="text-muted small" data-i18n="settings.mqtt_hint">Leave Host empty to use Home Assistant's MQTT broker automatically. Set a host to connect to an external broker. Changes apply after the add-on restarts.</p>
+                    <p class="text-muted small" data-i18n="settings.mqtt_hint">Leave Host empty to use Home Assistant's MQTT broker automatically. Set a host to connect to an external broker. Changes apply after the app restarts.</p>
                     <div class="row g-3" style="max-width: 720px;">
                         <div class="col-md-8">
                             <label class="form-label" data-i18n="settings.mqtt_host">Host (empty = auto)</label>
@@ -851,7 +851,7 @@
                             <i class="bi bi-save"></i> <span data-i18n="settings.mqtt_save">Save</span>
                         </button>
                         <button class="btn btn-warning me-2" onclick="saveMqttConfig(true)">
-                            <i class="bi bi-arrow-clockwise"></i> <span data-i18n="settings.mqtt_save_restart">Save &amp; Restart Add-on</span>
+                            <i class="bi bi-arrow-clockwise"></i> <span data-i18n="settings.mqtt_save_restart">Save &amp; Restart App</span>
                         </button>
                         <button class="btn btn-outline-danger" onclick="resetMqttConfig()">
                             <i class="bi bi-arrow-counterclockwise"></i> <span data-i18n="settings.mqtt_reset">Reset to Defaults</span>
@@ -3691,9 +3691,9 @@
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.detail || 'HTTP ' + response.status);
                 if (data.restarting) {
-                    showToast(t('settings.mqtt_saved_restarting', 'MQTT settings saved — add-on is restarting...'), 'success');
+                    showToast(t('settings.mqtt_saved_restarting', 'MQTT settings saved — app is restarting...'), 'success');
                 } else {
-                    showToast(t('settings.mqtt_saved', 'MQTT settings saved — restart the add-on to apply'), 'success');
+                    showToast(t('settings.mqtt_saved', 'MQTT settings saved — restart the app to apply'), 'success');
                 }
                 loadMqttConfig();
             } catch (error) {
@@ -3704,7 +3704,7 @@
         function resetMqttConfig() {
             showConfirmDialog(
                 t('settings.mqtt_reset_confirm_title', 'Reset MQTT settings?'),
-                t('settings.mqtt_reset_confirm', 'This restores all MQTT options to their defaults (auto-discovery via Home Assistant broker). The add-on must be restarted to apply.'),
+                t('settings.mqtt_reset_confirm', 'This restores all MQTT options to their defaults (auto-discovery via Home Assistant broker). The app must be restarted to apply.'),
                 t('settings.mqtt_reset', 'Reset to Defaults'),
                 'btn-danger',
                 async () => {
@@ -3716,7 +3716,7 @@
                         });
                         const data = await response.json();
                         if (!response.ok) throw new Error(data.detail || 'HTTP ' + response.status);
-                        showToast(t('settings.mqtt_reset_done', 'MQTT settings reset to defaults — restart the add-on to apply'), 'success');
+                        showToast(t('settings.mqtt_reset_done', 'MQTT settings reset to defaults — restart the app to apply'), 'success');
                         loadMqttConfig();
                     } catch (error) {
                         showToast(t('settings.mqtt_save_failed', 'Failed to save MQTT settings') + ': ' + error.message, 'danger');
