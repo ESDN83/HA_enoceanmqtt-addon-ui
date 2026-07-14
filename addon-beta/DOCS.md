@@ -55,6 +55,8 @@ all from within Home Assistant.
 3. **Add a device**: Click "Add Device", choose Teach-In, and press the learn button on your EnOcean device
 4. **Done** — The device appears automatically in Home Assistant via MQTT Discovery
 
+> **MQTT:** The app automatically connects to Home Assistant's MQTT broker — make sure a broker (e.g. the Mosquitto app) and the MQTT integration are set up. An external broker can be configured in the Web UI under Settings.
+
 ## Web UI
 
 ![Devices](https://github.com/user-attachments/assets/0e7981a0-9db0-4e63-9bd1-2bd4d20c5c85)

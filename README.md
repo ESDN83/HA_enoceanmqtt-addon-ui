@@ -32,30 +32,35 @@ Questions or feedback? Join the discussion in the [Home Assistant Community foru
 - **Dark Mode** — Automatically adapts to Home Assistant theme (dark/light) and OS preference
 - **Multi-Language UI** — Auto-detects browser language, supports 11 languages (EN, DE, ZH, HI, ES, FR, AR, BN, PT, RU, JA)
 
-## Installation
+## Getting Started
 
-### Via Home Assistant App Store (Recommended)
+### Prerequisites
 
-1. Click the button above or add this repository URL to your Home Assistant App Store (called 'Add-on Store' before HA 2026.2):
-   ```
-   https://github.com/ESDN83/HA_enoceanmqtt-addon-ui
-   ```
+- Home Assistant OS or a Supervised installation (apps require the Supervisor)
+- An **EnOcean transceiver**: a USB stick (e.g. USB300 / EnOcean Pi) plugged into the HA host, or one reachable over the network via TCP (e.g. through [esp-ha-usb-gateway](https://github.com/ESDN83/esp-ha-usb-gateway) or ser2net)
+- An **MQTT broker** connected to Home Assistant — if you don't have one yet, install the official *Mosquitto broker* app first and set up the MQTT integration (Settings → Devices & Services)
 
-2. Install the "EnOcean MQTT UI" app
+### Step 1 — Add the repository
 
-3. Configure the app:
-   - **Serial Port**: Select your EnOcean USB transceiver (e.g., `/dev/ttyUSB0` or TCP: `tcp:192.168.1.100:9637`)
+Click the blue **"Add to Home Assistant"** button at the top of this page, or add it manually: go to **Settings → Apps → App Store**, open the **⋮ menu** (top right) → **Repositories**, and paste:
 
-4. Start the app and open the Web UI via the sidebar
+```
+https://github.com/ESDN83/HA_enoceanmqtt-addon-ui
+```
 
-## Quick Start
+*(On Home Assistant versions before 2026.2 the App Store is called "Add-on Store".)*
 
-1. **Start the app** and open the Web UI
-2. **Add your first device**:
-   - Click "Add Device" in the sidebar
-   - Choose "Automatic (Teach-In)" and press the button on your EnOcean device
-   - Or enter device details manually (address, EEP profile)
-3. **Devices appear automatically** in Home Assistant via MQTT Discovery
+### Step 2 — Install and configure
+
+1. Find **EnOcean MQTT UI** in the store (reload the page if it doesn't appear) and click **Install**
+2. Open the app's **Configuration** tab and set the **Serial Port** to your transceiver — e.g. `/dev/ttyUSB0` (pick it from the dropdown) or `tcp:192.168.1.100:9637` for a network transceiver
+3. MQTT needs no configuration — the app automatically uses Home Assistant's broker. Only if you run an external broker, set host and credentials later in the Web UI under *Settings → MQTT*
+
+### Step 3 — Start and add your first device
+
+1. **Start** the app, then open the **Web UI** from the Home Assistant sidebar
+2. Click **Add Device** and choose **Automatic (Teach-In)**, then press the learn/pairing button on your EnOcean device — or enter the device address and EEP profile manually
+3. That's it — the device's entities appear in Home Assistant automatically via MQTT Discovery
 
 ## Configuration
 
