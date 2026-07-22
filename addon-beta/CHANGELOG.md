@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.0-beta2] - 2026-07-22 (beta channel)
+
+### Changed
+- **Native serial device dropdown in the Configuration tab** — `serial_port` schema switched back from free text (`str?`) to `device(subsystem=tty)?`, so Home Assistant renders a dropdown of the actually-connected serial/USB devices right where you configure the app — the correct place to pick the gateway (the Settings-page list from beta1 can only *show* devices, not feed the config field). The `?` keeps it optional for TCP-only setups. This selector was removed in stable 1.5.2 because an older HA couldn't save it empty next to a TCP port; **please test on the current HA whether a TCP-only config (serial left empty) still saves correctly** before this goes to stable.
+
 ## [1.6.0-beta1] - 2026-07-22 (beta channel)
 
 ### New Features
