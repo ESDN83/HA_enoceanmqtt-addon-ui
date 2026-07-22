@@ -105,11 +105,14 @@ view system information, restart services.
 
 ### Serial Port
 
-Enter the serial port of your EnOcean USB transceiver. Common ports:
-- `/dev/ttyUSB0` (USB300)
-- `/dev/ttyAMA0` (Raspberry Pi GPIO)
+Select your EnOcean USB transceiver from the list of detected serial devices
+(e.g. `/dev/ttyUSB0` for a USB300, `/dev/ttyAMA0` for a Raspberry Pi GPIO). A
+device must be selected here — Home Assistant can't save this field empty. A
+plugged-in USB gateway usually appears with a recognizable name (e.g. something
+containing "USB 300").
 
-Leave empty when using TCP connection.
+**Using TCP instead?** A TCP connection takes priority over the serial port, so
+just pick any device from the list; it will be ignored while a TCP port is set.
 
 ### TCP Port (Remote Connection)
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.6.0] - 2026-07-22
+
+Field-tested in the Beta channel (1.6.0-beta1…beta4) before this stable release.
+
+### Changed
+- **Serial port is picked from a device list again** — In response to a community request to choose the EnOcean dongle from a list, the `serial_port` option is now a native `device(subsystem=tty)` selector: the Configuration tab shows a radio-button list of the connected serial/USB devices, and a plugged-in gateway appears with a recognizable name (e.g. "USB 300"). A device **must** be selected — Home Assistant cannot save an empty device selector (`Device '' does not exist`), which is why 1.5.2 had temporarily used a free-text field. Since a TCP connection takes priority in the startup logic, TCP-only users simply pick any device and it is ignored. Requires `udev` (now enabled) so the by-id device paths are usable inside the container.
+- Corrected the misleading "leave empty when using TCP" wording in the config field description (en/de), README and DOCS.
+
+### Known trade-off
+A machine with no serial/tty device at all cannot save the config even for TCP-only use — a Home Assistant platform limitation (empty device selectors are invalid). Home Assistant OS always lists the on-board serial ports, so this is an edge case.
+
 ## [1.5.2] - 2026-07-14
 
 ### Fixed

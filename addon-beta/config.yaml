@@ -40,7 +40,7 @@ options:
     client_id: "enocean_gateway"
 
 schema:
-  # Native tty device selector: HA renders a dropdown of the connected serial
+  # Native tty device selector: HA renders a radio-button list of the connected serial
   # devices right in the Configuration tab (needs uart+udev). It is REQUIRED
   # (no trailing "?") — HA cannot save an empty device selector (it validates
   # '' against the device list and rejects it, even on current HA). TCP-only
