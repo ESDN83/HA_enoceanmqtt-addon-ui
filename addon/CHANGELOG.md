@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.1] - 2026-07-22
+
+> ⚠️ **Please read — fixes a start failure introduced in 1.6.0.**
+> In 1.6.0 the **Serial Port** became a required device selector, and Home Assistant refuses to save or start it when it is empty. If you use a **TCP** transceiver (or simply had no serial device selected), the add-on could **fail to start** after updating, with *"Device '' does not exist"*.
+> **1.6.1 fixes this** — the Serial Port is a plain optional text field again, so leaving it empty is valid. **No action is needed after updating.** If your add-on is still stopped, open the **Configuration** tab once and click **Save** (the Serial Port field may now be left empty for TCP).
+
+### Fixed
+- **Add-on could fail to start after the 1.6.0 update** when no serial device was selected (typically TCP-only setups): the required `device(subsystem=tty)` selector rejected an empty value, and Home Assistant provides no portable default device to fall back to. `serial_port` is an optional text field (`str?`) again — empty-safe, so updates and TCP-only setups work smoothly. Enter a `/dev/ttyUSB0` or stable `/dev/serial/by-id/...` path for USB, or leave it empty for TCP.
+- Reverted the config field description, README and DOCS wording accordingly (`udev` stays enabled so `/dev/serial/by-id/...` paths remain usable).
+
 ## [1.6.0] - 2026-07-22
 
 Field-tested in the Beta channel (1.6.0-beta1…beta4) before this stable release.

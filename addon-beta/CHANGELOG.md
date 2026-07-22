@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.1-beta1] - 2026-07-22 (beta channel)
+
+> ⚠️ **Fixes a start failure from the 1.6.0 serial-device selector.** A required `device(subsystem=tty)` selector cannot be saved/started empty, so TCP-only setups (or anyone without a device selected) could fail to start after updating. `serial_port` is a plain optional text field (`str?`) again — empty-safe. No action needed; if still stopped, open Configuration and Save once.
+
+Matches stable release 1.6.1.
+
 ## [1.6.0-beta4] - 2026-07-22 (beta channel)
 
 ### Removed

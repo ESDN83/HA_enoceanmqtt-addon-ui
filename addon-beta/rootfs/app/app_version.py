@@ -11,7 +11,7 @@ with config.yaml as a safety net, but config.yaml remains the real source.
 import os
 import re
 
-_FALLBACK = "1.6.0-beta4"
+_FALLBACK = "1.6.1-beta1"
 
 # Candidate locations: the copy baked into the image, and the repo layout
 # (rootfs/app/app_version.py -> ../../config.yaml) for local runs/tests.

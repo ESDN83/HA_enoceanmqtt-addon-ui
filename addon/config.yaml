@@ -1,6 +1,6 @@
 ---
 name: "EnOcean MQTT UI"
-version: "1.6.0"
+version: "1.6.1"
 slug: "enocean-mqtt-ui"
 description: "All-in-One EnOcean to MQTT bridge with web UI. Configure devices visually, create custom EEP profiles, and manage MQTT mappings - no config files needed!"
 url: "https://github.com/ESDN83/HA_enoceanmqtt-addon-ui"
@@ -26,6 +26,7 @@ map:
   - share:rw
 
 options:
+  serial_port: ""
   tcp_port: ""
   log_level: "info"
   cache_device_states: true
@@ -39,12 +40,11 @@ options:
     client_id: "enocean_gateway"
 
 schema:
-  # Required native tty device selector — HA shows a radio-button list of the
-  # connected serial devices in the Configuration tab (needs uart+udev). It
-  # cannot be optional: HA rejects an empty device value ("Device '' does not
-  # exist"). TCP-only users just pick any device; run.sh gives TCP priority so
-  # the serial selection is ignored when a TCP port is set.
-  serial_port: "device(subsystem=tty)"
+  # Plain optional text field. A native device(subsystem=tty) selector would
+  # show a device list in the Config tab, but HA cannot save/validate it empty
+  # ("Device '' does not exist"), which blocks TCP-only setups and breaks
+  # updates for anyone without a device selected. Free text stays empty-safe.
+  serial_port: "str?"
   tcp_port: "str?"
   log_level: "list(debug|info|warning|error)"
   cache_device_states: "bool"
