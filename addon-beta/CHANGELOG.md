@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.0-beta4] - 2026-07-22 (beta channel)
+
+### Removed
+- **"Detected Serial / USB Devices" card on the Settings page** (added in beta1) — now redundant. Home Assistant's own required serial-device selector in the Configuration tab already lists the connected devices, and a plugged-in USB gateway shows there with a recognizable name (e.g. "USB 300"), so a separate in-app list added no value. Removed the card, its `/api/system/serial-ports` endpoint, and related strings. (Note: the selector is a radio-button list, not a dropdown — wording corrected in DOCS.)
+
 ## [1.6.0-beta3] - 2026-07-22 (beta channel)
 
 ### Changed
