@@ -1,6 +1,6 @@
 ---
 name: "EnOcean MQTT UI (Beta)"
-version: "1.6.0-beta2"
+version: "1.6.0-beta3"
 slug: "enocean-mqtt-ui-beta"
 description: "BETA test build of EnOcean MQTT UI. For field-testing unreleased features (currently: detected serial/USB device list on the Settings page). Install alongside the stable app; do not run both against the same gateway/MQTT prefix at once."
 url: "https://github.com/ESDN83/HA_enoceanmqtt-addon-ui"
@@ -27,7 +27,6 @@ map:
   - share:rw
 
 options:
-  serial_port: ""
   tcp_port: ""
   log_level: "info"
   cache_device_states: true
@@ -42,11 +41,11 @@ options:
 
 schema:
   # Native tty device selector: HA renders a dropdown of the connected serial
-  # devices right in the Configuration tab (needs uart+udev). The trailing "?"
-  # makes it optional so TCP-only setups can leave it empty. Was temporarily
-  # switched to "str?" in stable 1.5.2 because an older HA choked on saving it
-  # empty alongside TCP — re-testing on current HA in the beta channel.
-  serial_port: "device(subsystem=tty)?"
+  # devices right in the Configuration tab (needs uart+udev). It is REQUIRED
+  # (no trailing "?") — HA cannot save an empty device selector (it validates
+  # '' against the device list and rejects it, even on current HA). TCP-only
+  # users just pick any device; run.sh gives TCP priority so it's ignored.
+  serial_port: "device(subsystem=tty)"
   tcp_port: "str?"
   log_level: "list(debug|info|warning|error)"
   cache_device_states: "bool"

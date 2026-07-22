@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.0-beta3] - 2026-07-22 (beta channel)
+
+### Changed
+- **Serial device selector is now required (fixes the save error).** Testing confirmed that even on current Home Assistant (core-2026.7.2) an *optional* `device()` selector cannot be saved empty — HA rejects the empty value with `Device '' does not exist`. So `serial_port` is now a **required** `device(subsystem=tty)` selector: the Configuration tab shows a dropdown of connected serial/USB devices and you must pick one. Since a TCP connection takes priority in the startup logic, TCP-only users simply pick any device and it is ignored.
+- **Fixed the misleading "Leave empty when using TCP" text** (config field description, Settings-page hint and DOCS) — that field can no longer be left empty. It now explains that a device must be selected and that TCP takes priority. (en/de updated; other languages fall back to their existing text.)
+- The Settings-page "Detected Serial / USB Devices" list is now positioned as a **diagnostic** (check your gateway is seen); the actual selection happens in the Configuration tab.
+
+### Known trade-off
+A required serial selector means a machine with **no** serial/tty device at all cannot save the config even for TCP-only use. This is a Home Assistant platform limitation (empty device selectors are invalid); on Home Assistant OS at least the on-board serial ports are always listed.
+
 ## [1.6.0-beta2] - 2026-07-22 (beta channel)
 
 ### Changed
