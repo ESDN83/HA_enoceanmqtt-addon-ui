@@ -1,6 +1,6 @@
 ---
 name: "EnOcean MQTT UI (Beta)"
-version: "1.5.2-beta1"
+version: "1.6.2-beta1"
 slug: "enocean-mqtt-ui-beta"
 description: "BETA test build of EnOcean MQTT UI. For field-testing unreleased features (currently: 71-profile EEP library, multi-channel D2-01, D2-05 covers). Install alongside the stable app; do not run both against the same gateway/MQTT prefix at once."
 url: "https://github.com/ESDN83/HA_enoceanmqtt-addon-ui"
@@ -13,6 +13,7 @@ arch:
   - i386
 init: false
 uart: true
+udev: true
 ingress: true
 ingress_port: 8099
 panel_icon: mdi:radio-tower
@@ -26,7 +27,6 @@ map:
   - share:rw
 
 options:
-  serial_port: ""
   tcp_port: ""
   log_level: "info"
   cache_device_states: true
@@ -40,7 +40,12 @@ options:
     client_id: "enocean_gateway"
 
 schema:
-  serial_port: "str?"
+  # Native tty device selector — HA shows a list of the connected serial
+  # devices in the Config tab (needs uart+udev), so users can pick their
+  # EnOcean gateway. A device MUST be selected: HA rejects an empty device
+  # value ("Device '' does not exist") and offers no portable default. TCP-only
+  # users pick any device; run.sh gives TCP priority so it is then ignored.
+  serial_port: "device(subsystem=tty)"
   tcp_port: "str?"
   log_level: "list(debug|info|warning|error)"
   cache_device_states: "bool"

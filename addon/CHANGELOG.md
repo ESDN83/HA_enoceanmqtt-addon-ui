@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.6.2] - 2026-07-22
+
+> ⚠️ **Action needed after updating — please read.**
+> The **Serial Port** is now picked from a device list instead of a text field. Home Assistant cannot save this kind of field empty, so **after updating you must open the Configuration tab and select a serial device**, otherwise the add-on will not start.
+> - **USB:** select your EnOcean stick (it shows with a recognizable name, e.g. "USB 300").
+> - **TCP:** a TCP connection takes priority, so just **pick any device** — it is ignored while a TCP port is set.
+> Then click **Save** and start the add-on.
+
+### Changed
+- **Serial port is picked from a device list** — In response to a community request to choose the EnOcean dongle from a list, `serial_port` is a native `device(subsystem=tty)` selector: the Configuration tab shows the connected serial/USB devices, and a plugged-in gateway appears with a recognizable name. A device must be selected (Home Assistant rejects an empty device value and provides no portable default). TCP takes priority, so TCP-only users pick any device and it is ignored. Enables `udev` so stable `/dev/serial/by-id/...` paths work inside the container.
+- Config field description, README and DOCS updated to match.
+
 ## [1.5.2] - 2026-07-14
 
 ### Fixed

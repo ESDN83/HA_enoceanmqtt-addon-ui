@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.2-beta1] - 2026-07-22 (beta channel)
+
+> ⚠️ **Action needed after updating.** The Serial Port is now a device selector, and Home Assistant can't save it empty — after updating, open Configuration and **select a serial device** (TCP users: pick any device, TCP takes priority), then Save, or the add-on won't start.
+
+Matches stable release 1.6.2 (serial device selector + `udev`).
+
 ## [1.5.2-beta1] - 2026-07-14 (beta channel)
 
 ### Fixed
