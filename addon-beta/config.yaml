@@ -1,8 +1,8 @@
 ---
 name: "EnOcean MQTT UI (Beta)"
-version: "1.5.2-beta1"
+version: "1.6.0-beta1"
 slug: "enocean-mqtt-ui-beta"
-description: "BETA test build of EnOcean MQTT UI. For field-testing unreleased features (currently: 71-profile EEP library, multi-channel D2-01, D2-05 covers). Install alongside the stable app; do not run both against the same gateway/MQTT prefix at once."
+description: "BETA test build of EnOcean MQTT UI. For field-testing unreleased features (currently: detected serial/USB device list on the Settings page). Install alongside the stable app; do not run both against the same gateway/MQTT prefix at once."
 url: "https://github.com/ESDN83/HA_enoceanmqtt-addon-ui"
 stage: experimental
 arch:
@@ -13,6 +13,7 @@ arch:
   - i386
 init: false
 uart: true
+udev: true
 ingress: true
 ingress_port: 8099
 panel_icon: mdi:radio-tower

@@ -3,6 +3,7 @@ System API - System status and configuration
 """
 
 import os
+import asyncio
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from fastapi.responses import FileResponse, StreamingResponse
 from typing import Dict, Any
@@ -587,6 +588,112 @@ async def download_eep(request: Request):
     if os.path.exists(bundled_eep):
         return FileResponse(bundled_eep, filename="EEP.xml", media_type="application/xml")
     raise HTTPException(status_code=404, detail="No EEP.xml found")
+
+
+# === Serial / USB device listing ===
+# Read-only helper: the serial port is chosen in the HA Configuration tab as a
+# free-text field (a forced dropdown was removed because it always demanded a
+# selection even for TCP setups). This endpoint just *lists* what the app can
+# see, so users — especially non-technical ones — can copy the right device
+# path into that field instead of guessing.
+
+def _looks_like_enocean(*texts, vid=None, pid=None) -> bool:
+    """Heuristic: EnOcean USB300/500 and TCM51x sticks are FTDI FT232 based
+    (VID 0403 / PID 6001); manufacturer/product often say 'EnOcean'."""
+    blob = " ".join(t for t in texts if t).lower()
+    if "enocean" in blob or "tcm" in blob:
+        return True
+    return vid == "0403" and pid == "6001"
+
+
+def _list_serial_ports(current_port: str) -> Dict[str, Any]:
+    import glob
+
+    # Map each stable /dev/serial/by-id/ symlink to its resolved tty target,
+    # so we can offer the by-id path (survives reboots — the value HA
+    # recommends for the Serial Port field).
+    byid_for_target: Dict[str, str] = {}
+    byid_dir = "/dev/serial/by-id"
+    if os.path.isdir(byid_dir):
+        for name in os.listdir(byid_dir):
+            link = os.path.join(byid_dir, name)
+            try:
+                byid_for_target[os.path.realpath(link)] = link
+            except OSError:
+                pass
+
+    try:
+        from serial.tools import list_ports
+        comports = list(list_ports.comports())
+    except Exception:
+        comports = []
+
+    ports = []
+    seen_targets = set()
+    for p in comports:
+        device = p.device
+        real = os.path.realpath(device)
+        seen_targets.add(real)
+        vid = f"{p.vid:04x}" if p.vid is not None else None
+        pid = f"{p.pid:04x}" if p.pid is not None else None
+        stable = byid_for_target.get(real) or byid_for_target.get(device)
+        path = stable or device
+        ports.append({
+            "path": path,                # recommended value to copy
+            "device": device,            # kernel device, e.g. /dev/ttyUSB0
+            "by_id": stable,
+            "description": (p.description if p.description and p.description != "n/a" else None),
+            "manufacturer": getattr(p, "manufacturer", None),
+            "product": getattr(p, "product", None),
+            "vid_pid": (f"{vid}:{pid}" if vid and pid else None),
+            "likely_enocean": _looks_like_enocean(
+                p.description, getattr(p, "manufacturer", None), getattr(p, "product", None),
+                vid=vid, pid=pid
+            ),
+            "is_current": path == current_port or device == current_port,
+        })
+
+    # by-id symlinks whose tty pyserial didn't enumerate (rare)
+    for target, link in byid_for_target.items():
+        if target not in seen_targets:
+            ports.append({
+                "path": link, "device": target, "by_id": link,
+                "description": None, "manufacturer": None, "product": None,
+                "vid_pid": None,
+                "likely_enocean": _looks_like_enocean(link),
+                "is_current": link == current_port or target == current_port,
+            })
+
+    # Last-resort glob if nothing was found at all
+    if not ports:
+        for pattern in ("/dev/ttyUSB*", "/dev/ttyACM*", "/dev/ttyAMA*", "/dev/serial/by-id/*"):
+            for device in sorted(glob.glob(pattern)):
+                ports.append({
+                    "path": device, "device": device, "by_id": None,
+                    "description": None, "manufacturer": None, "product": None,
+                    "vid_pid": None, "likely_enocean": False,
+                    "is_current": device == current_port,
+                })
+
+    # EnOcean-looking devices first, then by path
+    ports.sort(key=lambda x: (not x["likely_enocean"], x["path"]))
+    return ports
+
+
+@router.get("/serial-ports")
+async def get_serial_ports(request: Request) -> Dict[str, Any]:
+    """List serial/USB devices the app can see (read-only helper)."""
+    current = os.getenv("ENOCEAN_PORT", "") or ""
+    is_tcp = current.startswith("tcp:")
+
+    loop = asyncio.get_event_loop()
+    ports = await loop.run_in_executor(None, _list_serial_ports, current)
+
+    return {
+        "current": current,
+        "current_is_tcp": is_tcp,
+        "ports": ports,
+    }
 
 
 # === MQTT configuration via Web UI ===
