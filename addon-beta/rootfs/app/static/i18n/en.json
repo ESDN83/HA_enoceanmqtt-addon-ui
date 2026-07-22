@@ -356,7 +356,7 @@
   "settings.eep_download_failed": "EEP.xml download failed",
   "settings.serial_title": "Detected Serial / USB Devices",
   "settings.serial_refresh": "Refresh",
-  "settings.serial_hint": "These are the serial devices this app can see. Copy the path of your EnOcean gateway into the \"Serial Port\" field in this app's Configuration tab (top of this page). Leave that field empty if you connect via TCP instead.",
+  "settings.serial_hint": "These are the serial devices this app can see — use this to check your EnOcean gateway is detected. You pick the actual device in the Configuration tab's \"Serial Port\" dropdown (top of this page). If you use a TCP connection, it takes priority over the serial selection.",
   "serial.loading": "Scanning for devices...",
   "serial.using_tcp": "A TCP connection is configured",
   "serial.tcp_note": "The Serial Port field can stay empty.",
