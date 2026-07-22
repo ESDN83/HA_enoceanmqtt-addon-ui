@@ -362,7 +362,8 @@ Access the web UI via Home Assistant sidebar (EnOcean icon).
 - EEP.xml management: upload custom, view source info, delete to revert
 - Restart services
 
-<img width="1492" height="874" alt="Settings" src="https://github.com/user-attachments/assets/370072b1-7219-4566-a733-2c9e58b018fa" />
+<img width="2242" height="1498" alt="grafik" src="https://github.com/user-attachments/assets/c67e0174-783f-4122-b487-103244cd08cb" />
+
 
 ## API Reference
 
