@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.0-beta1] - 2026-07-22 (beta channel)
+
+### New Features
+- **Detected Serial / USB Devices list** — New read-only card on the Settings page that lists the serial/USB devices the app can see (device path, description, USB VID:PID), highlights the one that looks like an EnOcean gateway (FTDI `0403:6001` or "EnOcean" in the name) and the one currently in use, and offers a one-click **Copy** for each path. This helps — especially non-technical users — find the right value to paste into the "Serial Port" field of the Configuration tab, without re-introducing the old forced dropdown that always demanded a selection even for TCP setups. Prefers the stable `/dev/serial/by-id/…` path (survives reboots); `udev: true` was enabled so those symlinks are available. (community forum request)
+
 ## [1.5.2-beta1] - 2026-07-14 (beta channel)
 
 ### Fixed
