@@ -811,22 +811,6 @@
                 </div>
             </div>
 
-            <!-- Detected Serial / USB Devices -->
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-usb-symbol"></i> <span data-i18n="settings.serial_title">Detected Serial / USB Devices</span></span>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="loadSerialPorts()">
-                        <i class="bi bi-arrow-clockwise"></i> <span data-i18n="settings.serial_refresh">Refresh</span>
-                    </button>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted small" data-i18n="settings.serial_hint">These are the serial devices this app can see — use this to check your EnOcean gateway is detected. You pick the actual device in the Configuration tab's "Serial Port" dropdown (top of this page). If you use a TCP connection, it takes priority over the serial selection.</p>
-                    <div id="serial-ports-list">
-                        <p class="text-muted mb-0" data-i18n="serial.loading">Scanning for devices...</p>
-                    </div>
-                </div>
-            </div>
-
             <!-- MQTT Settings -->
             <div class="card mb-4">
                 <div class="card-header"><i class="bi bi-broadcast-pin"></i> <span data-i18n="settings.mqtt_title">MQTT Settings</span></div>
@@ -1274,7 +1258,7 @@
             // Load page-specific data
             if (page === 'devices') loadDevices();
             if (page === 'profiles') loadProfiles();
-            if (page === 'settings') { loadBackups(); loadEepInfo(); loadMqttConfig(); loadSerialPorts(); }
+            if (page === 'settings') { loadBackups(); loadEepInfo(); loadMqttConfig(); }
             if (page === 'teach-in') resetTeachInPage();
         }
 
@@ -3668,62 +3652,6 @@
                 URL.revokeObjectURL(url);
             } catch (error) {
                 showToast(t('settings.eep_download_failed', 'EEP.xml download failed') + ': ' + error.message, 'danger');
-            }
-        }
-
-        // === Detected Serial / USB Devices (read-only helper) ===
-        async function loadSerialPorts() {
-            const container = document.getElementById('serial-ports-list');
-            if (!container) return;
-            try {
-                const response = await fetch(getApiUrl('/api/system/serial-ports'));
-                if (!response.ok) throw new Error('HTTP ' + response.status);
-                const data = await response.json();
-
-                let banner = '';
-                if (data.current_is_tcp) {
-                    banner = `<div class="alert alert-info py-2 small mb-3">${t('serial.using_tcp', 'A TCP connection is configured')}: <code>${escapeHtml(data.current)}</code>. ${t('serial.tcp_note', 'The Serial Port field can stay empty.')}</div>`;
-                }
-
-                if (!data.ports.length) {
-                    container.innerHTML = banner + `<p class="text-muted mb-0">${t('serial.none_found', 'No serial devices detected. Make sure your EnOcean USB gateway is plugged in. If it is on another machine, use a TCP connection instead.')}</p>`;
-                    return;
-                }
-
-                const rows = data.ports.map(p => {
-                    const badges = [];
-                    if (p.likely_enocean) badges.push(`<span class="badge bg-success ms-2">${t('serial.likely_enocean', 'Likely EnOcean')}</span>`);
-                    if (p.is_current) badges.push(`<span class="badge bg-primary ms-2">${t('serial.in_use', 'In use')}</span>`);
-                    const meta = [p.description, p.vid_pid ? 'USB ' + p.vid_pid : null].filter(Boolean).map(escapeHtml).join(' &middot; ');
-                    return `
-                        <div class="d-flex justify-content-between align-items-center border-bottom py-2">
-                            <div class="me-2" style="min-width:0;">
-                                <code class="text-break">${escapeHtml(p.path)}</code>${badges.join('')}
-                                ${meta ? `<div class="small text-muted">${meta}</div>` : ''}
-                            </div>
-                            <button class="btn btn-sm btn-outline-primary flex-shrink-0" onclick="copyToClipboard(this, ${JSON.stringify(p.path).replace(/"/g, '&quot;')})">
-                                <i class="bi bi-clipboard"></i> <span data-i18n="serial.copy">Copy</span>
-                            </button>
-                        </div>`;
-                }).join('');
-                container.innerHTML = banner + rows;
-            } catch (error) {
-                container.innerHTML = `<p class="text-danger mb-0">${t('serial.load_failed', 'Could not list serial devices')}: ${escapeHtml(error.message)}</p>`;
-            }
-        }
-
-        async function copyToClipboard(btn, text) {
-            try {
-                await navigator.clipboard.writeText(text);
-                showToast(t('serial.copied', 'Copied to clipboard') + ': ' + text, 'success');
-            } catch (e) {
-                // Fallback for non-secure contexts
-                const ta = document.createElement('textarea');
-                ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-                document.body.appendChild(ta); ta.select();
-                try { document.execCommand('copy'); showToast(t('serial.copied', 'Copied to clipboard') + ': ' + text, 'success'); }
-                catch (e2) { showToast(t('serial.copy_failed', 'Could not copy — select and copy manually'), 'warning'); }
-                document.body.removeChild(ta);
             }
         }
 

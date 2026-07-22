@@ -353,18 +353,5 @@
   "settings.mqtt_reset_confirm": "Setzt alle MQTT-Optionen auf die Standardwerte zurück (automatische Erkennung über den Home-Assistant-Broker). Zum Übernehmen muss die App neu gestartet werden.",
   "settings.mqtt_reset_done": "MQTT-Einstellungen zurückgesetzt — zum Übernehmen App neu starten",
   "settings.eep_download": "EEP.xml herunterladen",
-  "settings.eep_download_failed": "EEP.xml-Download fehlgeschlagen",
-  "settings.serial_title": "Erkannte serielle / USB-Geräte",
-  "settings.serial_refresh": "Aktualisieren",
-  "settings.serial_hint": "Dies sind die seriellen Geräte, die diese App sieht — damit kannst du prüfen, ob dein EnOcean-Gateway erkannt wird. Das eigentliche Gerät wählst du im „Serieller Port“-Dropdown des Konfigurations-Tabs (oben auf dieser Seite). Bei einer TCP-Verbindung hat diese Vorrang vor der seriellen Auswahl.",
-  "serial.loading": "Suche nach Geräten...",
-  "serial.using_tcp": "Es ist eine TCP-Verbindung konfiguriert",
-  "serial.tcp_note": "Das Feld „Serieller Port“ kann leer bleiben.",
-  "serial.none_found": "Keine seriellen Geräte erkannt. Stelle sicher, dass dein EnOcean-USB-Gateway eingesteckt ist. Wenn es an einem anderen Rechner hängt, nutze stattdessen eine TCP-Verbindung.",
-  "serial.likely_enocean": "Vermutlich EnOcean",
-  "serial.in_use": "In Verwendung",
-  "serial.copy": "Kopieren",
-  "serial.copied": "In Zwischenablage kopiert",
-  "serial.copy_failed": "Kopieren fehlgeschlagen — bitte manuell markieren und kopieren",
-  "serial.load_failed": "Serielle Geräte konnten nicht aufgelistet werden"
+  "settings.eep_download_failed": "EEP.xml-Download fehlgeschlagen"
 }
