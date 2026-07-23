@@ -180,6 +180,33 @@
         [data-theme="dark"] .form-control::placeholder {
             color: var(--text-muted);
         }
+        /* Readonly/disabled inputs kept Bootstrap's own (much darker) colours,
+           which rendered as dark-grey text on a near-black field — unreadable
+           without selecting the text (#25). Force the same contrast as normal
+           inputs, and do it for both theme attributes so it also applies when
+           only Bootstrap's data-bs-theme is set. */
+        [data-theme="dark"] .form-control:disabled,
+        [data-theme="dark"] .form-control[readonly],
+        [data-theme="dark"] .form-select:disabled,
+        [data-bs-theme="dark"] .form-control:disabled,
+        [data-bs-theme="dark"] .form-control[readonly],
+        [data-bs-theme="dark"] .form-select:disabled {
+            background-color: var(--input-bg, #262626);
+            color: var(--text-color, #e1e1e1);
+            border-color: var(--input-border, rgba(255, 255, 255, 0.2));
+            opacity: 1;              /* Bootstrap dims disabled fields */
+            -webkit-text-fill-color: var(--text-color, #e1e1e1);  /* Safari/iOS */
+        }
+        [data-bs-theme="dark"] .form-control,
+        [data-bs-theme="dark"] .form-select {
+            color: var(--text-color, #e1e1e1);
+        }
+
+        /* Values that came from the teach-in telegram, so it's obvious what was
+           detected and what was typed by hand (#23). */
+        .field-detected {
+            border-left: 3px solid var(--success-color) !important;
+        }
         [data-theme="dark"] .modal-content {
             background-color: var(--bg-card);
             color: var(--text-color);
@@ -742,6 +769,14 @@
                                 <div class="col-md-6 mb-3" id="sender-id-group" style="display: none;">
                                     <label class="form-label" data-i18n="teach_in.sender_id">Sender ID (for bidirectional devices)</label>
                                     <input type="text" class="form-control" name="sender_id" placeholder="0xFFBD7480">
+                                </div>
+                                <div class="col-md-6 mb-3" id="channel-group" style="display: none;">
+                                    <label class="form-label" data-i18n="teach_in.channel">Channel</label>
+                                    <select class="form-select" name="channel">
+                                        <option value="0" data-i18n="teach_in.channel_1">Channel 1</option>
+                                        <option value="1" data-i18n="teach_in.channel_2">Channel 2</option>
+                                    </select>
+                                    <small class="text-muted" data-i18n="teach_in.channel_hint">Only for 2-channel modules (e.g. NodOn SIN-2-2-01). Add one device per channel, using the same address.</small>
                                 </div>
                                 <div class="col-md-6 mb-3" id="invert-group" style="display: none;">
                                     <label class="form-label" data-i18n="teach_in.invert">Direction</label>
@@ -2295,12 +2330,50 @@
                 const data = await resp.json();
                 if (resp.ok && data.base_id) {
                     input.value = data.base_id;
+                    await suggestNextSenderOffset();
                     updateDerivedSenderId();
                 } else {
                     input.value = 'Error: ' + (data.detail || 'unknown');
                 }
             } catch (e) {
                 input.value = 'Error: ' + e.message;
+            }
+        }
+
+        // Each actuator needs its OWN sender offset — reusing one offset for
+        // several actuators makes them respond to each other's commands. The
+        // field used to always start at 1, so every teach-in got the same
+        // Sender ID (#23). Pick the lowest offset not already used by a
+        // configured device instead.
+        async function suggestNextSenderOffset() {
+            const offsetField = document.getElementById('sender-offset');
+            const baseIdRaw = document.getElementById('gateway-base-id')?.value || '';
+            if (!offsetField || !baseIdRaw.startsWith('0x')) return;
+
+            const base = parseInt(baseIdRaw, 16);
+            const used = new Set();
+            try {
+                const resp = await fetch(getApiUrl('/api/devices'));
+                if (!resp.ok) return;
+                const devices = await resp.json();
+                (Array.isArray(devices) ? devices : Object.values(devices || {})).forEach(dev => {
+                    const sid = dev && dev.sender_id;
+                    if (!sid) return;
+                    const val = parseInt(String(sid).replace(/^0x/i, ''), 16);
+                    if (!isNaN(val)) {
+                        const off = val - base;
+                        if (off >= 1 && off <= 127) used.add(off);
+                    }
+                });
+            } catch (e) {
+                return;  // best effort — keep whatever is in the field
+            }
+
+            for (let off = 1; off <= 127; off++) {
+                if (!used.has(off)) {
+                    offsetField.value = off;
+                    return;
+                }
             }
         }
 
@@ -2441,6 +2514,7 @@
         }
 
         let teachInTimer = null;
+        let teachInFinalizeTimer = null;
 
         function startTeachIn() {
             // Cancel any previous session first — otherwise a second start
@@ -2448,6 +2522,11 @@
             // longer be cleared). The orphan keeps firing every second once
             // `remaining` goes negative, spamming the timeout toast unstoppably.
             cancelTeachIn();
+
+            // Start from a clean form. Previously the role dropdown kept
+            // whatever was picked in an earlier session, so devices were
+            // silently registered as the wrong type (#23).
+            resetTeachInForm();
 
             // Auto-close actuator panel if open
             document.getElementById('actuator-teach-in-panel').style.display = 'none';
@@ -2478,32 +2557,26 @@
 
             teachInSocket.onmessage = function(event) {
                 const data = JSON.parse(event.data);
-                if (data.type === 'teach_in') {
-                    // Auto-fill form with detected device
-                    document.querySelector('[name="address"]').value = data.data.sender_id;
-                    document.querySelector('[name="rorg"]').value = data.data.rorg;
-                    document.querySelector('[name="func"]').value = data.data.func;
-                    document.querySelector('[name="type"]').value = data.data.type;
+                if (data.type !== 'teach_in') return;
 
-                    // UTE (bidirectional, e.g. NodOn D2-05-00 covers): we already
-                    // answered with a UTE response binding response_sender. The
-                    // device MUST be configured with that exact Sender ID, so
-                    // pre-fill it and pre-select the Cover role to avoid a
-                    // sender-ID mismatch (see issue #2).
-                    if (data.data.teach_method === 'UTE' && data.data.response_sender) {
-                        const roleField = document.querySelector('[name="actuator_type"]');
-                        if (roleField && roleField.value === '') {
-                            roleField.value = 'cover';
-                            toggleSenderIdField(roleField);  // reveal the Sender ID field
-                        }
-                        const senderField = document.querySelector('[name="sender_id"]');
-                        if (senderField) senderField.value = data.data.response_sender;
+                applyTeachInData(data.data);
+
+                // Multi-channel modules (e.g. NodOn SIN-2-2-01, 2 channels)
+                // can send a follow-up telegram selecting the target channel.
+                // Closing on the first telegram meant channel 2 was never
+                // captured (#24) — so stay open a moment longer and take the
+                // last telegram of the burst.
+                const channels = parseInt(data.data.channels || 1, 10) || 1;
+                if (teachInFinalizeTimer) clearTimeout(teachInFinalizeTimer);
+                if (channels >= 2) {
+                    const hint = document.querySelector('#teach-in-status .alert');
+                    if (hint) {
+                        hint.innerHTML = '<i class="bi bi-hourglass-split"></i> ' +
+                            t('teach_in.multichannel_wait', 'Multi-channel device detected — waiting a moment for the channel selection...');
                     }
-
-                    cancelTeachIn();
-                    wizardNext();
-
-                    showToast(t('teach_in.detected', 'Device detected!'), 'success');
+                    teachInFinalizeTimer = setTimeout(finalizeTeachIn, 2000);
+                } else {
+                    finalizeTeachIn();
                 }
             };
 
@@ -2515,10 +2588,110 @@
             };
         }
 
+        function resetTeachInForm() {
+            const form = document.getElementById('device-form');
+            if (!form) return;
+            form.reset();
+            form.querySelectorAll('.field-detected').forEach(el => {
+                el.classList.remove('field-detected');
+                el.removeAttribute('title');
+            });
+            const roleField = form.querySelector('[name="actuator_type"]');
+            if (roleField) {
+                roleField.value = '';
+                toggleSenderIdField(roleField);
+            }
+        }
+
+        // Pick a sensible role from the EEP instead of always guessing "cover".
+        // A NodOn SIN-2-2-01 (D2-01-12) is a relay, not a blind — defaulting
+        // every UTE device to cover silently mis-registered them (#23).
+        function roleFromEep(rorg, func) {
+            const r = String(rorg || '').toUpperCase().replace('0X', '');
+            const f = String(func || '').toUpperCase().padStart(2, '0');
+            if (r === 'D2' && f === '05') return 'cover';   // blinds
+            if (r === 'D2' && f === '01') return 'switch';  // relays / dimmers
+            if (r === 'A5' && f === '38') return 'light';   // Eltako dimmers
+            return '';                                      // sensor
+        }
+
+        // Mark a field as auto-detected so it's obvious which values came from
+        // the telegram and which were typed by hand (#23).
+        function markDetected(field, on) {
+            if (!field) return;
+            field.classList.toggle('field-detected', !!on);
+            if (on) field.title = t('teach_in.detected_field', 'Detected from the teach-in telegram');
+        }
+
+        // Channel picker only makes sense for multi-channel D2-01 modules.
+        function toggleChannelField(rorg, func) {
+            const group = document.getElementById('channel-group');
+            if (!group) return;
+            const r = String(rorg || '').toUpperCase().replace('0X', '');
+            const f = String(func || '').toUpperCase().padStart(2, '0');
+            group.style.display = (r === 'D2' && f === '01') ? '' : 'none';
+        }
+
+        function applyTeachInData(d) {
+            const set = (name, value, detected) => {
+                const el = document.querySelector(`[name="${name}"]`);
+                if (!el) return;
+                el.value = value ?? '';
+                markDetected(el, detected && value != null && value !== '');
+            };
+
+            set('address', d.sender_id, true);
+            set('rorg', d.rorg, true);
+            set('func', d.func, true);
+            set('type', d.type, true);
+
+            toggleChannelField(d.rorg, d.func);
+
+            // Channel: 2-channel modules report which output to drive.
+            const chField = document.querySelector('[name="channel"]');
+            if (chField) {
+                const ch = (d.channel !== undefined && d.channel !== null) ? d.channel : 0;
+                chField.value = ch;
+                markDetected(chField, d.channel !== undefined && d.channel !== null);
+            }
+
+            // Role derived from the EEP (not carried over from a previous run).
+            const roleField = document.querySelector('[name="actuator_type"]');
+            if (roleField) {
+                const role = roleFromEep(d.rorg, d.func);
+                roleField.value = role;
+                toggleSenderIdField(roleField);
+                markDetected(roleField, !!role);
+            }
+
+            // UTE binds a specific Sender ID — the device must use exactly it.
+            if (d.teach_method === 'UTE' && d.response_sender) {
+                const senderField = document.querySelector('[name="sender_id"]');
+                if (senderField) {
+                    senderField.value = d.response_sender;
+                    markDetected(senderField, true);
+                }
+            }
+        }
+
+        function finalizeTeachIn() {
+            if (teachInFinalizeTimer) {
+                clearTimeout(teachInFinalizeTimer);
+                teachInFinalizeTimer = null;
+            }
+            cancelTeachIn();
+            wizardNext();
+            showToast(t('teach_in.detected', 'Device detected!'), 'success');
+        }
+
         function cancelTeachIn() {
             if (teachInTimer) {
                 clearInterval(teachInTimer);
                 teachInTimer = null;
+            }
+            if (teachInFinalizeTimer) {
+                clearTimeout(teachInFinalizeTimer);
+                teachInFinalizeTimer = null;
             }
             if (teachInSocket) {
                 teachInSocket.close();
@@ -2698,6 +2871,11 @@
                 if (invertCb) invertCb.checked = !!device.invert;
                 const invertGroup = document.getElementById('invert-group');
                 if (invertGroup) invertGroup.style.display = device.actuator_type === 'cover' ? '' : 'none';
+
+                // Channel (2-channel D2-01 modules)
+                const chField = document.querySelector('[name="channel"]');
+                if (chField) chField.value = String(device.channel || 0);
+                toggleChannelField(device.rorg, device.func);
 
                 // Mark as edit mode
                 const form = document.getElementById('device-form');

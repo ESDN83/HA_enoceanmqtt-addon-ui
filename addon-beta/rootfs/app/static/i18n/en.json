@@ -353,5 +353,11 @@
   "settings.mqtt_reset_confirm": "This restores all MQTT options to their defaults (auto-discovery via Home Assistant broker). The app must be restarted to apply.",
   "settings.mqtt_reset_done": "MQTT settings reset to defaults — restart the app to apply",
   "settings.eep_download": "Download EEP.xml",
-  "settings.eep_download_failed": "EEP.xml download failed"
+  "settings.eep_download_failed": "EEP.xml download failed",
+  "teach_in.channel": "Channel",
+  "teach_in.channel_1": "Channel 1",
+  "teach_in.channel_2": "Channel 2",
+  "teach_in.channel_hint": "Only for 2-channel modules (e.g. NodOn SIN-2-2-01). Add one device per channel, using the same address.",
+  "teach_in.multichannel_wait": "Multi-channel device detected — waiting a moment for the channel selection...",
+  "teach_in.detected_field": "Detected from the teach-in telegram"
 }

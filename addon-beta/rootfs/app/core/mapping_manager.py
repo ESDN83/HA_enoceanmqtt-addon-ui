@@ -1089,7 +1089,8 @@ class MappingManager:
         mqtt_prefix: str,
         device_info: Dict[str, Any],
         actuator_type: str = "",
-        invert: bool = False
+        invert: bool = False,
+        channel: int = 0
     ) -> List[Dict[str, Any]]:
         """Generate Home Assistant MQTT discovery configurations.
 
@@ -1109,7 +1110,10 @@ class MappingManager:
 
         # Actuator mode: create a controllable entity (light/switch/cover)
         if actuator_type in ("light", "switch", "cover"):
-            unique_id = self.build_unique_id(eep_id, device_address, device_sender, actuator_type)
+            # Two channels of one module share address+sender, so the channel
+            # has to be part of the UID or HA would merge them into one entity.
+            uid_suffix = f"{actuator_type}_ch{channel}" if channel else actuator_type
+            unique_id = self.build_unique_id(eep_id, device_address, device_sender, uid_suffix)
 
             if actuator_type == "light":
                 config = {

@@ -223,7 +223,8 @@ async def _publish_all_discoveries():
                 mqtt_prefix=mqtt_handler.prefix,
                 device_info=device_info,
                 actuator_type=device.actuator_type,
-                invert=device.invert
+                invert=device.invert,
+                channel=int(getattr(device, "channel", 0) or 0)
             )
 
             # Publish each entity discovery config
@@ -295,6 +296,22 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
     # Eltako actuators match by sender ID, not by destination address.
     broadcast = 0xFFFFFFFF
 
+    # --- EEP first, role second -------------------------------------------
+    # D2-01-xx modules (NodOn SIN-2-x, in-wall relays/dimmers) are VLD devices
+    # and only react to addressed "Actuator Set Output" telegrams. Branch on
+    # the EEP BEFORE the role, otherwise a D2-01 registered as "light" fell
+    # into the Eltako A5-38-08 path and nothing happened physically (#23).
+    is_d2_01 = device.rorg.upper() == "D2" and str(device.func).zfill(2) == "01"
+    if is_d2_01:
+        channel = int(getattr(device, "channel", 0) or 0)
+        # ON/OFF from a switch role, brightness 0-100 from a light role —
+        # send_d2_01_command maps all of them to the output value.
+        await serial_handler.send_d2_01_command(
+            sender_id, destination, command, channel=channel
+        )
+        logger.info(f"Sent D2-01 {command} (channel {channel}) to {device_name}")
+        return
+
     if device.actuator_type == "light":
         # Dimmers use A5-38-08 Central Command Dimming
         # With on_command_type=brightness, HA sends brightness (0-100) for ON,
@@ -323,20 +340,8 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                 logger.warning(f"Unknown command '{command}' for dimmer {device_name}")
 
     elif device.actuator_type == "switch":
-        # D2-01-xx switches (e.g. NodOn relay / boiler contact) are VLD (RORG D2)
-        # actuators and need addressed "Actuator Set Output" commands — NOT F6
-        # rocker broadcasts. An F6 broadcast neither switches them nor stays
-        # contained: it also triggers other broadcast-listening actuators like
-        # a D2-05 blind (issue #2). Branch on the configured EEP.
-        is_d2_01 = device.rorg.upper() == "D2" and str(device.func).zfill(2) == "01"
-        if is_d2_01:
-            if command in ("ON", "OFF"):
-                await serial_handler.send_d2_01_command(sender_id, destination, command)
-                logger.info(f"Sent D2-01 {command} to {device_name}")
-            else:
-                logger.warning(f"Unknown switch command '{command}' for {device_name}")
-            return
-
+        # D2-01 switches are handled above (EEP branch). Everything left here
+        # is an Eltako-style actuator driven by simulated F6 rocker presses.
         if command == "ON":
             # F6 Rocker B top (BI) pressed: data=0x50, status=0x30 (T21+NU)
             await serial_handler.send_telegram(
