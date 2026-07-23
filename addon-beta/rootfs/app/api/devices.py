@@ -22,6 +22,7 @@ class DeviceCreate(BaseModel):
     manufacturer: Optional[str] = ""
     actuator_type: Optional[str] = ""  # "light", "switch", "cover", or ""
     invert: Optional[bool] = False  # cover: reverse Open/Close + position
+    channel: Optional[int] = 0  # multi-channel actuators (D2-01-11/12): 0 or 1
 
 
 class DeviceUpdate(BaseModel):
@@ -36,6 +37,7 @@ class DeviceUpdate(BaseModel):
     manufacturer: Optional[str] = None
     actuator_type: Optional[str] = None
     invert: Optional[bool] = None
+    channel: Optional[int] = None
 
 
 @router.get("")
@@ -97,7 +99,8 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
         room=device.room or "",
         manufacturer=device.manufacturer or "",
         actuator_type=device.actuator_type or "",
-        invert=bool(device.invert)
+        invert=bool(device.invert),
+        channel=int(device.channel or 0)
     )
 
     success = await device_manager.add_device(new_device)
@@ -118,7 +121,8 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
                 mqtt_prefix=mqtt_handler.prefix,
                 device_info=device_info,
                 actuator_type=new_device.actuator_type,
-                invert=new_device.invert
+                invert=new_device.invert,
+                channel=new_device.channel
             )
             for item in configs:
                 await mqtt_handler.publish_discovery_config(

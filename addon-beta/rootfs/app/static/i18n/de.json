@@ -353,5 +353,11 @@
   "settings.mqtt_reset_confirm": "Setzt alle MQTT-Optionen auf die Standardwerte zurück (automatische Erkennung über den Home-Assistant-Broker). Zum Übernehmen muss die App neu gestartet werden.",
   "settings.mqtt_reset_done": "MQTT-Einstellungen zurückgesetzt — zum Übernehmen App neu starten",
   "settings.eep_download": "EEP.xml herunterladen",
-  "settings.eep_download_failed": "EEP.xml-Download fehlgeschlagen"
+  "settings.eep_download_failed": "EEP.xml-Download fehlgeschlagen",
+  "teach_in.channel": "Kanal",
+  "teach_in.channel_1": "Kanal 1",
+  "teach_in.channel_2": "Kanal 2",
+  "teach_in.channel_hint": "Nur für 2-Kanal-Module (z.B. NodOn SIN-2-2-01). Lege pro Kanal ein Gerät mit derselben Adresse an.",
+  "teach_in.multichannel_wait": "Mehrkanal-Gerät erkannt — warte kurz auf die Kanalauswahl...",
+  "teach_in.detected_field": "Aus dem Teach-In-Telegramm erkannt"
 }

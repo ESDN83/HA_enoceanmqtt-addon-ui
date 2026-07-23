@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.7.0-beta1] - 2026-07-23 (beta channel)
+
+Fixes reported by @vincent-lvh for the NodOn SIN-2-2-01 (EEP D2-01-12). Please test!
+
+### Bug Fixes
+- **D2-01 actuators did nothing when commanded** (#23) — The command handler branched on the *role* (light/switch/cover) before looking at the EEP, so a D2-01 module registered as a "light" was driven with Eltako A5-38-08 dimmer telegrams and never reacted. The EEP is now checked first: every `D2-01-xx` device gets a proper addressed "Actuator Set Output" (VLD) telegram. A light role sends its brightness (0–100) as the output value, a switch role sends 0/100.
+- **Teach-in reused the previous device's role** (#23) — The role dropdown kept whatever was selected last, and UTE devices were always pre-set to "cover", so NodOn relays were silently registered as blinds. The form is now reset at the start of every teach-in and the role is derived from the EEP (D2-05 → cover, D2-01 → switch, A5-38 → light).
+- **Every actuator got the same Sender ID** (#23) — The sender offset always started at 1, although each actuator needs its own. The next unused offset is now suggested automatically from the configured devices.
+- **Channel 2 could never be taught in** (#24) — The teach-in closed on the first UTE telegram, so the follow-up telegram selecting channel 2 never arrived. For modules reporting 2 channels the teach-in now stays open ~2 s longer and uses the last telegram of the burst.
+- **Unreadable dark-on-dark form fields** (#25) — Read-only and disabled inputs (Gateway Base ID, Sender ID, Edit Device fields) kept Bootstrap's own low-contrast colours. They now use the same contrast as normal inputs, in both dark-theme modes.
+
+### New Features
+- **Channel selection for 2-channel modules** (#24) — Devices have a `channel` setting (shown for D2-01). Add one device per channel using the same address; commands target the selected output and each channel gets its own Home Assistant entity.
+- **Detected fields are marked** (#23) — Values that came from the teach-in telegram are highlighted, so it is obvious what was detected and what was typed by hand.
+
 ## [1.6.2-beta1] - 2026-07-22 (beta channel)
 
 > ⚠️ **Action needed after updating.** The Serial Port is now a device selector, and Home Assistant can't save it empty — after updating, open Configuration and **select a serial device** (TCP users: pick any device, TCP takes priority), then Save, or the add-on won't start.

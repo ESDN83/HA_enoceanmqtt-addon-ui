@@ -623,6 +623,10 @@ class SerialHandler:
                 "type": f"{eep_type:02X}",
                 "dbm": telegram.dbm,
                 "teach_method": "UTE",
+                # Number of I/O channels the module reports (DB5). 2-channel
+                # modules (e.g. NodOn SIN-2-2-01) can send a follow-up telegram
+                # selecting the target channel, so the UI waits for it (#24).
+                "channels": channels,
                 # Sender ID the module was told to bind — the new device MUST be
                 # configured with exactly this value for commands to reach it.
                 "response_sender": f"0x{response_sender:08X}" if response_sender else None,
@@ -1121,22 +1125,28 @@ class SerialHandler:
         Args:
             sender_id: Controller ID the actuator was taught in with (int)
             destination: Actuator address (int) — addressed, not broadcast
-            command: "ON" / "OFF"
-            channel: I/O channel (default 0)
+            command: "ON" / "OFF", or a numeric string / int 0-100 (dim level)
+            channel: I/O channel (0 = first output, 1 = second output on
+                2-channel modules like the NodOn SIN-2-2-01)
         """
-        cmd = command.strip().upper()
+        cmd = str(command).strip().upper()
         io = channel & 0x1F                 # IO channel, DV = 0 (switch)
         if cmd == "ON":
             ov = 100                        # fully on
         elif cmd == "OFF":
             ov = 0
         else:
-            logger.warning(f"Unknown D2-01 command: {command}")
-            return False
+            # Dim level from HA (0-100). A "light" role on a D2-01 dimmer sends
+            # the brightness directly; 0 means off.
+            try:
+                ov = max(0, min(100, int(float(cmd))))
+            except (TypeError, ValueError):
+                logger.warning(f"Unknown D2-01 command: {command}")
+                return False
 
         data = bytes([0x01, io, ov & 0x7F])
         logger.info(
-            f"Sending D2-01 {cmd} (data={data.hex().upper()}) "
+            f"Sending D2-01 {cmd} (ch={channel} out={ov}% data={data.hex().upper()}) "
             f"sender=0x{sender_id:08X} dest=0x{destination:08X}"
         )
         return await self.send_telegram(

@@ -27,6 +27,7 @@ class Device:
     room: str = ""
     manufacturer: str = ""
     actuator_type: str = ""  # "light", "switch", "cover", or "" for sensor-only
+    channel: int = 0  # I/O channel for multi-channel actuators (D2-01-11/12)
     invert: bool = False  # Cover only: reverse Open/Close + position direction
 
     @property
@@ -59,7 +60,8 @@ class Device:
             room=data.get("room", ""),
             manufacturer=data.get("manufacturer", ""),
             actuator_type=data.get("actuator_type", ""),
-            invert=bool(data.get("invert", False))
+            invert=bool(data.get("invert", False)),
+            channel=int(data.get("channel", 0) or 0)
         )
 
 
