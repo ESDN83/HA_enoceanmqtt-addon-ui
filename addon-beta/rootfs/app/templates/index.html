@@ -720,6 +720,11 @@
                     <div class="wizard-step" id="step-2">
                         <h4 data-i18n="teach_in.step2">Step 2: Configure Device</h4>
 
+                        <div class="alert alert-info" id="multichannel-note" style="display: none;">
+                            <i class="bi bi-info-circle"></i>
+                            <span data-i18n="teach_in.multichannel_note">This module has 2 channels. One teach-in covers the whole module — pick the channel below, save, then add a second device with the same address for the other channel.</span>
+                        </div>
+
                         <form id="device-form">
                             <div class="row">
                                 <div class="col-md-6 mb-3">
@@ -2514,7 +2519,6 @@
         }
 
         let teachInTimer = null;
-        let teachInFinalizeTimer = null;
 
         function startTeachIn() {
             // Cancel any previous session first — otherwise a second start
@@ -2561,23 +2565,14 @@
 
                 applyTeachInData(data.data);
 
-                // Multi-channel modules (e.g. NodOn SIN-2-2-01, 2 channels)
-                // can send a follow-up telegram selecting the target channel.
-                // Closing on the first telegram meant channel 2 was never
-                // captured (#24) — so stay open a moment longer and take the
-                // last telegram of the burst.
+                // A UTE teach-in carries the NUMBER of channels (DB5), never a
+                // channel index — so a 2-channel module cannot tell us "this
+                // pairing is for output 2", and waiting for a follow-up
+                // telegram would be pointless (#24). One teach-in binds the
+                // whole module; the individual outputs are addressed by the
+                // channel (IO) field in the commands. Tell the user that.
                 const channels = parseInt(data.data.channels || 1, 10) || 1;
-                if (teachInFinalizeTimer) clearTimeout(teachInFinalizeTimer);
-                if (channels >= 2) {
-                    const hint = document.querySelector('#teach-in-status .alert');
-                    if (hint) {
-                        hint.innerHTML = '<i class="bi bi-hourglass-split"></i> ' +
-                            t('teach_in.multichannel_wait', 'Multi-channel device detected — waiting a moment for the channel selection...');
-                    }
-                    teachInFinalizeTimer = setTimeout(finalizeTeachIn, 2000);
-                } else {
-                    finalizeTeachIn();
-                }
+                finalizeTeachIn(channels);
             };
 
             teachInSocket.onerror = function() {
@@ -2589,6 +2584,8 @@
         }
 
         function resetTeachInForm() {
+            const note = document.getElementById('multichannel-note');
+            if (note) note.style.display = 'none';
             const form = document.getElementById('device-form');
             if (!form) return;
             form.reset();
@@ -2674,24 +2671,23 @@
             }
         }
 
-        function finalizeTeachIn() {
-            if (teachInFinalizeTimer) {
-                clearTimeout(teachInFinalizeTimer);
-                teachInFinalizeTimer = null;
-            }
+        function finalizeTeachIn(channels) {
             cancelTeachIn();
             wizardNext();
             showToast(t('teach_in.detected', 'Device detected!'), 'success');
+
+            // Multi-channel module: one teach-in covers the whole module, so
+            // point out that each output needs its own device entry.
+            if ((parseInt(channels, 10) || 1) >= 2) {
+                const banner = document.getElementById('multichannel-note');
+                if (banner) banner.style.display = '';
+            }
         }
 
         function cancelTeachIn() {
             if (teachInTimer) {
                 clearInterval(teachInTimer);
                 teachInTimer = null;
-            }
-            if (teachInFinalizeTimer) {
-                clearTimeout(teachInFinalizeTimer);
-                teachInFinalizeTimer = null;
             }
             if (teachInSocket) {
                 teachInSocket.close();

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.0-beta2] - 2026-07-23 (beta channel)
+
+### Changed
+- **Dropped the speculative teach-in delay for multi-channel modules** — beta1 kept the teach-in open ~2 s waiting for a channel-selection telegram. Verified against the spec and the reported telegrams: a UTE teach-in carries only the *number* of channels (DB5), never a channel index, and the observed payload was byte-identical for both channels. So no such telegram exists and the wait only slowed the wizard down. The wizard now shows a clear note instead: one teach-in covers the whole module, add one device per channel with the same address.
+
 ## [1.7.0-beta1] - 2026-07-23 (beta channel)
 
 Fixes reported by @vincent-lvh for the NodOn SIN-2-2-01 (EEP D2-01-12). Please test!
@@ -8,7 +13,7 @@ Fixes reported by @vincent-lvh for the NodOn SIN-2-2-01 (EEP D2-01-12). Please t
 - **D2-01 actuators did nothing when commanded** (#23) — The command handler branched on the *role* (light/switch/cover) before looking at the EEP, so a D2-01 module registered as a "light" was driven with Eltako A5-38-08 dimmer telegrams and never reacted. The EEP is now checked first: every `D2-01-xx` device gets a proper addressed "Actuator Set Output" (VLD) telegram. A light role sends its brightness (0–100) as the output value, a switch role sends 0/100.
 - **Teach-in reused the previous device's role** (#23) — The role dropdown kept whatever was selected last, and UTE devices were always pre-set to "cover", so NodOn relays were silently registered as blinds. The form is now reset at the start of every teach-in and the role is derived from the EEP (D2-05 → cover, D2-01 → switch, A5-38 → light).
 - **Every actuator got the same Sender ID** (#23) — The sender offset always started at 1, although each actuator needs its own. The next unused offset is now suggested automatically from the configured devices.
-- **Channel 2 could never be taught in** (#24) — The teach-in closed on the first UTE telegram, so the follow-up telegram selecting channel 2 never arrived. For modules reporting 2 channels the teach-in now stays open ~2 s longer and uses the last telegram of the burst.
+- **Channel 2 could never be taught in** (#24) — A teach-in always ended up on channel 1. The cause is not a missed telegram: a UTE teach-in only carries the *number* of channels, never a channel index, so a module cannot signal "this pairing is for output 2". One teach-in binds the whole module and the outputs are addressed by the channel field in the commands — which is what the new channel setting does. After teaching in a 2-channel module the wizard now says so explicitly.
 - **Unreadable dark-on-dark form fields** (#25) — Read-only and disabled inputs (Gateway Base ID, Sender ID, Edit Device fields) kept Bootstrap's own low-contrast colours. They now use the same contrast as normal inputs, in both dark-theme modes.
 
 ### New Features
