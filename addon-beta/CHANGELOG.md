@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.0-beta3] - 2026-07-23 (beta channel)
+
+### Bug Fixes
+- **Unreadable form fields, properly this time** (#25) — beta1 only fixed the dark theme, which missed the actual cause and in one case made it worse. Input fields were styled only under `[data-theme="dark"]`, while the text colour could come from somewhere else entirely (Bootstrap's own `data-bs-theme`, or the Home Assistant colours the app copies in at runtime) — so a field's background and its text could come from two different themes. That's why fields looked dark on a light page, and grey-on-grey in Device Search, Edit Device, Actuator Teach-In, Settings, the mapping editor and "Step 2: Configure Device". Fields are now bound to the *same* variables as the page in every theme, and the inherited Home Assistant colours also drive the field background/border, so the two can no longer disagree.
+- **Second channel never received any state** (#24) — Devices were indexed one-per-address, so with one device per output (same module address) only the first ever got the decoded telegram; the second channel's entity stayed empty. All devices sharing an address now receive the state.
+
 ## [1.7.0-beta2] - 2026-07-23 (beta channel)
 
 ### Changed
