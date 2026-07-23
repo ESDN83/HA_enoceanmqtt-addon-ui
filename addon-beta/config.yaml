@@ -1,6 +1,6 @@
 ---
 name: "EnOcean MQTT UI (Beta)"
-version: "1.7.0-beta2"
+version: "1.7.0-beta3"
 slug: "enocean-mqtt-ui-beta"
 description: "BETA test build of EnOcean MQTT UI. For field-testing unreleased features (currently: 71-profile EEP library, multi-channel D2-01, D2-05 covers). Install alongside the stable app; do not run both against the same gateway/MQTT prefix at once."
 url: "https://github.com/ESDN83/HA_enoceanmqtt-addon-ui"

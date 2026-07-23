@@ -165,41 +165,44 @@
             background-color: var(--hover-bg);
             color: var(--text-color);
         }
-        [data-theme="dark"] .form-control,
-        [data-theme="dark"] .form-select {
+        /* Form fields — theme-independent (#25).
+           These used to be styled only under [data-theme="dark"], so the field
+           background came from one theme while the text colour came from
+           another (Bootstrap's own data-bs-theme, or the HA variables we copy
+           in at runtime). The result was dark text on a dark field, or dark
+           fields on a light page. Binding BOTH colours to the SAME variables,
+           unconditionally, makes that impossible: whatever the page uses, the
+           inputs use too. */
+        .form-control,
+        .form-select,
+        textarea.form-control {
             background-color: var(--input-bg);
             border-color: var(--input-border);
             color: var(--text-color);
         }
-        [data-theme="dark"] .form-control:focus,
-        [data-theme="dark"] .form-select:focus {
+        .form-control:focus,
+        .form-select:focus,
+        textarea.form-control:focus {
             background-color: var(--input-bg);
             color: var(--text-color);
             border-color: var(--primary-color);
         }
-        [data-theme="dark"] .form-control::placeholder {
+        /* Readonly/disabled fields (Gateway Base ID, Sender ID, Edit Device …)
+           additionally got Bootstrap's dimming, which made them unreadable. */
+        .form-control:disabled,
+        .form-control[readonly],
+        .form-select:disabled,
+        .form-select[readonly] {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border-color: var(--input-border);
+            opacity: 1;
+            -webkit-text-fill-color: var(--text-color);  /* Safari/iOS */
+        }
+        .form-control::placeholder,
+        textarea.form-control::placeholder {
             color: var(--text-muted);
-        }
-        /* Readonly/disabled inputs kept Bootstrap's own (much darker) colours,
-           which rendered as dark-grey text on a near-black field — unreadable
-           without selecting the text (#25). Force the same contrast as normal
-           inputs, and do it for both theme attributes so it also applies when
-           only Bootstrap's data-bs-theme is set. */
-        [data-theme="dark"] .form-control:disabled,
-        [data-theme="dark"] .form-control[readonly],
-        [data-theme="dark"] .form-select:disabled,
-        [data-bs-theme="dark"] .form-control:disabled,
-        [data-bs-theme="dark"] .form-control[readonly],
-        [data-bs-theme="dark"] .form-select:disabled {
-            background-color: var(--input-bg, #262626);
-            color: var(--text-color, #e1e1e1);
-            border-color: var(--input-border, rgba(255, 255, 255, 0.2));
-            opacity: 1;              /* Bootstrap dims disabled fields */
-            -webkit-text-fill-color: var(--text-color, #e1e1e1);  /* Safari/iOS */
-        }
-        [data-bs-theme="dark"] .form-control,
-        [data-bs-theme="dark"] .form-select {
-            color: var(--text-color, #e1e1e1);
+            opacity: 1;
         }
 
         /* Values that came from the teach-in telegram, so it's obvious what was
@@ -275,10 +278,6 @@
         }
         [data-theme="dark"] .accordion-body {
             background-color: var(--bg-card);
-        }
-        [data-theme="dark"] textarea.form-control {
-            background-color: var(--input-bg);
-            color: var(--text-color);
         }
 
         /* ===== Component styles ===== */
@@ -1197,6 +1196,15 @@
                 const val = style.getPropertyValue(haVar).trim();
                 if (val) root.style.setProperty(ourVar, val);
             }
+
+            // Input colours must follow the SAME theme as the text we just
+            // inherited. Without this they kept the values from our own
+            // stylesheet, so an inherited dark text colour could end up on a
+            // light field (or the reverse) — the unreadable fields in #25.
+            const cardBg = style.getPropertyValue('--card-background-color').trim();
+            if (cardBg) root.style.setProperty('--input-bg', cardBg);
+            const divider = style.getPropertyValue('--divider-color').trim();
+            if (divider) root.style.setProperty('--input-border', divider);
         }
 
         // Listen for OS theme changes (standalone mode)

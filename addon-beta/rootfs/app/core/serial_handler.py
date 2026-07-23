@@ -709,10 +709,15 @@ class SerialHandler:
 
         logger.debug(f"RX [{telegram.sender_hex}] Device={device.name} EEP={device.eep_id} Decoded={decoded}")
 
-        # Publish to MQTT
+        # Publish to MQTT — to EVERY device on this address. A 2-channel module
+        # is configured once per output, all sharing the module address, so
+        # publishing only to the first one left the second channel without any
+        # state (#24).
         if self.mqtt_handler:
-            await self.mqtt_handler.publish_state(device.name, decoded)
-            logger.debug(f"TX MQTT [{device.name}] Published state to {self.mqtt_handler.prefix}/{device.name}/state")
+            targets = self.device_manager.get_devices_by_address(telegram.sender_hex) or [device]
+            for target in targets:
+                await self.mqtt_handler.publish_state(target.name, dict(decoded))
+                logger.debug(f"TX MQTT [{target.name}] Published state to {self.mqtt_handler.prefix}/{target.name}/state")
 
         return device.name, device.eep_id, decoded
 

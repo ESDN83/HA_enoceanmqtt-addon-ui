@@ -75,7 +75,9 @@ class DeviceManager:
         self.devices_file = os.path.join(config_path, "devices.yaml")
         self.legacy_json_file = os.path.join(config_path, "devices.json")
         self.legacy_devices_file = os.path.join(config_path, "enoceanmqtt.devices")
-        self._address_map: Dict[str, str] = {}  # normalized_address -> device_name
+        # One address can hold several devices — a 2-channel actuator is
+        # configured once per output, all sharing the module address (#24).
+        self._address_map: Dict[str, List[str]] = {}  # address -> [device_name]
 
     @property
     def device_count(self) -> int:
@@ -88,7 +90,7 @@ class DeviceManager:
         for name, device in self.devices.items():
             norm = device.address.strip().upper().replace("0X", "")
             if norm:
-                self._address_map[norm] = name
+                self._address_map.setdefault(norm, []).append(name)
 
     async def load_devices(self):
         """Load devices from configuration file"""
@@ -224,10 +226,20 @@ class DeviceManager:
         return self.devices.get(name)
 
     def get_device_by_address(self, address: str) -> Optional[Device]:
-        """Get device by address (O(1) hash map lookup)"""
+        """Get the first device registered for an address (O(1) lookup)."""
+        devices = self.get_devices_by_address(address)
+        return devices[0] if devices else None
+
+    def get_devices_by_address(self, address: str) -> List[Device]:
+        """Get ALL devices registered for an address.
+
+        A 2-channel actuator is configured as one device per output, all with
+        the same module address — every one of them has to receive the state
+        of an incoming telegram, otherwise the second channel stays dead (#24).
+        """
         norm_addr = address.strip().upper().replace("0X", "")
-        name = self._address_map.get(norm_addr)
-        return self.devices.get(name) if name else None
+        names = self._address_map.get(norm_addr) or []
+        return [self.devices[n] for n in names if n in self.devices]
 
     async def add_device(self, device: Device) -> bool:
         """Add a new device"""
