@@ -707,6 +707,22 @@ class SerialHandler:
             decoded["brightness"] = round(min(float(edim), 100)) if edim else 0
             logger.debug(f"Light state: SW={sw}, EDIM={edim}, brightness={decoded['brightness']}%")
 
+        # F6-driven switch actuators (e.g. Eltako FSR61 with status reporting
+        # enabled) confirm their state with plain rocker telegrams. Derive the
+        # HA switch state from the rocker code so the entity stays in sync
+        # without MQTT YAML workarounds (community forum report).
+        # Convention matches our own commands: BI (2) = ON, BO (3) = OFF.
+        # Which rocker side means ON depends on how the actuator was taught
+        # in — the device's "invert" option flips it.
+        elif device.actuator_type == "switch" and telegram.rorg == 0xF6:
+            r1 = decoded.get("R1")
+            if r1 in (2, 3):
+                on = (r1 == 2)
+                if getattr(device, "invert", False):
+                    on = not on
+                decoded["state"] = "ON" if on else "OFF"
+                logger.debug(f"Switch state report: R1={r1} -> {decoded['state']}")
+
         logger.debug(f"RX [{telegram.sender_hex}] Device={device.name} EEP={device.eep_id} Decoded={decoded}")
 
         # Publish to MQTT — to EVERY device on this address. A 2-channel module

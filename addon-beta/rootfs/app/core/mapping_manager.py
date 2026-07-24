@@ -1090,7 +1090,8 @@ class MappingManager:
         device_info: Dict[str, Any],
         actuator_type: str = "",
         invert: bool = False,
-        channel: int = 0
+        channel: int = 0,
+        entity_name: str = None
     ) -> List[Dict[str, Any]]:
         """Generate Home Assistant MQTT discovery configurations.
 
@@ -1117,7 +1118,7 @@ class MappingManager:
 
             if actuator_type == "light":
                 config = {
-                    "name": None,  # Use device name
+                    "name": entity_name,  # None = use device name; set when devices share an address (#24)
                     "unique_id": unique_id,
                     "object_id": f"{device_name}".lower().replace(" ", "_"),
                     "command_topic": f"{mqtt_prefix}/{device_name}/set",
@@ -1138,7 +1139,7 @@ class MappingManager:
                 }
             elif actuator_type == "switch":
                 config = {
-                    "name": None,
+                    "name": entity_name,
                     "unique_id": unique_id,
                     "object_id": f"{device_name}".lower().replace(" ", "_"),
                     "command_topic": f"{mqtt_prefix}/{device_name}/set",
@@ -1153,7 +1154,7 @@ class MappingManager:
                 }
             elif actuator_type == "cover":
                 config = {
-                    "name": None,
+                    "name": entity_name,
                     "unique_id": unique_id,
                     "object_id": f"{device_name}".lower().replace(" ", "_"),
                     "command_topic": f"{mqtt_prefix}/{device_name}/set",

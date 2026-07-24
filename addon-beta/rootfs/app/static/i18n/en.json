@@ -359,5 +359,13 @@
   "teach_in.channel_2": "Channel 2",
   "teach_in.channel_hint": "Only for 2-channel modules (e.g. NodOn SIN-2-2-01). Add one device per channel, using the same address.",
   "teach_in.detected_field": "Detected from the teach-in telegram",
-  "teach_in.multichannel_note": "This module has 2 channels. One teach-in covers the whole module — pick the channel below, save, then add a second device with the same address for the other channel."
+  "teach_in.multichannel_note": "This module has 2 channels. One teach-in covers the whole module — pick the channel below, save, then add a second device with the same address for the other channel.",
+  "teach_in.invert_label_switch": "Invert reported state (ON/OFF swapped)",
+  "teach_in.second_channel_title": "Add channel 2 now?",
+  "teach_in.second_channel_body": "This module has two outputs. Add a second device for channel 2 with the same address and sender ID? Everything will be pre-filled — you only confirm the name.",
+  "teach_in.second_channel_btn": "Add channel 2",
+  "device.sender_clash_title": "Sender ID already in use",
+  "device.sender_clash_body": "This Sender ID is already used by",
+  "device.sender_clash_hint": "Eltako-style actuators each need their own Sender ID — otherwise both react to the same commands. Save anyway?",
+  "device.sender_clash_btn": "Save anyway"
 }

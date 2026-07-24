@@ -214,6 +214,12 @@ async def _publish_all_discoveries():
             # Build device info for HA
             device_info = mapping_manager.build_device_info(device)
 
+            # Several devices on one address (2-channel modules) merge into a
+            # single HA device — with the default entity naming both showed the
+            # identical label (#24). Give each entity its own configured device
+            # name in that case so the channels are distinguishable.
+            shared_address = len(device_manager.get_devices_by_address(device.address)) > 1
+
             # Generate discovery configs
             configs = mapping_manager.get_ha_discovery_configs(
                 device_name=device.name,
@@ -224,7 +230,8 @@ async def _publish_all_discoveries():
                 device_info=device_info,
                 actuator_type=device.actuator_type,
                 invert=device.invert,
-                channel=int(getattr(device, "channel", 0) or 0)
+                channel=int(getattr(device, "channel", 0) or 0),
+                entity_name=device.name if shared_address else None
             )
 
             # Publish each entity discovery config

@@ -742,11 +742,11 @@
                             <div class="row">
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label" data-i18n="modal.rorg">RORG *</label>
-                                    <input type="text" class="form-control" name="rorg" required placeholder="A5">
+                                    <input type="text" class="form-control" name="rorg" required placeholder="A5" oninput="onEepFieldInput()">
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label" data-i18n="modal.func">FUNC *</label>
-                                    <input type="text" class="form-control" name="func" required placeholder="02">
+                                    <input type="text" class="form-control" name="func" required placeholder="02" oninput="onEepFieldInput()">
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label" data-i18n="modal.type">TYPE *</label>
@@ -2605,12 +2605,19 @@
             };
         }
 
-        function resetTeachInForm() {
+        // Full reset of the device wizard form. MUST clear the edit state too:
+        // a canceled edit used to leave the previous device's name (locked
+        // read-only) and sender ID in the form, so the next manual entry
+        // silently inherited them (#29, #30).
+        function resetDeviceForm() {
             const note = document.getElementById('multichannel-note');
             if (note) note.style.display = 'none';
             const form = document.getElementById('device-form');
             if (!form) return;
             form.reset();
+            delete form.dataset.editMode;
+            const nameField = form.querySelector('[name="name"]');
+            if (nameField) nameField.readOnly = false;
             form.querySelectorAll('.field-detected').forEach(el => {
                 el.classList.remove('field-detected');
                 el.removeAttribute('title');
@@ -2618,9 +2625,18 @@
             const roleField = form.querySelector('[name="actuator_type"]');
             if (roleField) {
                 roleField.value = '';
-                toggleSenderIdField(roleField);
+                toggleSenderIdField(roleField);   // hides sender + invert groups
             }
+            const channelGroup = document.getElementById('channel-group');
+            if (channelGroup) channelGroup.style.display = 'none';
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.textContent = t('teach_in.add_device', 'Add Device');
+            const heading = document.querySelector('#step-2 h4');
+            if (heading) heading.textContent = t('teach_in.step2', 'Step 2: Configure Device');
         }
+
+        // Backwards-compatible alias (old name, same behaviour)
+        function resetTeachInForm() { resetDeviceForm(); }
 
         // Pick a sensible role from the EEP instead of always guessing "cover".
         // A NodOn SIN-2-2-01 (D2-01-12) is a relay, not a blind — defaulting
@@ -2649,6 +2665,66 @@
             const r = String(rorg || '').toUpperCase().replace('0X', '');
             const f = String(func || '').toUpperCase().padStart(2, '0');
             group.style.display = (r === 'D2' && f === '01') ? '' : 'none';
+        }
+
+        // Manual entry: show the channel picker as soon as the typed EEP is a
+        // D2-01 (teach-in and edit call toggleChannelField directly).
+        function onEepFieldInput() {
+            const form = document.getElementById('device-form');
+            if (!form) return;
+            toggleChannelField(form.querySelector('[name="rorg"]')?.value,
+                               form.querySelector('[name="func"]')?.value);
+        }
+
+        // 2-channel EEPs — one physical module, two independently switchable
+        // outputs (matches _multichannel_eeps in the backend).
+        function isTwoChannelEep(rorg, func, type) {
+            const r = String(rorg || '').toUpperCase().replace('0X', '');
+            const f = String(func || '').toUpperCase().padStart(2, '0');
+            const ty = String(type || '').toUpperCase().padStart(2, '0');
+            return r === 'D2' && f === '01' && (ty === '11' || ty === '12');
+        }
+
+        // After saving channel 1 of a 2-channel module, actively offer to add
+        // the second channel with everything pre-filled — the passive hint in
+        // step 2 was easy to miss (#24).
+        function offerSecondChannel(saved) {
+            showConfirmDialog(
+                t('teach_in.second_channel_title', 'Add channel 2 now?'),
+                t('teach_in.second_channel_body', 'This module has two outputs. Add a second device for channel 2 with the same address and sender ID? Everything will be pre-filled — you only confirm the name.'),
+                t('teach_in.second_channel_btn', 'Add channel 2'),
+                'btn-primary',
+                () => {
+                    resetDeviceForm();
+                    // Back to the configure step
+                    const steps = document.querySelectorAll('.wizard-step');
+                    steps.forEach(s => s.classList.remove('active'));
+                    steps[1]?.classList.add('active');
+                    const form = document.getElementById('device-form');
+                    const set = (name, value) => {
+                        const el = form.querySelector(`[name="${name}"]`);
+                        if (el) el.value = value ?? '';
+                    };
+                    set('name', (saved.name || '') + '-ch2');
+                    set('address', saved.address);
+                    set('rorg', saved.rorg);
+                    set('func', saved.func);
+                    set('type', saved.type);
+                    set('description', saved.description || '');
+                    set('room', saved.room || '');
+                    set('manufacturer', saved.manufacturer || '');
+                    const roleField = form.querySelector('[name="actuator_type"]');
+                    if (roleField) {
+                        roleField.value = saved.actuator_type || 'switch';
+                        toggleSenderIdField(roleField);
+                    }
+                    // Same sender ID on purpose: D2 commands are addressed and
+                    // the module is bound to exactly this controller ID.
+                    set('sender_id', saved.sender_id || '');
+                    toggleChannelField(saved.rorg, saved.func);
+                    set('channel', '1');
+                }
+            );
         }
 
         function applyTeachInData(d) {
@@ -2728,14 +2804,22 @@
                     if (input) input.value = '';
                 }
             }
-            // Reverse-direction option only applies to covers/blinds
+            // Invert applies to covers (Open/Close direction) and to switches
+            // (ON/OFF meaning of Eltako status reports — which rocker side
+            // means ON depends on how the actuator was taught in).
             const invertGroup = document.getElementById('invert-group');
             if (invertGroup) {
-                const isCover = select.value === 'cover';
-                invertGroup.style.display = isCover ? '' : 'none';
-                if (!isCover) {
+                const showInvert = select.value === 'cover' || select.value === 'switch';
+                invertGroup.style.display = showInvert ? '' : 'none';
+                if (!showInvert) {
                     const cb = invertGroup.querySelector('input[name="invert"]');
                     if (cb) cb.checked = false;
+                }
+                const label = invertGroup.querySelector('.form-check-label');
+                if (label) {
+                    label.textContent = select.value === 'switch'
+                        ? t('teach_in.invert_label_switch', 'Invert reported state (ON/OFF swapped)')
+                        : t('teach_in.invert_label', 'Reverse direction (Open/Close inverted)');
                 }
             }
         }
@@ -2750,6 +2834,9 @@
         }
 
         function showManualEntry() {
+            // Start from a clean slate — without this, a canceled edit left the
+            // previous device's locked name and sender ID in the form (#29/#30).
+            resetDeviceForm();
             wizardNext();
         }
 
@@ -2781,17 +2868,7 @@
             document.querySelectorAll('.wizard-step').forEach((step, index) => {
                 step.classList.toggle('active', index === 0);
             });
-            const form = document.getElementById('device-form');
-            form.reset();
-            delete form.dataset.editMode;
-            document.querySelector('[name="name"]').readOnly = false;
-            // Hide sender_id field (default: sensor mode)
-            const senderGroup = document.getElementById('sender-id-group');
-            if (senderGroup) senderGroup.style.display = 'none';
-            const submitBtn = form.querySelector('button[type="submit"]');
-            if (submitBtn) submitBtn.textContent = t('teach_in.add_device', 'Add Device');
-            const heading = document.querySelector('#step-2 h4');
-            if (heading) heading.textContent = t('teach_in.step2', 'Step 2: Configure Device');
+            resetDeviceForm();
         }
 
         async function saveDevice(e) {
@@ -2805,6 +2882,39 @@
             device.invert = !!(invertCb && invertCb.checked);
             const editMode = form.dataset.editMode;
 
+            // Sender-ID collision check for broadcast-driven (non-D2) actuators:
+            // Eltako devices each need their OWN sender ID, otherwise they react
+            // to each other's commands (#29). D2 channel devices intentionally
+            // share one sender (addressed commands), so they are exempt.
+            const isD2 = String(device.rorg || '').toUpperCase().replace('0X', '') === 'D2';
+            if (!editMode && device.actuator_type && device.sender_id && !isD2) {
+                try {
+                    const resp = await fetch(getApiUrl('/api/devices'));
+                    if (resp.ok) {
+                        const all = await resp.json();
+                        const list = Array.isArray(all) ? all : Object.values(all || {});
+                        const clash = list.find(d => d.sender_id && device.sender_id &&
+                            d.sender_id.toLowerCase() === device.sender_id.toLowerCase() &&
+                            d.name !== device.name);
+                        if (clash) {
+                            showConfirmDialog(
+                                t('device.sender_clash_title', 'Sender ID already in use'),
+                                t('device.sender_clash_body', 'This Sender ID is already used by') + ' "' + escapeHtml(clash.name) + '". ' +
+                                t('device.sender_clash_hint', 'Eltako-style actuators each need their own Sender ID — otherwise both react to the same commands. Save anyway?'),
+                                t('device.sender_clash_btn', 'Save anyway'),
+                                'btn-warning',
+                                () => performSaveDevice(device, editMode, form)
+                            );
+                            return;
+                        }
+                    }
+                } catch (err) { /* best effort — fall through to save */ }
+            }
+
+            await performSaveDevice(device, editMode, form);
+        }
+
+        async function performSaveDevice(device, editMode, form) {
             try {
                 let response;
                 if (editMode) {
@@ -2850,6 +2960,12 @@
                     // After adding new device, show success screen
                     wizardNext();
                     showToast(t('device.saved', 'Device saved successfully'), 'success');
+                    // 2-channel module and this was channel 1? Offer channel 2
+                    // right away with everything pre-filled (#24).
+                    if (isTwoChannelEep(device.rorg, device.func, device.type)
+                            && parseInt(device.channel || 0, 10) === 0) {
+                        offerSecondChannel(device);
+                    }
                 }
                 loadDevices();
             } catch (error) {

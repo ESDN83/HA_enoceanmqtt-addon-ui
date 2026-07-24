@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.0-beta5] - 2026-07-24 (beta channel)
+
+### Bug Fixes
+- **Manual entry no longer inherits a canceled edit** (#29, #30) — Canceling an edit left the previous device's name (locked read-only) and Sender ID in the wizard form; the next manual entry silently inherited them. Starting a manual entry (and a teach-in) now fully resets the form, including the edit state.
+- **Sender-ID collision warning** (#29) — Saving a new Eltako-style (non-D2) actuator whose Sender ID is already used by another device now asks for confirmation, since broadcast-driven actuators each need their own Sender ID. D2 channel devices are exempt — sharing one Sender ID is correct there.
+
+### New Features
+- **"Add channel 2 now?" prompt** (#24) — After saving channel 1 of a 2-channel module (D2-01-11/12), the wizard actively offers to create the channel-2 device with everything pre-filled (same address, EEP, sender; channel 2; name suggestion). Replaces the easy-to-miss passive hint.
+- **Distinct entity names for channel devices** (#24) — When several devices share one module address, each entity now carries its own configured device name in Home Assistant instead of both showing the identical module label.
+- **Eltako switch status sync (FSR61)** (community forum) — F6-driven switch actuators with status reporting (e.g. FSR61) now update their HA switch state from the actuator's confirmation telegrams — no MQTT YAML workaround needed. Since which rocker side means ON depends on how the actuator was taught in, the device's new "Invert reported state" option (shown for the switch role) flips it if needed.
+- **Channel picker in manual entry** — The channel field now also appears when a D2-01 EEP is typed in manually, not only after a teach-in.
+
 ## [1.7.0-beta4] - 2026-07-24 (beta channel)
 
 ### Bug Fixes
