@@ -47,9 +47,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install check deps
+        run: python -m pip install --quiet pyyaml
       - name: Validate add-on config and build YAML
         run: |
-          python -c "import yaml,glob,sys; [yaml.safe_load(open(f)) for f in glob.glob('addon*/config.yaml')+glob.glob('addon*/build.yaml')]; print('yaml ok')"
+          python -c "import yaml,glob; [yaml.safe_load(open(f)) for f in glob.glob('addon*/config.yaml')+glob.glob('addon*/build.yaml')]; print('yaml ok')"
       - name: Validate JSON (i18n and others)
         run: |
           sudo apt-get update && sudo apt-get install -y jq

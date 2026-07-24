@@ -91,5 +91,5 @@ bashio::log.info "MQTT Prefix: ${MQTT_PREFIX}"
 bashio::log.info "Config Path: ${CONFIG_PATH}"
 
 # Start the application
-cd /app
+cd /app || bashio::exit.nok "Failed to enter /app"
 exec python3 main.py
