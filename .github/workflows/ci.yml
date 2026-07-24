@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  hadolint:
+    name: Dockerfile lint (hadolint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Lint all Dockerfiles
+        run: |
+          shopt -s globstar
+          for dockerfile in **/Dockerfile; do
+            echo "Linting: $dockerfile"
+            docker run --rm -i -v "$(pwd)/.hadolint.yaml:/.hadolint.yaml:ro" \
+              hadolint/hadolint:v2.12.0 < "$dockerfile"
+          done
+
+  shellcheck:
+    name: Shell lint (shellcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ludeeus/action-shellcheck@2.0.0
+        env:
+          SHELLCHECK_OPTS: -e SC1008 -s bash
+
+  static:
+    name: YAML, JSON and Python checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate add-on config and build YAML
+        run: |
+          python -c "import yaml,glob,sys; [yaml.safe_load(open(f)) for f in glob.glob('addon*/config.yaml')+glob.glob('addon*/build.yaml')]; print('yaml ok')"
+      - name: Validate JSON (i18n and others)
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          shopt -s globstar
+          for f in **/*.json; do jq '.' "$f" > /dev/null || { echo "invalid: $f"; exit 1; }; done
+          echo "json ok"
+      - name: Compile Python
+        run: |
+          python -m compileall -q addon/rootfs/app addon-beta/rootfs/app
+          echo "python compile ok"
+
+  build:
+    name: Build image (amd64 smoke test)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        addon: [addon, addon-beta]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build ${{ matrix.addon }} for amd64
+        run: |
+          docker build \
+            --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.18 \
+            -t enocean-mqtt-ui-test:${{ matrix.addon }} \
+            "${{ matrix.addon }}"
