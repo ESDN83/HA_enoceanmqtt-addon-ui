@@ -27,6 +27,7 @@ class DeviceCreate(BaseModel):
 
 class DeviceUpdate(BaseModel):
     """Device update model"""
+    name: Optional[str] = None  # rename: the name is the primary key + MQTT topic base
     address: Optional[str] = None
     rorg: Optional[str] = None
     func: Optional[str] = None
@@ -225,6 +226,20 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
             import logging
             logging.getLogger(__name__).error(f"Failed to snapshot old discovery for {name}: {e}")
 
+    # Rename (re-key) if requested. The name is the primary key and the MQTT
+    # topic base, so this is done after the old-discovery snapshot (to clean up
+    # the old topics) and before the field update, so the rest of the flow uses
+    # the new key. The HA unique_id does not depend on the name, so the entity
+    # is preserved — only its topics/object_id change.
+    old_name = name
+    if update.name is not None and update.name != name:
+        if not await device_manager.rename_device(name, update.name):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot rename to '{update.name}': name is empty or already in use"
+            )
+        name = update.name
+
     success = await device_manager.update_device(name, update_data)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update device")
@@ -254,6 +269,10 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
             to_publish[updated_device.name] = updated_device
             for d in to_publish.values():
                 await _publish_discovery(d, mqtt_handler, mapping_manager, device_manager)
+            # A rename leaves the old name's retained availability behind; mark
+            # it offline so no ghost 'online' lingers on the old topic.
+            if old_name != name:
+                await mqtt_handler.publish_device_availability(old_name, available=False)
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Failed to re-publish discovery for {name}: {e}")

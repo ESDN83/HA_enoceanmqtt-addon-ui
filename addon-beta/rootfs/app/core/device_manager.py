@@ -268,6 +268,21 @@ class DeviceManager:
         logger.info(f"Updated device: {name}")
         return True
 
+    async def rename_device(self, old_name: str, new_name: str) -> bool:
+        """Rename a device (re-key). The name is the primary key and the MQTT
+        topic base, so this moves the entry and updates the device's name.
+        Returns False if the source is missing or the target already exists."""
+        new_name = (new_name or "").strip()
+        if not new_name or old_name not in self.devices or new_name in self.devices:
+            return False
+        device = self.devices.pop(old_name)
+        device.name = new_name
+        self.devices[new_name] = device
+        self._rebuild_address_map()
+        await self.save_devices()
+        logger.info(f"Renamed device: {old_name} -> {new_name}")
+        return True
+
     async def delete_device(self, name: str) -> bool:
         """Delete a device"""
         if name not in self.devices:

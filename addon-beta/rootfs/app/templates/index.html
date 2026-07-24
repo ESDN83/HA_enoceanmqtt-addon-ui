@@ -2934,6 +2934,22 @@
             device.invert = !!(invertCb && invertCb.checked);
             const editMode = form.dataset.editMode;
 
+            // Rename warning: the device name is the primary key and the MQTT
+            // topic base, so renaming re-homes its topics/object_id. The HA
+            // entity itself is preserved (its unique_id is name-independent).
+            if (editMode && device.name && device.name !== editMode) {
+                showConfirmDialog(
+                    t('device.rename_title', 'Rename device?'),
+                    t('device.rename_body', 'This changes the device\'s MQTT topics and entity object_id') +
+                        ' ("' + escapeHtml(editMode) + '" → "' + escapeHtml(device.name) + '"). ' +
+                        t('device.rename_hint', 'The Home Assistant entity is kept; only its topics change. Rename?'),
+                    t('device.rename_btn', 'Rename'),
+                    'btn-warning',
+                    () => performSaveDevice(device, editMode, form)
+                );
+                return;
+            }
+
             // Sender-ID collision check for broadcast-driven (non-D2) actuators:
             // Eltako devices each need their OWN sender ID, otherwise they react
             // to each other's commands (#29). D2 channel devices intentionally
@@ -3067,10 +3083,12 @@
                 const form = document.getElementById('device-form');
                 form.dataset.editMode = name;
 
-                // Change button text and disable name field
+                // Change button text. The name is editable in edit mode too
+                // (rename is supported); saveDevice warns before an actual
+                // rename since it changes the MQTT topics.
                 const submitBtn = form.querySelector('button[type="submit"]');
                 if (submitBtn) submitBtn.textContent = t('device.save', 'Save Device');
-                document.querySelector('[name="name"]').readOnly = true;
+                document.querySelector('[name="name"]').readOnly = false;
 
                 // Update heading
                 const heading = document.querySelector('#step-2 h4');
