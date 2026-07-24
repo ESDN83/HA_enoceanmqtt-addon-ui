@@ -13,16 +13,34 @@
                 document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
                 document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
             }
-            // Check HA Ingress parent window background. Computed style, not
-            // the inline style — HA usually has no inline background, so the
-            // old check fell through to the OS preference even inside Ingress
-            // (dark OS + light HA = mixed theme, unreadable panels).
+            // Check the HA Ingress parent. Prefer HA's own background CSS
+            // variable — HA's <body> usually has NO background of its own, and
+            // its computed rgba(0,0,0,0) used to be parsed as pitch black, so a
+            // light HA was mistaken for dark. Transparent = no information.
+            function brightness(str) {
+                if (!str) return null;
+                str = String(str).trim();
+                var r, g, b, a = 1;
+                var m = str.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+                if (m) {
+                    var h = m[1];
+                    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+                    r = parseInt(h.slice(0, 2), 16); g = parseInt(h.slice(2, 4), 16); b = parseInt(h.slice(4, 6), 16);
+                } else {
+                    m = str.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,\s/]+([\d.]+))?/i);
+                    if (!m) return null;
+                    r = +m[1]; g = +m[2]; b = +m[3];
+                    if (m[4] !== undefined) a = parseFloat(m[4]);
+                }
+                if (a === 0) return null;
+                return (r + g + b) / 3;
+            }
             try {
-                var parentBg = getComputedStyle(window.parent.document.body).backgroundColor;
-                var m = parentBg.match(/\d+/g);
-                if (m && m.length >= 3) {
-                    var avg = (parseInt(m[0]) + parseInt(m[1]) + parseInt(m[2])) / 3;
-                    applyTheme(avg < 128);
+                var pdoc = window.parent.document;
+                var lum = brightness(getComputedStyle(pdoc.documentElement).getPropertyValue('--primary-background-color'));
+                if (lum === null) lum = brightness(getComputedStyle(pdoc.body).backgroundColor);
+                if (lum !== null) {
+                    applyTheme(lum < 128);
                     return;   // HA verdict is authoritative — no OS fallback/listener
                 }
             } catch(e) {}
@@ -1144,35 +1162,65 @@
 
         // ===== Theme Detection =====
 
+        // Average brightness (0-255) of a CSS color, or null if the color is
+        // fully transparent / unparseable. Transparency MUST count as "no
+        // information": HA's <body> usually has NO own background, and
+        // rgba(0,0,0,0) was parsed as pitch black — so a light HA was detected
+        // as dark, and every Bootstrap-themed surface (tables, bg-body-tertiary,
+        // <code>, native number spinners) rendered dark on the light page.
+        function colorBrightness(str) {
+            if (!str) return null;
+            str = String(str).trim();
+            let r, g, b, a = 1;
+            let m = str.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+            if (m) {
+                let h = m[1];
+                if (h.length === 3) h = h.split('').map(c => c + c).join('');
+                r = parseInt(h.slice(0, 2), 16); g = parseInt(h.slice(2, 4), 16); b = parseInt(h.slice(4, 6), 16);
+            } else {
+                m = str.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,\s/]+([\d.]+))?/i);
+                if (!m) return null;
+                r = +m[1]; g = +m[2]; b = +m[3];
+                if (m[4] !== undefined) a = parseFloat(m[4]);
+            }
+            if (a === 0) return null;
+            return (r + g + b) / 3;
+        }
+
         function detectAndApplyTheme() {
             let dark = false;
-            // Whether the HA parent page (Ingress) could actually be read. Only
-            // then is its verdict authoritative — the OS preference used to
-            // override a *successfully detected light* HA theme (dark OS +
-            // light HA), so the theme attributes said "dark" while the
-            // inherited HA variables painted everything light. Every element
-            // styled by Bootstrap's data-bs-theme (mapping editor panel,
-            // tables, alerts, modals) then went dark-on-light with dark text.
+            // Only a readable HA parent (Ingress) is authoritative; the OS
+            // preference applies solely when the app runs standalone.
             let haDetected = false;
 
-            // Method 1: HA Ingress — read the parent page's theme
             try {
                 const parentDoc = window.parent.document;
+                // 1a: explicit HA theme attribute
                 const haTheme = parentDoc.querySelector('html')?.getAttribute('data-theme') ||
                                 parentDoc.querySelector('home-assistant')?.getAttribute('hass-theme') || '';
                 if (haTheme.toLowerCase().includes('dark')) {
                     dark = true;
                     haDetected = true;
                 }
-                // Also check computed style of HA body background
+                // 1b: HA's own background variable — the color the page really
+                // paints, and the same source applyHAThemeVars() inherits from.
+                // Using it keeps the theme attributes and the inherited colors
+                // consistent by construction.
                 if (!haDetected) {
-                    const bgColor = getComputedStyle(parentDoc.body).backgroundColor;
-                    // Parse rgb(r,g,b) — if average < 128 it's dark
-                    const m = bgColor.match(/\d+/g);
-                    if (m && m.length >= 3) {
-                        const avg = (parseInt(m[0]) + parseInt(m[1]) + parseInt(m[2])) / 3;
-                        dark = avg < 128;
-                        haDetected = true;   // readable parent = authoritative, light OR dark
+                    const haBg = getComputedStyle(parentDoc.documentElement)
+                        .getPropertyValue('--primary-background-color');
+                    const lum = colorBrightness(haBg);
+                    if (lum !== null) {
+                        dark = lum < 128;
+                        haDetected = true;
+                    }
+                }
+                // 1c: computed body background — but transparent means unknown
+                if (!haDetected) {
+                    const lum = colorBrightness(getComputedStyle(parentDoc.body).backgroundColor);
+                    if (lum !== null) {
+                        dark = lum < 128;
+                        haDetected = true;
                     }
                 }
 
@@ -1219,6 +1267,10 @@
             if (cardBg) root.style.setProperty('--input-bg', cardBg);
             const divider = style.getPropertyValue('--divider-color').trim();
             if (divider) root.style.setProperty('--input-border', divider);
+            // <code> badges (device addresses etc.) follow HA's secondary
+            // background so they can't stay dark on a light page.
+            const secBg = style.getPropertyValue('--secondary-background-color').trim();
+            if (secBg) root.style.setProperty('--code-bg', secBg);
         }
 
         // Listen for OS theme changes (standalone mode)
