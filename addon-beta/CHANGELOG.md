@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.0-beta6] - 2026-07-24 (beta channel)
+
+### Bug Fixes
+- **Dark/light theme — the actual root cause** (#25) — The remaining dark islands on a light page (mapping editor, EEP.xml info table, `code` address badges, even the native number spinner in Actuator Teach-In) all came from one wrong assumption in theme detection. Home Assistant's `<body>` usually has **no background of its own**, so reading its computed background returned `rgba(0,0,0,0)` (transparent) — which the previous check parsed as pitch black and concluded "Home Assistant is dark". A light HA was therefore rendered dark, and every surface styled by Bootstrap's `data-bs-theme`/`color-scheme` went dark on the light page. Detection now reads HA's own `--primary-background-color` variable (the color HA actually paints, and the same source the app already inherits its colors from) and treats a transparent result as "unknown", so the theme attributes and the inherited colors are consistent by construction. `code` badges also follow HA's secondary background. Verified in an embedded-iframe harness with a transparent parent body in both directions (light HA + dark OS → all light, contrast 15+; dark HA + light OS → all dark, readable).
+
 ## [1.7.0-beta5] - 2026-07-24 (beta channel)
 
 ### Bug Fixes
