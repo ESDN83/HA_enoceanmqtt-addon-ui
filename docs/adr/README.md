@@ -15,3 +15,4 @@ Rules:
 - [0004](0004-beta-channel-and-forward-only-versioning.md) Beta channel and forward-only versioning
 - [0005](0005-multichannel-device-model.md) Multi-channel actuator model
 - [0006](0006-buildless-frontend.md) The frontend stays buildless
+- [0007](0007-multichannel-discovery-naming.md) Multi-channel discovery naming and edit-path entity lifecycle

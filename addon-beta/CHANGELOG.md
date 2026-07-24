@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.0-beta7] - 2026-07-24 (beta channel)
+
+### Bug Fixes
+- **Editing a channel device no longer corrupts naming or leaves stale entities** (#34) — On a 2-channel module (D2-01-11/12), editing one channel renamed *both* channel entities to the same name, and identity edits (address, Sender ID, EEP, channel) left the old Home Assistant entities behind as orphans that piled up. Root cause was in the edit/save path, now fixed in three places: it (1) keeps the `channel` field (it was silently dropped, so channel edits reverted on reopen), (2) rebuilds discovery *with* the channel, so a channel-1 entity is no longer recomputed under the channel-0 `unique_id`, and (3) retracts any entity whose `unique_id` changes instead of orphaning it (empty-payload removal, the same way delete already worked). Deleting one channel now keeps the shared diagnostic sensors (RSSI, Last Seen) the remaining channel still needs.
+- **Two channels of a module now really show distinct names** (#34, #24) — The distinct-naming intended in beta5 wasn't reaching Home Assistant: both channels share one HA device (same address) and were published without a per-entity name, so both inherited the same device name (the last one written). Now a shared-address module gets a stable module label as its HA device name (manufacturer + EEP, e.g. "NodOn D2-01-12") and each channel entity carries its own configured name — distinct at creation and after every edit. create, update and delete re-publish all channels of the module together so the naming stays consistent when a channel is added, edited, or removed. Recorded as ADR-0007 and verified on a real Home Assistant (Supervisor + Mosquitto) with a D2-01-12 channel pair.
+
 ## [1.7.0-beta6] - 2026-07-24 (beta channel)
 
 ### Bug Fixes

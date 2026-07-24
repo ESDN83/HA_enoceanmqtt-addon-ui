@@ -40,6 +40,55 @@ class DeviceUpdate(BaseModel):
     channel: Optional[int] = None
 
 
+def _discovery_naming(device, device_manager):
+    """Return (entity_name, module_name) for a device's discovery configs.
+
+    When several devices share one address they are the channels of one
+    multi-channel module (ADR-0005): they collapse to a single HA device
+    (identifiers = address). Each channel entity must therefore carry its own
+    name while the shared HA device carries a stable module label, or both
+    channels show the same name (issue #34). Single-address devices keep the
+    previous behaviour (entity name = None -> HA device name).
+    """
+    if len(device_manager.get_devices_by_address(device.address)) > 1:
+        entity_name = device.description or device.name
+        module_name = (f"{device.manufacturer} {device.eep_id}".strip()
+                       or f"EnOcean {device.eep_id}")
+        return entity_name, module_name
+    return None, None
+
+
+def _build_discovery_configs(device, mqtt_handler, mapping_manager, device_manager):
+    """Build the HA discovery configs for one device, multi-channel aware."""
+    entity_name, module_name = _discovery_naming(device, device_manager)
+    device_info = mapping_manager.build_device_info(device, module_name=module_name)
+    return mapping_manager.get_ha_discovery_configs(
+        device_name=device.name,
+        eep_id=device.eep_id,
+        device_address=device.address,
+        device_sender=device.sender_id,
+        mqtt_prefix=mqtt_handler.prefix,
+        device_info=device_info,
+        actuator_type=device.actuator_type,
+        invert=device.invert,
+        channel=device.channel,
+        entity_name=entity_name,
+    )
+
+
+async def _publish_discovery(device, mqtt_handler, mapping_manager, device_manager):
+    """Publish discovery configs + availability for one device."""
+    configs = _build_discovery_configs(device, mqtt_handler, mapping_manager, device_manager)
+    for item in configs:
+        await mqtt_handler.publish_discovery_config(
+            component=item["component"],
+            unique_id=item["unique_id"],
+            config=item["config"]
+        )
+    await mqtt_handler.publish_device_availability(device.name, available=True)
+    return configs
+
+
 @router.get("")
 async def list_devices(request: Request) -> List[Dict[str, Any]]:
     """Get all devices"""
@@ -107,30 +156,15 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
     if not success:
         raise HTTPException(status_code=500, detail="Failed to create device")
 
-    # Publish MQTT discovery
+    # Publish MQTT discovery. Re-publish every device on this address, not just
+    # the new one, so an existing channel picks up multi-channel naming the
+    # moment a second channel is added at the same address (#34, ADR-0005).
     mqtt_handler = request.app.state.mqtt_handler
     mapping_manager = request.app.state.mapping_manager
     if mqtt_handler and mapping_manager:
         try:
-            device_info = mapping_manager.build_device_info(new_device)
-            configs = mapping_manager.get_ha_discovery_configs(
-                device_name=new_device.name,
-                eep_id=new_device.eep_id,
-                device_address=new_device.address,
-                device_sender=new_device.sender_id,
-                mqtt_prefix=mqtt_handler.prefix,
-                device_info=device_info,
-                actuator_type=new_device.actuator_type,
-                invert=new_device.invert,
-                channel=new_device.channel
-            )
-            for item in configs:
-                await mqtt_handler.publish_discovery_config(
-                    component=item["component"],
-                    unique_id=item["unique_id"],
-                    config=item["config"]
-                )
-            await mqtt_handler.publish_device_availability(new_device.name, available=True)
+            for sibling in device_manager.get_devices_by_address(new_device.address):
+                await _publish_discovery(sibling, mqtt_handler, mapping_manager, device_manager)
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Failed to publish discovery for {new_device.name}: {e}")
@@ -171,35 +205,55 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
         update_data["actuator_type"] = update.actuator_type
     if update.invert is not None:
         update_data["invert"] = bool(update.invert)
+    if update.channel is not None:
+        update_data["channel"] = int(update.channel)
+
+    # Snapshot the current discovery identity BEFORE mutating the device.
+    # update_device mutates the Device in place, so we capture the old
+    # unique_ids now to retract any entity whose unique_id changes on an
+    # identity edit (address/sender/EEP/channel) instead of orphaning it in
+    # HA. Passing channel is required or a channel-1 device is snapshotted
+    # under the channel-0 unique_id. See ADR-0005 and issue #34.
+    mqtt_handler = request.app.state.mqtt_handler
+    mapping_manager = request.app.state.mapping_manager
+    old_address = device.address
+    old_configs: List[Dict[str, Any]] = []
+    if mqtt_handler and mapping_manager:
+        try:
+            old_configs = _build_discovery_configs(device, mqtt_handler, mapping_manager, device_manager)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to snapshot old discovery for {name}: {e}")
 
     success = await device_manager.update_device(name, update_data)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update device")
 
-    # Re-publish MQTT discovery (important when EEP changes)
+    # Re-publish MQTT discovery (important when EEP/channel/identity changes)
     updated_device = device_manager.get_device(name)
-    mqtt_handler = request.app.state.mqtt_handler
-    mapping_manager = request.app.state.mapping_manager
     if mqtt_handler and mapping_manager and updated_device:
         try:
-            device_info = mapping_manager.build_device_info(updated_device)
-            configs = mapping_manager.get_ha_discovery_configs(
-                device_name=updated_device.name,
-                eep_id=updated_device.eep_id,
-                device_address=updated_device.address,
-                device_sender=updated_device.sender_id,
-                mqtt_prefix=mqtt_handler.prefix,
-                device_info=device_info,
-                actuator_type=updated_device.actuator_type,
-                invert=updated_device.invert
-            )
-            for item in configs:
-                await mqtt_handler.publish_discovery_config(
-                    component=item["component"],
-                    unique_id=item["unique_id"],
-                    config=item["config"]
-                )
-            await mqtt_handler.publish_device_availability(updated_device.name, available=True)
+            new_configs = _build_discovery_configs(updated_device, mqtt_handler, mapping_manager, device_manager)
+            # Retract entities whose unique_id no longer exists after the edit
+            # (empty-payload removal, same as delete_device) so stale entities
+            # don't accumulate in HA (issue #34).
+            new_uids = {item["unique_id"] for item in new_configs}
+            for item in old_configs:
+                if item["unique_id"] not in new_uids:
+                    await mqtt_handler.remove_discovery_config(
+                        component=item["component"],
+                        unique_id=item["unique_id"]
+                    )
+            # Re-publish the edited device and every address-sibling (at both the
+            # new and old address if it changed), so channel naming stays
+            # consistent when a channel is added, removed, or re-homed
+            # (#34, ADR-0005).
+            to_publish = {d.name: d for d in device_manager.get_devices_by_address(updated_device.address)}
+            for d in device_manager.get_devices_by_address(old_address):
+                to_publish.setdefault(d.name, d)
+            to_publish[updated_device.name] = updated_device
+            for d in to_publish.values():
+                await _publish_discovery(d, mqtt_handler, mapping_manager, device_manager)
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Failed to re-publish discovery for {name}: {e}")
@@ -218,36 +272,47 @@ async def delete_device(name: str, request: Request) -> Dict[str, str]:
     if not device:
         raise HTTPException(status_code=404, detail=f"Device '{name}' not found")
 
-    # Remove MQTT discovery entities and set device offline
+    # Compute this device's discovery configs (multi-channel aware) before it
+    # leaves the manager, so we know which unique_ids it owns.
     mqtt_handler = request.app.state.mqtt_handler
     mapping_manager = request.app.state.mapping_manager
+    address = device.address
+    removed_configs: List[Dict[str, Any]] = []
     if mqtt_handler and mapping_manager:
         try:
-            device_info = mapping_manager.build_device_info(device)
-            configs = mapping_manager.get_ha_discovery_configs(
-                device_name=device.name,
-                eep_id=device.eep_id,
-                device_address=device.address,
-                device_sender=device.sender_id,
-                mqtt_prefix=mqtt_handler.prefix,
-                device_info=device_info,
-                actuator_type=device.actuator_type,
-                invert=device.invert
-            )
-            # Remove each discovery config (publish empty payload)
-            for item in configs:
-                await mqtt_handler.remove_discovery_config(
-                    component=item["component"],
-                    unique_id=item["unique_id"]
-                )
-            # Set device offline
-            await mqtt_handler.publish_device_availability(device.name, available=False)
+            removed_configs = _build_discovery_configs(device, mqtt_handler, mapping_manager, device_manager)
         except Exception as e:
             import logging
-            logging.getLogger(__name__).error(f"Failed to remove discovery for {name}: {e}")
+            logging.getLogger(__name__).error(f"Failed to compute discovery for {name}: {e}")
 
     success = await device_manager.delete_device(name)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete device")
+
+    if mqtt_handler and mapping_manager:
+        try:
+            # Keep any unique_id a surviving channel on the same address still
+            # publishes (e.g. the shared RSSI/Last Seen sensors), and only
+            # retract the ones now truly orphaned (#34, ADR-0005).
+            survivors = device_manager.get_devices_by_address(address)
+            keep_uids = set()
+            for d in survivors:
+                keep_uids.update(
+                    item["unique_id"]
+                    for item in _build_discovery_configs(d, mqtt_handler, mapping_manager, device_manager)
+                )
+            for item in removed_configs:
+                if item["unique_id"] not in keep_uids:
+                    await mqtt_handler.remove_discovery_config(
+                        component=item["component"],
+                        unique_id=item["unique_id"]
+                    )
+            await mqtt_handler.publish_device_availability(device.name, available=False)
+            # Re-publish survivors so a 2->1 transition drops the module naming.
+            for d in survivors:
+                await _publish_discovery(d, mqtt_handler, mapping_manager, device_manager)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to remove discovery for {name}: {e}")
 
     return {"status": "deleted"}

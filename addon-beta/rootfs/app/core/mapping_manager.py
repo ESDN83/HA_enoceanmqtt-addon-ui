@@ -1291,12 +1291,19 @@ class MappingManager:
 
         return configs
 
-    def build_device_info(self, device) -> Dict[str, Any]:
-        """Build HA device info from device object"""
+    def build_device_info(self, device, module_name: str = None) -> Dict[str, Any]:
+        """Build HA device info from device object.
+
+        For a multi-channel module several devices share one address and thus
+        one HA device (identifiers = address). Pass module_name so the shared
+        HA device carries a stable module label while each channel entity keeps
+        its own name (see ADR-0005 and issue #34). module_name=None keeps the
+        single-device behaviour (device name = its description/name).
+        """
         addr = _normalize_address(device.address)
         return {
             "identifiers": [f"enocean_{addr}"],
-            "name": device.description or device.name,
+            "name": module_name or device.description or device.name,
             "manufacturer": device.manufacturer or "EnOcean",
             "model": device.eep_id,
         }
