@@ -13,16 +13,20 @@
                 document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
                 document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
             }
-            // Check HA Ingress parent window background
+            // Check HA Ingress parent window background. Computed style, not
+            // the inline style — HA usually has no inline background, so the
+            // old check fell through to the OS preference even inside Ingress
+            // (dark OS + light HA = mixed theme, unreadable panels).
             try {
-                var parentBg = window.parent.document.documentElement.style.backgroundColor;
-                if (parentBg) {
-                    var r = parseInt(parentBg.match(/\d+/)?.[0] || 255);
-                    applyTheme(r < 128);
-                    return;
+                var parentBg = getComputedStyle(window.parent.document.body).backgroundColor;
+                var m = parentBg.match(/\d+/g);
+                if (m && m.length >= 3) {
+                    var avg = (parseInt(m[0]) + parseInt(m[1]) + parseInt(m[2])) / 3;
+                    applyTheme(avg < 128);
+                    return;   // HA verdict is authoritative — no OS fallback/listener
                 }
             } catch(e) {}
-            // Fallback: OS preference
+            // Fallback: OS preference (standalone browser only)
             var prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
             applyTheme(prefersDark.matches);
             prefersDark.addEventListener('change', function(e) { applyTheme(e.matches); });
@@ -1142,23 +1146,33 @@
 
         function detectAndApplyTheme() {
             let dark = false;
+            // Whether the HA parent page (Ingress) could actually be read. Only
+            // then is its verdict authoritative — the OS preference used to
+            // override a *successfully detected light* HA theme (dark OS +
+            // light HA), so the theme attributes said "dark" while the
+            // inherited HA variables painted everything light. Every element
+            // styled by Bootstrap's data-bs-theme (mapping editor panel,
+            // tables, alerts, modals) then went dark-on-light with dark text.
+            let haDetected = false;
 
-            // Method 1: Check HA Ingress — HA sets body background via inline style
+            // Method 1: HA Ingress — read the parent page's theme
             try {
                 const parentDoc = window.parent.document;
                 const haTheme = parentDoc.querySelector('html')?.getAttribute('data-theme') ||
                                 parentDoc.querySelector('home-assistant')?.getAttribute('hass-theme') || '';
                 if (haTheme.toLowerCase().includes('dark')) {
                     dark = true;
+                    haDetected = true;
                 }
                 // Also check computed style of HA body background
-                if (!dark) {
+                if (!haDetected) {
                     const bgColor = getComputedStyle(parentDoc.body).backgroundColor;
                     // Parse rgb(r,g,b) — if average < 128 it's dark
                     const m = bgColor.match(/\d+/g);
                     if (m && m.length >= 3) {
                         const avg = (parseInt(m[0]) + parseInt(m[1]) + parseInt(m[2])) / 3;
-                        if (avg < 128) dark = true;
+                        dark = avg < 128;
+                        haDetected = true;   // readable parent = authoritative, light OR dark
                     }
                 }
 
@@ -1168,8 +1182,8 @@
                 // Cross-origin — not in HA Ingress, fall through
             }
 
-            // Method 2: prefers-color-scheme media query (standalone browser)
-            if (!dark && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            // Method 2: OS preference — ONLY when not embedded in HA
+            if (!haDetected && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
                 dark = true;
             }
 

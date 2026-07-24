@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.0-beta4] - 2026-07-24 (beta channel)
+
+### Bug Fixes
+- **Dark/light theme finally consistent** (#25, #23) — The remaining dark panels on a light page (Mapping Editor, the EEP.xml info table on the Settings page, alerts, modals) were caused by contradictory theme detection: when Home Assistant's theme was light but the *operating system* preferred dark, the OS won — so the app inherited light colors from HA while Bootstrap rendered its components dark. Now, when the app runs inside Home Assistant, **only** the HA theme decides; the OS preference applies only when the app is opened standalone. Verified with an embedded-page test in both directions (light HA + dark OS → all light; dark HA + light OS → all dark, read-only fields readable).
+
 ## [1.7.0-beta3] - 2026-07-23 (beta channel)
 
 ### Bug Fixes
