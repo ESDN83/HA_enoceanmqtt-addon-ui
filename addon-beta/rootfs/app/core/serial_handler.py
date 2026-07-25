@@ -711,13 +711,18 @@ class SerialHandler:
         # enabled) confirm their state with plain rocker telegrams. Derive the
         # HA switch state from the rocker code so the entity stays in sync
         # without MQTT YAML workarounds (community forum report).
-        # Convention matches our own commands: BI (2) = ON, BO (3) = OFF.
-        # Which rocker side means ON depends on how the actuator was taught
-        # in — the device's "invert" option flips it.
+        #
+        # An actuator's confirmation telegram uses the OPPOSITE convention to
+        # the rocker press we send as a command: Eltako confirms ON with 0x70
+        # (R1 = 3, BO) and OFF with 0x50 (R1 = 2, BI), while a command press
+        # for ON is 0x50. Reported by salzrat on the community forum and
+        # confirmed against Eltako's telegram documentation, so BO = ON is the
+        # default here. Actuators taught in the other way round are handled by
+        # the device's "invert" option.
         elif device.actuator_type == "switch" and telegram.rorg == 0xF6:
             r1 = decoded.get("R1")
             if r1 in (2, 3):
-                on = (r1 == 2)
+                on = (r1 == 3)
                 if getattr(device, "invert", False):
                     on = not on
                 decoded["state"] = "ON" if on else "OFF"

@@ -16,3 +16,4 @@ Rules:
 - [0005](0005-multichannel-device-model.md) Multi-channel actuator model
 - [0006](0006-buildless-frontend.md) The frontend stays buildless
 - [0007](0007-multichannel-discovery-naming.md) Multi-channel discovery naming and edit-path entity lifecycle
+- [0008](0008-switch-state-feedback-and-echo.md) Switch state feedback: Eltako confirmation convention and commanded-state echo

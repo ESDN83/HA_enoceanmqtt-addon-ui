@@ -41,39 +41,15 @@ class DeviceUpdate(BaseModel):
     channel: Optional[int] = None
 
 
-def _discovery_naming(device, device_manager):
-    """Return (entity_name, module_name) for a device's discovery configs.
-
-    When several devices share one address they are the channels of one
-    multi-channel module (ADR-0005): they collapse to a single HA device
-    (identifiers = address). Each channel entity must therefore carry its own
-    name while the shared HA device carries a stable module label, or both
-    channels show the same name (issue #34). Single-address devices keep the
-    previous behaviour (entity name = None -> HA device name).
-    """
-    if len(device_manager.get_devices_by_address(device.address)) > 1:
-        entity_name = device.description or device.name
-        module_name = (f"{device.manufacturer} {device.eep_id}".strip()
-                       or f"EnOcean {device.eep_id}")
-        return entity_name, module_name
-    return None, None
-
-
 def _build_discovery_configs(device, mqtt_handler, mapping_manager, device_manager):
-    """Build the HA discovery configs for one device, multi-channel aware."""
-    entity_name, module_name = _discovery_naming(device, device_manager)
-    device_info = mapping_manager.build_device_info(device, module_name=module_name)
-    return mapping_manager.get_ha_discovery_configs(
-        device_name=device.name,
-        eep_id=device.eep_id,
-        device_address=device.address,
-        device_sender=device.sender_id,
-        mqtt_prefix=mqtt_handler.prefix,
-        device_info=device_info,
-        actuator_type=device.actuator_type,
-        invert=device.invert,
-        channel=device.channel,
-        entity_name=entity_name,
+    """Build the HA discovery configs for one device, multi-channel aware.
+
+    Naming lives in mapping_manager so every publish path (this one and the
+    startup republish in main.py) uses the same rules. See ADR-0007.
+    """
+    return mapping_manager.build_discovery_for_device(
+        device, mqtt_handler.prefix,
+        device_manager.get_devices_by_address(device.address)
     )
 
 

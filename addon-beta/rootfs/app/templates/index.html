@@ -3063,16 +3063,16 @@
                 document.querySelector('[name="description"]').value = device.description || '';
                 document.querySelector('[name="room"]').value = device.room || '';
                 document.querySelector('[name="actuator_type"]').value = device.actuator_type || '';
-                document.querySelector('[name="sender_id"]').value = device.sender_id || '';
                 document.querySelector('[name="manufacturer"]').value = device.manufacturer || '';
-                // Show/hide sender_id field based on actuator type
-                const senderGroup = document.getElementById('sender-id-group');
-                if (senderGroup) senderGroup.style.display = device.actuator_type ? '' : 'none';
-                // Reverse-direction option: populate + show only for covers
+                // Reuse the role dropdown's own rules for which extra fields
+                // are visible. This block used to carry its own copy that only
+                // showed "invert" for covers, so editing a switch never
+                // offered "Invert reported state".
+                toggleSenderIdField(document.querySelector('[name="actuator_type"]'));
+                // Fill the values after the toggle, which clears what it hides.
+                document.querySelector('[name="sender_id"]').value = device.sender_id || '';
                 const invertCb = document.querySelector('[name="invert"]');
                 if (invertCb) invertCb.checked = !!device.invert;
-                const invertGroup = document.getElementById('invert-group');
-                if (invertGroup) invertGroup.style.display = device.actuator_type === 'cover' ? '' : 'none';
 
                 // Channel (2-channel D2-01 modules)
                 const chField = document.querySelector('[name="channel"]');

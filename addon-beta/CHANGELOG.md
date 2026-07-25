@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.7.0-beta8] - 2026-07-25 (beta channel)
+
+> **If you enabled "Invert reported state" on an Eltako switch actuator in beta5 to beta7, please turn it off after this update.** The default was wrong and is now corrected, so the workaround is no longer needed.
+
+### Bug Fixes
+- **Switch actuators show a real toggle again, not two buttons** (community forum). A switch entity was published as optimistic, which makes Home Assistant treat it as `assumed_state` and render two buttons (on/off) instead of a single toggle. The entity is no longer optimistic, so it shows as a proper switch. To keep the immediate reaction that optimistic gave, the add-on now echoes the commanded state to the state topic right after sending, so the toggle also works for actuators that do not report their state. A status confirmation from the actuator overwrites that echo with the real value.
+- **"Invert reported state" was hidden when editing a switch**. The option only appeared while the role dropdown was being changed; opening an existing switch device for editing showed it for covers only, so the setting could not be reviewed or turned off afterwards. The edit form now applies the same field rules as the role dropdown. This matters for the default change above: it is how you switch the old workaround back off.
+- **Channel naming survived only until the next restart** (#34 follow-up). beta7 fixed the naming in the create and edit path, but the add-on's startup republish still had its own older copy of the rule: it published each channel entity under its device name and the shared module under one channel's description. Every add-on restart therefore silently renamed the channels back (for example both showing "Kueche"). Discovery naming now lives in one place that both paths call, so a restart keeps what was configured.
+- **Eltako status feedback was inverted by default** (community forum). An Eltako actuator confirms its state with the opposite rocker code to the one we send as a command: it reports ON as `0x70` (BO) and OFF as `0x50` (BI), while the command for ON is `0x50`. The status sync used the command convention, so an FSR61 reported ON as OFF and users had to enable "Invert reported state" to compensate. The default now follows the Eltako confirmation convention. The invert option stays for actuators taught in the other way round.
+
 ## [1.7.0-beta7] - 2026-07-24 (beta channel)
 
 ### Bug Fixes

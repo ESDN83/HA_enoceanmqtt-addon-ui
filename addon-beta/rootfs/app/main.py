@@ -212,26 +212,15 @@ async def _publish_all_discoveries():
     for device in device_manager.devices.values():
         try:
             # Build device info for HA
-            device_info = mapping_manager.build_device_info(device)
-
-            # Several devices on one address (2-channel modules) merge into a
-            # single HA device — with the default entity naming both showed the
-            # identical label (#24). Give each entity its own configured device
-            # name in that case so the channels are distinguishable.
-            shared_address = len(device_manager.get_devices_by_address(device.address)) > 1
-
-            # Generate discovery configs
-            configs = mapping_manager.get_ha_discovery_configs(
-                device_name=device.name,
-                eep_id=device.eep_id,
-                device_address=device.address,
-                device_sender=device.sender_id,
-                mqtt_prefix=mqtt_handler.prefix,
-                device_info=device_info,
-                actuator_type=device.actuator_type,
-                invert=device.invert,
-                channel=int(getattr(device, "channel", 0) or 0),
-                entity_name=device.name if shared_address else None
+            # Naming for multi-channel modules lives in mapping_manager so this
+            # startup republish and the create/update path in api/devices.py
+            # cannot disagree. They did in beta7: this path republished channel
+            # entities under their device name and the module under one
+            # channel's description, silently undoing the edit path's naming on
+            # every restart (ADR-0007).
+            configs = mapping_manager.build_discovery_for_device(
+                device, mqtt_handler.prefix,
+                device_manager.get_devices_by_address(device.address)
             )
 
             # Publish each entity discovery config
@@ -259,14 +248,35 @@ async def _publish_all_discoveries():
         await mqtt_handler.republish_cached_states()
 
 
+async def _echo_switch_state(device_name: str, command: str):
+    """Echo a commanded switch state to the device's state topic.
+
+    Switch entities are not published as optimistic, because that makes Home
+    Assistant mark them assumed_state and render two buttons instead of a
+    toggle (ADR-0008). The toggle therefore needs a state to react to, and
+    actuators without status reporting never send one. The echo is merged into
+    the last known payload so the other fields (RSSI, Last Seen) survive; a
+    status confirmation from the actuator later overwrites it with the real
+    value.
+    """
+    if command not in ("ON", "OFF") or not mqtt_handler:
+        return
+    state = dict(mqtt_handler.get_last_state(device_name) or {})
+    state["state"] = command
+    await mqtt_handler.publish_state(device_name, state)
+
+
 async def _handle_device_command(device_name: str, payload: str, entity: str = None):
     """Handle MQTT command for an actuator device — send F6 telegram.
 
     For Eltako actuators (FD62NPN, FSR61, FSB61, etc.):
-    - ON: F6 rocker B top (BI) press + release
-    - OFF: F6 rocker B bottom (B0) press + release
+    - ON: F6 rocker BI (0x50) press + release
+    - OFF: F6 rocker BO (0x70) press + release
+
+    Note that an actuator's own confirmation telegram uses the opposite
+    convention (0x70 = ON), see the switch branch in serial_handler.
     """
-    global serial_handler, device_manager
+    global serial_handler, device_manager, mqtt_handler
 
     if not serial_handler or not serial_handler.is_connected:
         logger.warning(f"Cannot send command for {device_name}: serial not connected")
@@ -317,6 +327,8 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             sender_id, destination, command, channel=channel
         )
         logger.info(f"Sent D2-01 {command} (channel {channel}) to {device_name}")
+        if device.actuator_type == "switch":
+            await _echo_switch_state(device_name, command)
         return
 
     if device.actuator_type == "light":
@@ -350,7 +362,7 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
         # D2-01 switches are handled above (EEP branch). Everything left here
         # is an Eltako-style actuator driven by simulated F6 rocker presses.
         if command == "ON":
-            # F6 Rocker B top (BI) pressed: data=0x50, status=0x30 (T21+NU)
+            # F6 Rocker BI pressed: data=0x50, status=0x30 (T21+NU)
             await serial_handler.send_telegram(
                 sender_id=sender_id, rorg=0xF6,
                 data=bytes([0x50]), destination=broadcast, status=0x30
@@ -364,7 +376,7 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             logger.info(f"Sent ON (F6 BI press+release) to {device_name}")
 
         elif command == "OFF":
-            # F6 Rocker B bottom (B0) pressed: data=0x70, status=0x30 (T21+NU)
+            # F6 Rocker BO pressed: data=0x70, status=0x30 (T21+NU)
             await serial_handler.send_telegram(
                 sender_id=sender_id, rorg=0xF6,
                 data=bytes([0x70]), destination=broadcast, status=0x30
@@ -379,6 +391,8 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
 
         else:
             logger.warning(f"Unknown command '{command}' for {device_name}")
+
+        await _echo_switch_state(device_name, command)
 
     elif device.actuator_type == "cover":
         # D2-05-xx blind actuators (e.g. NodOn SIN-2-RS-01) speak structured
