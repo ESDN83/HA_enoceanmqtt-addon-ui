@@ -2,6 +2,23 @@
 
 The only real test is the add-on running inside a real Home Assistant. Everything below is ordered from "closest to production" to "quick local sanity check". Do not treat the local checks as QA.
 
+## Scripted (headless, no VS Code)
+
+If the devcontainer already exists on the machine, use the scripts instead of doing this by hand:
+
+```bash
+scripts/devcontainer/status.sh      # what is up, what is broken
+scripts/devcontainer/up.sh          # cold start after a host reboot
+scripts/devcontainer/deploy.sh      # copy changed app files in and restart
+scripts/devcontainer/fixtures.sh    # one test device per discovery path
+scripts/devcontainer/seed-states.sh # give devices a state
+scripts/devcontainer/rebuild.sh     # build the real image, before releasing
+```
+
+They also carry the environment traps (stale containerd after a reboot, the slow prune inside `supervisor_run`, the gateway firewall check that blocks installs, the core token going stale, and the bind mount the store needs for rebuilds). Read the comments in `up.sh` before debugging any of those by hand.
+
+Without a dongle nothing publishes, so entities stay `unknown` and Home Assistant draws two on/off buttons instead of a toggle. Run `seed-states.sh` before judging how anything renders.
+
 ## 1. Devcontainer with a real Supervisor (recommended for development)
 
 Home Assistant's official add-on development method is a VS Code devcontainer that boots a full Supervisor plus Home Assistant. This repo ships it: `.devcontainer/devcontainer.json` and `.vscode/tasks.json`. Both `addon/` and `addon-beta/` appear automatically under "Local Apps".
