@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.0-beta9] - 2026-07-25 (beta channel)
+
+### Bug Fixes
+- **D2-01 modules now report their state back to Home Assistant** (#34 follow-up). A D2-01 actuator answers with a status telegram carrying the channel (`IO`) and the output value (`OV`), but that was decoded and then never mapped to the entity state. The switch only ever showed the result of commands sent from Home Assistant, so switching at the module itself, or from another sender, was invisible. The status is now applied to the device whose channel matches `IO`, and only to that one, so on a two-channel module each output keeps its own state instead of inheriting its neighbour's.
+- **A D2-01 module configured as a light was always reported off**. The light path reads `SW` and `EDIM`, which only exist in an Eltako A5-38-08 telegram. For a D2-01 those fields are missing, so the state came out as off on every report. The light path is now limited to the telegrams it was written for, and D2-01 lights take their state and brightness from `OV`.
+
 ## [1.7.0-beta8] - 2026-07-25 (beta channel)
 
 > **If you enabled "Invert reported state" on an Eltako switch actuator in beta5 to beta7, please turn it off after this update.** The default was wrong and is now corrected, so the workaround is no longer needed.

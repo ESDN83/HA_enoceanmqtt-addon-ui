@@ -696,8 +696,12 @@ class SerialHandler:
         # Decode telegram using EEP profile
         decoded = self._decode_telegram(telegram, profile)
 
-        # For light actuators, add HA-compatible state and brightness fields
-        if device.actuator_type == "light":
+        # For light actuators, add HA-compatible state and brightness fields.
+        # SW and EDIM come from A5-38-08, so this must not run for a D2-01
+        # module configured as a light: SW would be missing and the light
+        # would be reported permanently OFF. D2-01 is handled per target
+        # below, because there the channel decides who the value belongs to.
+        if device.actuator_type == "light" and telegram.rorg == 0xA5:
             sw = decoded.get("SW", 0)
             edim = decoded.get("EDIM", 0)
             decoded["state"] = "ON" if sw else "OFF"
@@ -736,8 +740,36 @@ class SerialHandler:
         # state (#24).
         if self.mqtt_handler:
             targets = self.device_manager.get_devices_by_address(telegram.sender_hex) or [device]
+
+            # A D2-01 module reports its output in an addressed status
+            # telegram: IO carries the channel, OV the output value (0 = off,
+            # 1..100 = on at that percentage). Both channels of a module share
+            # one address, so the value belongs to exactly one configured
+            # device and the mapping has to happen per target, not once for
+            # the whole address. Without this the switch entity never followed
+            # the module, only the echo of our own commands (ADR-0005).
+            d2_01_status = (telegram.rorg == 0xD2
+                            and str(device.eep_id).upper().startswith("D2-01")
+                            and decoded.get("OV") is not None)
+
             for target in targets:
-                await self.mqtt_handler.publish_state(target.name, dict(decoded))
+                payload = dict(decoded)
+                if d2_01_status:
+                    io = decoded.get("IO")
+                    ch = int(getattr(target, "channel", 0) or 0)
+                    if io is None or int(io) == ch:
+                        ov = int(decoded.get("OV") or 0)
+                        if target.actuator_type in ("light", "switch"):
+                            payload["state"] = "ON" if ov else "OFF"
+                            if target.actuator_type == "light":
+                                payload["brightness"] = min(ov, 100)
+                            logger.debug(f"D2-01 status: IO={io} OV={ov} -> {target.name} {payload['state']}")
+                    else:
+                        # Another channel's value. Leave this entity's state
+                        # alone instead of overwriting it with a foreign one.
+                        payload.pop("state", None)
+                        payload.pop("brightness", None)
+                await self.mqtt_handler.publish_state(target.name, payload)
                 logger.debug(f"TX MQTT [{target.name}] Published state to {self.mqtt_handler.prefix}/{target.name}/state")
 
         return device.name, device.eep_id, decoded
