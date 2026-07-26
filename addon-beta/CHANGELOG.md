@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.0-beta3] - 2026-07-26 (beta channel)
+
+### Bug Fixes
+- **The layout became unusable in a window of medium width, and stacked in two steps instead of one.** One cause behind all of it: the sidebar appears at 768 pixels and takes about 250 pixels from the content, and every grid on every page chose exactly that width to switch from one column to three or four. Content lost a quarter of its room and was divided at the same moment, so a device card shrank to 142 pixels, the mapping editor's fields were squeezed into a 261-pixel pane, and the dashboard tiles looked stacked, then side by side, then stacked again. Every grid now reaches its dense layout one step later, past the sidebar. Measured: a device card is 225 pixels instead of 142 at that width, the mapping editor pane 503 instead of 327, and the dashboard goes two tiles per row and then four, never back, with the tiles never getting narrower on the way.
+
 ## [1.8.0-beta2] - 2026-07-26 (beta channel)
 
 ### Bug Fixes

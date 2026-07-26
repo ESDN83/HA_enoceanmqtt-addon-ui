@@ -539,11 +539,11 @@ function addInlineMappingRow(shortcut = '', component = 'sensor', name = '', dev
     row.className = 'inline-mapping-row border rounded p-2 mb-2 bg-body-secondary';
     row.innerHTML = `
         <div class="row g-2 align-items-end">
-            <div class="col-md-2">
+            <div class="col-6 col-xl-2">
                 <label class="form-label small">${t('mapping_editor.field_shortcut', 'Shortcut')}</label>
                 <input type="text" class="form-control form-control-sm" placeholder="TMP" value="${shortcut}" data-field="shortcut">
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-xl-2">
                 <label class="form-label small">${t('mapping_editor.field_component', 'Component')}</label>
                 <select class="form-select form-select-sm" data-field="component" onchange="onInlineComponentChange(this)">
                     <option value="binary_sensor" ${component === 'binary_sensor' ? 'selected' : ''}>binary_sensor</option>
@@ -555,25 +555,25 @@ function addInlineMappingRow(shortcut = '', component = 'sensor', name = '', dev
                     <option value="fan" ${component === 'fan' ? 'selected' : ''}>fan</option>
                 </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-xl-2">
                 <label class="form-label small">${t('mapping_editor.field_name', 'Name')}</label>
                 <input type="text" class="form-control form-control-sm" placeholder="Temperature" value="${name}" data-field="name">
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-xl-2">
                 <label class="form-label small">${t('mapping_editor.field_device_class', 'Device Class')}</label>
                 <select class="form-select form-select-sm" data-field="device_class">
                     ${getDeviceClassOptions(component, deviceClass)}
                 </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-xl-2">
                 <label class="form-label small">${t('mapping_editor.field_icon', 'Icon')}</label>
                 <input type="text" class="form-control form-control-sm" placeholder="mdi:thermometer" value="${icon}" data-field="icon">
             </div>
-            <div class="col-md-1">
+            <div class="col-6 col-xl-1">
                 <label class="form-label small">${t('mapping_editor.field_unit', 'Unit')}</label>
                 <input type="text" class="form-control form-control-sm" placeholder="" value="${unit}" data-field="unit_of_measurement">
             </div>
-            <div class="col-md-1">
+            <div class="col-6 col-xl-1">
                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeInlineMappingRow(this)" title="${t('mapping_editor.field_remove', 'Remove')}">
                     <i class="bi bi-trash"></i>
                 </button>
@@ -585,7 +585,7 @@ function addInlineMappingRow(shortcut = '', component = 'sensor', name = '', dev
             </a>
             <div class="collapse" id="inline-adv-${rowId}">
                 <div class="row g-2 mt-1">
-                    <div class="col-md-2">
+                    <div class="col-6 col-xl-2">
                         <label class="form-label small">${t('mapping_editor.field_state_class', 'State Class')}</label>
                         <select class="form-select form-select-sm" data-field="state_class">
                             <option value="" ${!stateClass ? 'selected' : ''}>${t('mapping_editor.none', '(none)')}</option>
@@ -594,7 +594,7 @@ function addInlineMappingRow(shortcut = '', component = 'sensor', name = '', dev
                             <option value="total_increasing" ${stateClass === 'total_increasing' ? 'selected' : ''}>total_increasing</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-6 col-xl-2">
                         <label class="form-label small">${t('mapping_editor.field_entity_category', 'Entity Category')}</label>
                         <select class="form-select form-select-sm" data-field="entity_category">
                             <option value="" ${!entityCategory ? 'selected' : ''}>${t('mapping_editor.none', '(none)')}</option>
@@ -602,15 +602,15 @@ function addInlineMappingRow(shortcut = '', component = 'sensor', name = '', dev
                             <option value="config" ${entityCategory === 'config' ? 'selected' : ''}>config</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-6 col-xl-2">
                         <label class="form-label small">${t('mapping_editor.field_expire_after', 'Expire After (s)')}</label>
                         <input type="number" class="form-control form-control-sm" placeholder="" value="${expireAfter}" data-field="expire_after" min="0">
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-6 col-xl-2">
                         <label class="form-label small">${t('mapping_editor.field_precision', 'Precision')}</label>
                         <input type="number" class="form-control form-control-sm" placeholder="" value="${precision}" data-field="suggested_display_precision" min="0" max="10">
                     </div>
-                    <div class="col-md-2 d-flex align-items-end">
+                    <div class="col-6 col-xl-2 d-flex align-items-end">
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" data-field="force_update" ${forceUpdate ? 'checked' : ''}>
                             <label class="form-check-label small">${t('mapping_editor.field_force_update', 'Force Update')}</label>
@@ -618,7 +618,7 @@ function addInlineMappingRow(shortcut = '', component = 'sensor', name = '', dev
                     </div>
                 </div>
                 <div class="row g-2 mt-1">
-                    <div class="col-md-6">
+                    <div class="col-12 col-xl-6">
                         <label class="form-label small">${t('mapping_editor.field_value_template', 'Value Template')}</label>
                         <input type="text" class="form-control form-control-sm font-monospace" placeholder="auto-generated" value="${valueTemplate.replace(/"/g, '&quot;')}" data-field="value_template">
                     </div>
@@ -893,12 +893,12 @@ function addHaMappingRow(shortcut = '', component = 'binary_sensor', name = '', 
     row.className = 'ha-mapping-row border rounded p-2 mb-2';
     row.innerHTML = `
         <div class="row g-2 align-items-end">
-            <div class="col-md-2">
+            <div class="col-6 col-xl-2">
                 <label class="form-label small">${t('mapping_editor.field_shortcut', 'Shortcut')}</label>
                 <input type="text" class="form-control form-control-sm" placeholder="AL" value="${shortcut}"
                        data-field="shortcut">
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-xl-2">
                 <label class="form-label small">${t('mapping_editor.field_component', 'Component')}</label>
                 <select class="form-select form-select-sm" data-field="component" onchange="onComponentChange(this)">
                     <option value="binary_sensor" ${component === 'binary_sensor' ? 'selected' : ''}>binary_sensor</option>
@@ -910,28 +910,28 @@ function addHaMappingRow(shortcut = '', component = 'binary_sensor', name = '', 
                     <option value="fan" ${component === 'fan' ? 'selected' : ''}>fan</option>
                 </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-xl-2">
                 <label class="form-label small">${t('mapping_editor.field_name', 'Name')}</label>
                 <input type="text" class="form-control form-control-sm" placeholder="Alarm" value="${name}"
                        data-field="name">
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-xl-2">
                 <label class="form-label small">${t('mapping_editor.field_device_class', 'Device Class')}</label>
                 <select class="form-select form-select-sm" data-field="device_class">
                     ${getDeviceClassOptions(component, deviceClass)}
                 </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-xl-2">
                 <label class="form-label small">${t('mapping_editor.field_icon', 'Icon')}</label>
                 <input type="text" class="form-control form-control-sm" placeholder="mdi:alert" value="${icon}"
                        data-field="icon">
             </div>
-            <div class="col-md-1">
+            <div class="col-6 col-xl-1">
                 <label class="form-label small">${t('mapping_editor.field_unit', 'Unit')}</label>
                 <input type="text" class="form-control form-control-sm" placeholder="" value="${unit}"
                        data-field="unit_of_measurement">
             </div>
-            <div class="col-md-1">
+            <div class="col-6 col-xl-1">
                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeHaMappingRow(this)" title="${t('mapping_editor.field_remove', 'Remove')}">
                     <i class="bi bi-trash"></i>
                 </button>
@@ -943,7 +943,7 @@ function addHaMappingRow(shortcut = '', component = 'binary_sensor', name = '', 
             </a>
             <div class="collapse" id="ha-adv-${rowId}">
                 <div class="row g-2 mt-1">
-                    <div class="col-md-2">
+                    <div class="col-6 col-xl-2">
                         <label class="form-label small">${t('mapping_editor.field_state_class', 'State Class')}</label>
                         <select class="form-select form-select-sm" data-field="state_class">
                             <option value="" ${!stateClass ? 'selected' : ''}>${t('mapping_editor.none', '(none)')}</option>
@@ -952,7 +952,7 @@ function addHaMappingRow(shortcut = '', component = 'binary_sensor', name = '', 
                             <option value="total_increasing" ${stateClass === 'total_increasing' ? 'selected' : ''}>total_increasing</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-6 col-xl-2">
                         <label class="form-label small">${t('mapping_editor.field_entity_category', 'Entity Category')}</label>
                         <select class="form-select form-select-sm" data-field="entity_category">
                             <option value="" ${!entityCategory ? 'selected' : ''}>${t('mapping_editor.none', '(none)')}</option>
@@ -960,15 +960,15 @@ function addHaMappingRow(shortcut = '', component = 'binary_sensor', name = '', 
                             <option value="config" ${entityCategory === 'config' ? 'selected' : ''}>config</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-6 col-xl-2">
                         <label class="form-label small">${t('mapping_editor.field_expire_after', 'Expire After (s)')}</label>
                         <input type="number" class="form-control form-control-sm" placeholder="" value="${expireAfter}" data-field="expire_after" min="0">
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-6 col-xl-2">
                         <label class="form-label small">${t('mapping_editor.field_precision', 'Precision')}</label>
                         <input type="number" class="form-control form-control-sm" placeholder="" value="${precision}" data-field="suggested_display_precision" min="0" max="10">
                     </div>
-                    <div class="col-md-2 d-flex align-items-end">
+                    <div class="col-6 col-xl-2 d-flex align-items-end">
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" data-field="force_update" ${forceUpdate ? 'checked' : ''}>
                             <label class="form-check-label small">${t('mapping_editor.field_force_update', 'Force Update')}</label>
@@ -976,7 +976,7 @@ function addHaMappingRow(shortcut = '', component = 'binary_sensor', name = '', 
                     </div>
                 </div>
                 <div class="row g-2 mt-1">
-                    <div class="col-md-6">
+                    <div class="col-12 col-xl-6">
                         <label class="form-label small">${t('mapping_editor.field_value_template', 'Value Template')}</label>
                         <input type="text" class="form-control form-control-sm font-monospace" placeholder="auto-generated" value="${valueTemplate.replace(/"/g, '&quot;')}" data-field="value_template">
                     </div>

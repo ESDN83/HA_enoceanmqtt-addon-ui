@@ -14,7 +14,7 @@ import re
 
 # Candidate locations: the copy baked into the image, and the repo layout
 # (rootfs/app/app_version.py -> ../../config.yaml) for local runs/tests.
-_FALLBACK = "1.8.0-beta2"
+_FALLBACK = "1.8.0-beta3"
 
 _CANDIDATES = (
     "/app/config.yaml",

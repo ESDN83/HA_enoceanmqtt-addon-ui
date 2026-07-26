@@ -16,7 +16,10 @@ async function loadDevices() {
 
         devices.forEach(device => {
             const card = document.createElement('div');
-            card.className = 'col-md-4 mb-3';
+            // device-col is the stable hook for filterDevices; the col-* classes are
+            // layout only and may change. Two-up once the sidebar appears at md,
+            // three-up only at xl where there is room for it.
+            card.className = 'device-col col-12 col-md-6 col-xl-4 mb-3';
             // Build searchable text from device properties only (not button text)
             const searchText = [device.name, device.address, `${device.rorg}-${device.func}-${device.type}`,
                 device.actuator_type, device.room, device.description, device.sender_id
@@ -526,7 +529,7 @@ function getDeviceClassOptions(component, selected) {
 }
 function filterDevices() {
     const query = document.getElementById('device-search').value.toLowerCase();
-    const cards = document.querySelectorAll('#device-list > .col-md-4');
+    const cards = document.querySelectorAll('#device-list > .device-col');
 
     cards.forEach(card => {
         const text = card.dataset.search || card.textContent.toLowerCase();
