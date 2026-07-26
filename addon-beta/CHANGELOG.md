@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0] - 2026-07-26 (beta channel)
+
+Promoted to stable. The beta channel now serves exactly the same code as the stable add-on, so both are on 1.7.0 and the next beta starts from here. Nothing changed since beta9.
+
+**If you enabled "Invert reported state" on an Eltako switch actuator during beta5 to beta7, turn it off.** The default was corrected in beta8, so the workaround now inverts a correct value.
+
+The full 1.7.0 release notes are in the stable add-on's changelog; the beta entries below are the development history.
+
 ## [1.7.0-beta9] - 2026-07-25 (beta channel)
 
 ### Bug Fixes

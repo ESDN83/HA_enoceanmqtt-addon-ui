@@ -1089,7 +1089,9 @@ class MappingManager:
         mqtt_prefix: str,
         device_info: Dict[str, Any],
         actuator_type: str = "",
-        invert: bool = False
+        invert: bool = False,
+        channel: int = 0,
+        entity_name: str = None
     ) -> List[Dict[str, Any]]:
         """Generate Home Assistant MQTT discovery configurations.
 
@@ -1109,11 +1111,14 @@ class MappingManager:
 
         # Actuator mode: create a controllable entity (light/switch/cover)
         if actuator_type in ("light", "switch", "cover"):
-            unique_id = self.build_unique_id(eep_id, device_address, device_sender, actuator_type)
+            # Two channels of one module share address+sender, so the channel
+            # has to be part of the UID or HA would merge them into one entity.
+            uid_suffix = f"{actuator_type}_ch{channel}" if channel else actuator_type
+            unique_id = self.build_unique_id(eep_id, device_address, device_sender, uid_suffix)
 
             if actuator_type == "light":
                 config = {
-                    "name": None,  # Use device name
+                    "name": entity_name,  # None = use device name; set when devices share an address (#24)
                     "unique_id": unique_id,
                     "object_id": f"{device_name}".lower().replace(" ", "_"),
                     "command_topic": f"{mqtt_prefix}/{device_name}/set",
@@ -1134,7 +1139,7 @@ class MappingManager:
                 }
             elif actuator_type == "switch":
                 config = {
-                    "name": None,
+                    "name": entity_name,
                     "unique_id": unique_id,
                     "object_id": f"{device_name}".lower().replace(" ", "_"),
                     "command_topic": f"{mqtt_prefix}/{device_name}/set",
@@ -1142,14 +1147,20 @@ class MappingManager:
                     "value_template": "{{ value_json.state }}",
                     "payload_on": "ON",
                     "payload_off": "OFF",
-                    "optimistic": True,
+                    # Not optimistic: optimistic makes HA mark the entity
+                    # assumed_state, which renders two buttons instead of a
+                    # real toggle (community forum report). The command handler
+                    # echoes the commanded state to the state topic, so the
+                    # toggle still reacts immediately even for actuators
+                    # without status reporting.
+                    "optimistic": False,
                     "icon": "mdi:power",
                     "device": device_info,
                     "availability": avail_config
                 }
             elif actuator_type == "cover":
                 config = {
-                    "name": None,
+                    "name": entity_name,
                     "unique_id": unique_id,
                     "object_id": f"{device_name}".lower().replace(" ", "_"),
                     "command_topic": f"{mqtt_prefix}/{device_name}/set",
@@ -1286,12 +1297,59 @@ class MappingManager:
 
         return configs
 
-    def build_device_info(self, device) -> Dict[str, Any]:
-        """Build HA device info from device object"""
+    def discovery_naming(self, device, devices_on_address) -> tuple:
+        """Return (entity_name, module_name) for a device's discovery configs.
+
+        When several devices share one address they are the channels of one
+        multi-channel module (ADR-0005): they collapse to a single HA device
+        (identifiers = address). Each channel entity must therefore carry its
+        own name while the shared HA device carries a stable module label, or
+        both channels show the same name (issue #34). Single-address devices
+        keep the previous behaviour (entity name None, so HA uses the device
+        name).
+
+        This is the single source of truth for discovery naming. Every publish
+        path must use it, otherwise one path silently renames what the other
+        published (that is exactly what happened between the edit path and the
+        startup republish in beta7).
+        """
+        if len(devices_on_address) > 1:
+            entity_name = device.description or device.name
+            module_name = (f"{device.manufacturer} {device.eep_id}".strip()
+                           or f"EnOcean {device.eep_id}")
+            return entity_name, module_name
+        return None, None
+
+    def build_discovery_for_device(self, device, mqtt_prefix: str,
+                                   devices_on_address) -> List[Dict[str, Any]]:
+        """Build the HA discovery configs for one device, multi-channel aware."""
+        entity_name, module_name = self.discovery_naming(device, devices_on_address)
+        return self.get_ha_discovery_configs(
+            device_name=device.name,
+            eep_id=device.eep_id,
+            device_address=device.address,
+            device_sender=device.sender_id,
+            mqtt_prefix=mqtt_prefix,
+            device_info=self.build_device_info(device, module_name=module_name),
+            actuator_type=device.actuator_type,
+            invert=device.invert,
+            channel=int(getattr(device, "channel", 0) or 0),
+            entity_name=entity_name,
+        )
+
+    def build_device_info(self, device, module_name: str = None) -> Dict[str, Any]:
+        """Build HA device info from device object.
+
+        For a multi-channel module several devices share one address and thus
+        one HA device (identifiers = address). Pass module_name so the shared
+        HA device carries a stable module label while each channel entity keeps
+        its own name (see ADR-0005 and issue #34). module_name=None keeps the
+        single-device behaviour (device name = its description/name).
+        """
         addr = _normalize_address(device.address)
         return {
             "identifiers": [f"enocean_{addr}"],
-            "name": device.description or device.name,
+            "name": module_name or device.description or device.name,
             "manufacturer": device.manufacturer or "EnOcean",
             "model": device.eep_id,
         }

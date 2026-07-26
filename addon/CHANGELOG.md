@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.7.0] - 2026-07-26
+
+Two-channel actuator modules (NodOn SIN-2-2-01 and friends) now work end to end, switch actuators report their real state back to Home Assistant, and the dark/light theme finally matches Home Assistant in every panel. Field tested on the beta channel through nine builds. Thanks to **@vincent-lvh** and **@salzrat** for testing every one of them on real hardware.
+
+No action is needed after updating.
+
+### New Features
+- **Two-channel D2-01 modules** — A device has a `channel` setting: teach in the module once, then add one device per output with the same address. Commands target the selected output, each channel gets its own Home Assistant entity with its own name, and after saving channel 1 the wizard offers to create channel 2 with everything pre-filled. The two channels appear as one Home Assistant device (labelled by manufacturer and EEP, e.g. "NodOn D2-01-12") with one entity per output.
+- **Switch actuators report their state** — Switching an actuator at the module itself, or from another sender, now updates Home Assistant. D2-01 modules are followed per channel via the status telegram's `IO` field, so on a two-channel module each output keeps its own state. Eltako F6 actuators with status reporting (e.g. FSR61) are followed from their confirmation telegrams; a per-device "Invert reported state" option covers actuators taught in the other way round.
+- **Devices can be renamed** — The device name (the MQTT topic base) is editable when editing a device, not only at creation. Renaming re-homes the MQTT topics and cleans up the old ones; the Home Assistant entity is preserved. A confirmation dialog warns first.
+- **Sender-ID collision warning** — Saving a new Eltako-style actuator whose Sender ID is already taken now asks for confirmation. Broadcast-driven actuators each need their own Sender ID. D2 channel devices are exempt, sharing one Sender ID is correct there.
+- **Detected fields are marked** — Values that came from the teach-in telegram are highlighted, so it is obvious what was detected and what was typed by hand.
+
+### Bug Fixes
+- **D2-01 actuators did nothing when commanded** (#23) — The command handler branched on the role (light/switch/cover) before looking at the EEP, so a D2-01 module registered as a light was driven with Eltako A5-38-08 dimmer telegrams and never reacted. The EEP is checked first now: every `D2-01-xx` device gets a proper addressed "Actuator Set Output" (VLD) telegram.
+- **Only the first device on a module address received state** (#24) — Devices were indexed one per address, so with one device per output the second channel's entity stayed empty.
+- **Editing a channel device corrupted naming and left orphans** (#34) — Editing one channel renamed both, and identity edits (address, Sender ID, EEP, channel) left the old Home Assistant entities behind to pile up. The edit path kept dropping the `channel` field, rebuilt discovery without it, and never retracted the entities it replaced. All three are fixed, and deleting one channel keeps the shared diagnostic sensors (RSSI, Last Seen) the remaining channel still needs.
+- **Channel naming reverted on every restart** (#34) — The add-on's startup republish carried its own older copy of the naming rule and undid what was configured. Discovery naming now lives in one place that every path calls.
+- **A switch showed two buttons instead of a toggle** — Switch entities were published as optimistic, which marks them `assumed_state` in Home Assistant. They are no longer optimistic; the commanded state is echoed to the state topic so the toggle still reacts immediately for actuators that never report back.
+- **Eltako status feedback was inverted** — An Eltako actuator confirms with the opposite rocker code to the one used as a command: ON is reported as `0x70` (BO), while the command for ON is `0x50`. The status sync followed the command convention, so an FSR61 reported ON as OFF.
+- **A D2-01 module configured as a light was always reported off** — The light path read `SW` and `EDIM`, which only exist in an Eltako A5-38-08 telegram. D2-01 lights now take state and brightness from `OV`.
+- **Dark and light theme now match Home Assistant everywhere** (#25) — Three separate causes: read-only and disabled inputs kept Bootstrap's low-contrast colours; the operating system's dark preference could override a light Home Assistant; and theme detection read the `<body>` background, which in Home Assistant is transparent and was parsed as pitch black, so a light Home Assistant rendered dark. Detection now reads Home Assistant's own `--primary-background-color`, and the app's fields are bound to the same variables as the page.
+- **Teach-in reused the previous device's role and Sender ID** (#23, #29, #30) — The role dropdown kept the last selection and UTE devices were always pre-set to "cover", so relays were registered as blinds. The sender offset always started at 1 although each actuator needs its own. Canceling an edit also left the previous device's name (locked read-only) in the wizard. The form is fully reset at the start of every entry, the role is derived from the EEP, and the next unused sender offset is suggested.
+- **"Invert reported state" was unreachable when editing a switch** — The option only appeared while the role dropdown was being changed, so it could not be reviewed or turned off afterwards.
+
+### Changed
+- **No speculative wait during multi-channel teach-in** — A UTE teach-in carries only the number of channels, never a channel index, so a module cannot signal which output a pairing is for. The wizard no longer waits for a telegram that does not exist and says instead that one teach-in covers the whole module.
+
 ## [1.6.2] - 2026-07-22
 
 > ⚠️ **Action needed after updating — please read.**

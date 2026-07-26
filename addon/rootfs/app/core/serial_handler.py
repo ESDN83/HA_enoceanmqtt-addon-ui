@@ -623,6 +623,10 @@ class SerialHandler:
                 "type": f"{eep_type:02X}",
                 "dbm": telegram.dbm,
                 "teach_method": "UTE",
+                # Number of I/O channels the module reports (DB5). 2-channel
+                # modules (e.g. NodOn SIN-2-2-01) can send a follow-up telegram
+                # selecting the target channel, so the UI waits for it (#24).
+                "channels": channels,
                 # Sender ID the module was told to bind — the new device MUST be
                 # configured with exactly this value for commands to reach it.
                 "response_sender": f"0x{response_sender:08X}" if response_sender else None,
@@ -692,8 +696,12 @@ class SerialHandler:
         # Decode telegram using EEP profile
         decoded = self._decode_telegram(telegram, profile)
 
-        # For light actuators, add HA-compatible state and brightness fields
-        if device.actuator_type == "light":
+        # For light actuators, add HA-compatible state and brightness fields.
+        # SW and EDIM come from A5-38-08, so this must not run for a D2-01
+        # module configured as a light: SW would be missing and the light
+        # would be reported permanently OFF. D2-01 is handled per target
+        # below, because there the channel decides who the value belongs to.
+        if device.actuator_type == "light" and telegram.rorg == 0xA5:
             sw = decoded.get("SW", 0)
             edim = decoded.get("EDIM", 0)
             decoded["state"] = "ON" if sw else "OFF"
@@ -703,12 +711,66 @@ class SerialHandler:
             decoded["brightness"] = round(min(float(edim), 100)) if edim else 0
             logger.debug(f"Light state: SW={sw}, EDIM={edim}, brightness={decoded['brightness']}%")
 
+        # F6-driven switch actuators (e.g. Eltako FSR61 with status reporting
+        # enabled) confirm their state with plain rocker telegrams. Derive the
+        # HA switch state from the rocker code so the entity stays in sync
+        # without MQTT YAML workarounds (community forum report).
+        #
+        # An actuator's confirmation telegram uses the OPPOSITE convention to
+        # the rocker press we send as a command: Eltako confirms ON with 0x70
+        # (R1 = 3, BO) and OFF with 0x50 (R1 = 2, BI), while a command press
+        # for ON is 0x50. Reported by salzrat on the community forum and
+        # confirmed against Eltako's telegram documentation, so BO = ON is the
+        # default here. Actuators taught in the other way round are handled by
+        # the device's "invert" option.
+        elif device.actuator_type == "switch" and telegram.rorg == 0xF6:
+            r1 = decoded.get("R1")
+            if r1 in (2, 3):
+                on = (r1 == 3)
+                if getattr(device, "invert", False):
+                    on = not on
+                decoded["state"] = "ON" if on else "OFF"
+                logger.debug(f"Switch state report: R1={r1} -> {decoded['state']}")
+
         logger.debug(f"RX [{telegram.sender_hex}] Device={device.name} EEP={device.eep_id} Decoded={decoded}")
 
-        # Publish to MQTT
+        # Publish to MQTT — to EVERY device on this address. A 2-channel module
+        # is configured once per output, all sharing the module address, so
+        # publishing only to the first one left the second channel without any
+        # state (#24).
         if self.mqtt_handler:
-            await self.mqtt_handler.publish_state(device.name, decoded)
-            logger.debug(f"TX MQTT [{device.name}] Published state to {self.mqtt_handler.prefix}/{device.name}/state")
+            targets = self.device_manager.get_devices_by_address(telegram.sender_hex) or [device]
+
+            # A D2-01 module reports its output in an addressed status
+            # telegram: IO carries the channel, OV the output value (0 = off,
+            # 1..100 = on at that percentage). Both channels of a module share
+            # one address, so the value belongs to exactly one configured
+            # device and the mapping has to happen per target, not once for
+            # the whole address. Without this the switch entity never followed
+            # the module, only the echo of our own commands (ADR-0005).
+            d2_01_status = (telegram.rorg == 0xD2
+                            and str(device.eep_id).upper().startswith("D2-01")
+                            and decoded.get("OV") is not None)
+
+            for target in targets:
+                payload = dict(decoded)
+                if d2_01_status:
+                    io = decoded.get("IO")
+                    ch = int(getattr(target, "channel", 0) or 0)
+                    if io is None or int(io) == ch:
+                        ov = int(decoded.get("OV") or 0)
+                        if target.actuator_type in ("light", "switch"):
+                            payload["state"] = "ON" if ov else "OFF"
+                            if target.actuator_type == "light":
+                                payload["brightness"] = min(ov, 100)
+                            logger.debug(f"D2-01 status: IO={io} OV={ov} -> {target.name} {payload['state']}")
+                    else:
+                        # Another channel's value. Leave this entity's state
+                        # alone instead of overwriting it with a foreign one.
+                        payload.pop("state", None)
+                        payload.pop("brightness", None)
+                await self.mqtt_handler.publish_state(target.name, payload)
+                logger.debug(f"TX MQTT [{target.name}] Published state to {self.mqtt_handler.prefix}/{target.name}/state")
 
         return device.name, device.eep_id, decoded
 
@@ -1121,22 +1183,28 @@ class SerialHandler:
         Args:
             sender_id: Controller ID the actuator was taught in with (int)
             destination: Actuator address (int) — addressed, not broadcast
-            command: "ON" / "OFF"
-            channel: I/O channel (default 0)
+            command: "ON" / "OFF", or a numeric string / int 0-100 (dim level)
+            channel: I/O channel (0 = first output, 1 = second output on
+                2-channel modules like the NodOn SIN-2-2-01)
         """
-        cmd = command.strip().upper()
+        cmd = str(command).strip().upper()
         io = channel & 0x1F                 # IO channel, DV = 0 (switch)
         if cmd == "ON":
             ov = 100                        # fully on
         elif cmd == "OFF":
             ov = 0
         else:
-            logger.warning(f"Unknown D2-01 command: {command}")
-            return False
+            # Dim level from HA (0-100). A "light" role on a D2-01 dimmer sends
+            # the brightness directly; 0 means off.
+            try:
+                ov = max(0, min(100, int(float(cmd))))
+            except (TypeError, ValueError):
+                logger.warning(f"Unknown D2-01 command: {command}")
+                return False
 
         data = bytes([0x01, io, ov & 0x7F])
         logger.info(
-            f"Sending D2-01 {cmd} (data={data.hex().upper()}) "
+            f"Sending D2-01 {cmd} (ch={channel} out={ov}% data={data.hex().upper()}) "
             f"sender=0x{sender_id:08X} dest=0x{destination:08X}"
         )
         return await self.send_telegram(
