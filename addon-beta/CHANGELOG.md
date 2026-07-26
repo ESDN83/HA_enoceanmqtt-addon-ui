@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.1] - 2026-07-26 (beta channel)
+
+Same fixes as stable 1.7.1: every command was transmitted twice (overlapping MQTT subscriptions), the debug log flooded with one line per discarded byte, and a duplicated "Connected to MQTT broker" line. See the stable changelog for detail.
+
 ## [1.7.0] - 2026-07-26 (beta channel)
 
 Promoted to stable. The beta channel now serves exactly the same code as the stable add-on, so both are on 1.7.0 and the next beta starts from here. Nothing changed since beta9.

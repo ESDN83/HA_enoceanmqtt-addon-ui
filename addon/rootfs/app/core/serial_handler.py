@@ -253,6 +253,8 @@ class SerialHandler:
         timeout_count = 0
         packet_count = 0
         backoff = 1.0
+        skipped_bytes = 0
+        skipped_sample = b""
 
         logger.info("Listening for EnOcean telegrams...")
 
@@ -271,10 +273,26 @@ class SerialHandler:
                 backoff = 1.0  # reset backoff on any successful read
 
                 if byte[0] != SYNC_BYTE:
-                    logger.debug(f"Non-sync byte: 0x{byte[0]:02X}")
+                    # One line per discarded byte floods the log at debug level
+                    # exactly when debug is needed: a gateway that emits a few
+                    # stray bytes per packet produces a steady stream of these
+                    # and pushes the actual telegrams out of the add-on's log
+                    # buffer. Count them and report on resync instead, which
+                    # keeps the diagnostic (how much noise, and what it was)
+                    # without burying everything else.
+                    skipped_bytes += 1
+                    if len(skipped_sample) < 24:
+                        skipped_sample += byte
+                    if skipped_bytes % 1000 == 0:
+                        logger.debug(f"Still hunting for sync: {skipped_bytes} bytes discarded, starts {skipped_sample.hex().upper()}")
                     continue
 
-                logger.debug("Found sync byte 0x55")
+                if skipped_bytes:
+                    logger.debug(f"Found sync byte 0x55 after discarding {skipped_bytes} byte(s), starts {skipped_sample.hex().upper()}")
+                    skipped_bytes = 0
+                    skipped_sample = b""
+                else:
+                    logger.debug("Found sync byte 0x55")
 
                 # Read header (4 bytes: data_len_hi, data_len_lo, optional_len, packet_type)
                 header = await loop.run_in_executor(None, self._serial_read, 4)

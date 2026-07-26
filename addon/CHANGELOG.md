@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1] - 2026-07-26
+
+### Bug Fixes
+- **Every command was sent to the device twice.** One click in Home Assistant produced two identical radio telegrams. The add-on subscribed to two MQTT topic patterns that both matched the same command topic, and the broker delivers one copy per matching subscription, so every command was handled twice. Most actuators tolerate that, but a dimmer receiving the same command twice in a millisecond can end up at a different brightness than the one you asked for, and repeated switch commands can cancel each other out. Found from a field report on an Eltako FD62NPN and verified on real hardware: the gateway confirmed two separate transmissions per click before the fix, one after.
+- **Debug logging drowned in one line per discarded byte.** A gateway that emits stray bytes between packets filled the log faster than it could be read, pushing the actual telegrams out of the buffer — exactly when debug logging was switched on to find something. The bytes are counted now and reported once the packet stream resynchronises, with a short hex sample. That sample immediately identified a TCP gateway that had stopped speaking the protocol at all.
+- **"Connected to MQTT broker" was logged twice per start.** Two separate log statements with the same text, which reads like two connections. One of them also printed after a connection *timeout*, claiming a connection that did not exist. Only the broker's own callback reports it now.
+
 ## [1.7.0] - 2026-07-26
 
 Two-channel actuator modules (NodOn SIN-2-2-01 and friends) now work end to end, switch actuators report their real state back to Home Assistant, and the dark/light theme finally matches Home Assistant in every panel. Field tested on the beta channel through nine builds. Thanks to **@vincent-lvh** and **@salzrat** for testing every one of them on real hardware.

@@ -183,10 +183,20 @@ class MQTTHandler:
             # Publish gateway online status
             client.publish(self.gateway_status_topic, "online", qos=1, retain=True)
 
-            # Subscribe to command topics
+            # Subscribe to command topics.
+            #
+            # The child pattern uses "+", not "#", and that matters: per the
+            # MQTT spec the multi-level wildcard also matches its parent level,
+            # so ".../+/set/#" matched ".../<device>/set" as well. Both
+            # subscriptions then matched the same topic, the broker delivered
+            # one copy per matching subscription, and every command from Home
+            # Assistant was executed twice — two telegrams on air for one
+            # click. _on_message only ever reads one extra level
+            # ({prefix}/{device}/set/{entity}), so "+" covers what exists
+            # without overlapping the exact topic above.
             client.subscribe(f"{self.prefix}/+/set", qos=1)
-            client.subscribe(f"{self.prefix}/+/set/#", qos=1)
-            logger.debug(f"Subscribed to {self.prefix}/+/set[/#]")
+            client.subscribe(f"{self.prefix}/+/set/+", qos=1)
+            logger.debug(f"Subscribed to {self.prefix}/+/set and {self.prefix}/+/set/+")
 
             # Subscribe to HA birth message for re-publishing discoveries
             ha_status_topic = f"{self.discovery_prefix}/status"
