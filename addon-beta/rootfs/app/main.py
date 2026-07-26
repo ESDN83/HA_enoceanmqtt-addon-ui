@@ -270,6 +270,29 @@ async def _echo_switch_state(device_name: str, command: str):
     await mqtt_handler.publish_state(device_name, state)
 
 
+async def _echo_light_state(device_name: str, command: str, brightness: int = None):
+    """Same idea as _echo_switch_state, for dimmers.
+
+    A light entity is not optimistic either, so until the actuator reports
+    back, Home Assistant keeps showing the previous value — the lamp obeys the
+    command while the entity still reads 18%. Eltako dimmers do report, but
+    only after a moment, and a lost telegram leaves the stale value standing
+    forever. Echoing the commanded state closes that window; the actuator's
+    own status overwrites it as soon as it arrives.
+
+    brightness is 0-100 to match brightness_scale in the discovery config.
+    """
+    if not mqtt_handler:
+        return
+    state = dict(mqtt_handler.get_last_state(device_name) or {})
+    state["state"] = command
+    if command == "OFF":
+        state["brightness"] = 0
+    elif brightness is not None:
+        state["brightness"] = brightness
+    await mqtt_handler.publish_state(device_name, state)
+
+
 async def _handle_device_command(device_name: str, payload: str, entity: str = None):
     """Handle MQTT command for an actuator device — send F6 telegram.
 
@@ -343,9 +366,11 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             # Turn on at stored brightness (dim_mode=0)
             await serial_handler.send_a5_dimmer_command(sender_id, "ON")
             logger.info(f"Sent ON (A5-38-08 stored brightness) to {device_name}")
+            await _echo_light_state(device_name, "ON")
         elif command == "OFF":
             await serial_handler.send_a5_dimmer_command(sender_id, "OFF")
             logger.info(f"Sent OFF (A5-38-08) to {device_name}")
+            await _echo_light_state(device_name, "OFF")
         else:
             # Brightness value from HA (0-100) — send as 0-100 directly
             # Eltako dimmers use 0-100 range (not standard 0-255)
@@ -355,10 +380,12 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                 if dim == 0:
                     await serial_handler.send_a5_dimmer_command(sender_id, "OFF")
                     logger.info(f"Sent OFF (A5-38-08 brightness=0) to {device_name}")
+                    await _echo_light_state(device_name, "OFF")
                 else:
                     # DIM mode: dim_mode=1 (use DB2 value) — actually sets brightness
                     await serial_handler.send_a5_dimmer_command(sender_id, "DIM", dim_value=dim)
                     logger.info(f"Sent DIM (A5-38-08 dim={dim}, {val}%) to {device_name}")
+                    await _echo_light_state(device_name, "ON", brightness=dim)
             except ValueError:
                 logger.warning(f"Unknown command '{command}' for dimmer {device_name}")
 
