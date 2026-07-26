@@ -1,0 +1,318 @@
+/* ===== Light Theme (default) ===== */
+:root {
+    --primary-color: #0d6efd;
+    --success-color: #198754;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --bg-color: #f8f9fa;
+    --bg-card: #fff;
+    --bg-sidebar: #fff;
+    --bg-navbar: #0d6efd;
+    --text-color: #212529;
+    --text-muted: #6c757d;
+    --border-color: rgba(0, 0, 0, 0.125);
+    --hover-bg: #e9ecef;
+    --code-bg: #f8f9fa;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --card-header-bg: rgba(0, 0, 0, 0.03);
+    --table-stripe-bg: rgba(0, 0, 0, 0.02);
+    --input-bg: #fff;
+    --input-border: #ced4da;
+}
+
+/* ===== Dark Theme (matches HA default dark) ===== */
+[data-theme="dark"] {
+    --primary-color: #03a9f4;
+    --success-color: #4caf50;
+    --warning-color: #ff9800;
+    --danger-color: #f44336;
+    --bg-color: #111111;
+    --bg-card: #1c1c1c;
+    --bg-sidebar: #1c1c1c;
+    --bg-navbar: #1c1c1c;
+    --text-color: #e1e1e1;
+    --text-muted: #9b9b9b;
+    --border-color: rgba(255, 255, 255, 0.12);
+    --hover-bg: rgba(255, 255, 255, 0.08);
+    --code-bg: #262626;
+    --shadow-color: rgba(0, 0, 0, 0.4);
+    --card-header-bg: rgba(255, 255, 255, 0.05);
+    --table-stripe-bg: rgba(255, 255, 255, 0.03);
+    --input-bg: #262626;
+    --input-border: rgba(255, 255, 255, 0.2);
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    padding-top: 56px;
+}
+.sidebar {
+    position: fixed;
+    top: 56px;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    width: 240px;
+    box-shadow: inset -1px 0 0 var(--border-color);
+    background-color: var(--bg-sidebar);
+}
+.sidebar-sticky {
+    position: relative;
+    top: 0;
+    height: calc(100vh - 56px);
+    padding-top: .5rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+.nav-link {
+    color: var(--text-color);
+    padding: 0.75rem 1rem;
+}
+.nav-link:hover, .nav-link.active {
+    background-color: var(--hover-bg);
+    color: var(--primary-color);
+}
+.nav-link i {
+    margin-right: 0.5rem;
+}
+.main-content {
+    margin-left: 240px;
+    padding: 20px;
+}
+
+/* Mobile responsive */
+@media (max-width: 767.98px) {
+    .sidebar {
+        position: fixed;
+        top: 56px;
+        left: -240px;
+        width: 240px;
+        transition: left 0.3s ease-in-out;
+        z-index: 1040;
+    }
+    .sidebar.show {
+        left: 0;
+    }
+    .main-content {
+        margin-left: 0;
+    }
+    .sidebar-backdrop {
+        position: fixed;
+        top: 56px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 1030;
+        display: none;
+    }
+    .sidebar-backdrop.show {
+        display: block;
+    }
+}
+
+/* ===== Dark theme overrides for Bootstrap components ===== */
+[data-theme="dark"] .navbar {
+    background-color: var(--bg-navbar) !important;
+}
+[data-theme="dark"] .card {
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+[data-theme="dark"] .card-header {
+    background-color: var(--card-header-bg);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+[data-theme="dark"] .table {
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+[data-theme="dark"] .table-hover tbody tr:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-color);
+}
+/* Form fields — theme-independent (#25).
+   These used to be styled only under [data-theme="dark"], so the field
+   background came from one theme while the text colour came from
+   another (Bootstrap's own data-bs-theme, or the HA variables we copy
+   in at runtime). The result was dark text on a dark field, or dark
+   fields on a light page. Binding BOTH colours to the SAME variables,
+   unconditionally, makes that impossible: whatever the page uses, the
+   inputs use too. */
+.form-control,
+.form-select,
+textarea.form-control {
+    background-color: var(--input-bg);
+    border-color: var(--input-border);
+    color: var(--text-color);
+}
+.form-control:focus,
+.form-select:focus,
+textarea.form-control:focus {
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    border-color: var(--primary-color);
+}
+/* Readonly/disabled fields (Gateway Base ID, Sender ID, Edit Device …)
+   additionally got Bootstrap's dimming, which made them unreadable. */
+.form-control:disabled,
+.form-control[readonly],
+.form-select:disabled,
+.form-select[readonly] {
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    border-color: var(--input-border);
+    opacity: 1;
+    -webkit-text-fill-color: var(--text-color);  /* Safari/iOS */
+}
+.form-control::placeholder,
+textarea.form-control::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
+/* Values that came from the teach-in telegram, so it's obvious what was
+   detected and what was typed by hand (#23). */
+.field-detected {
+    border-left: 3px solid var(--success-color) !important;
+}
+[data-theme="dark"] .modal-content {
+    background-color: var(--bg-card);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+[data-theme="dark"] .modal-header,
+[data-theme="dark"] .modal-footer {
+    border-color: var(--border-color);
+}
+[data-theme="dark"] .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+[data-theme="dark"] .list-group-item {
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+[data-theme="dark"] .alert-info {
+    background-color: rgba(3, 169, 244, 0.15);
+    border-color: rgba(3, 169, 244, 0.3);
+    color: #4fc3f7;
+}
+[data-theme="dark"] .alert-warning {
+    background-color: rgba(255, 152, 0, 0.15);
+    border-color: rgba(255, 152, 0, 0.3);
+    color: #ffb74d;
+}
+[data-theme="dark"] .text-muted {
+    color: var(--text-muted) !important;
+}
+[data-theme="dark"] code {
+    color: #e6a07c;
+    background-color: var(--code-bg);
+}
+[data-theme="dark"] .border-bottom {
+    border-color: var(--border-color) !important;
+}
+[data-theme="dark"] .btn-outline-primary {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+[data-theme="dark"] .btn-outline-secondary {
+    color: var(--text-muted);
+    border-color: var(--text-muted);
+}
+[data-theme="dark"] .btn-outline-danger {
+    color: var(--danger-color);
+    border-color: var(--danger-color);
+}
+[data-theme="dark"] .btn-outline-warning {
+    color: var(--warning-color);
+    border-color: var(--warning-color);
+}
+[data-theme="dark"] h1, [data-theme="dark"] h2,
+[data-theme="dark"] h3, [data-theme="dark"] h4,
+[data-theme="dark"] h5, [data-theme="dark"] h6 {
+    color: var(--text-color);
+}
+[data-theme="dark"] .accordion-button {
+    background-color: var(--bg-card);
+    color: var(--text-color);
+}
+[data-theme="dark"] .accordion-button:not(.collapsed) {
+    background-color: var(--hover-bg);
+    color: var(--primary-color);
+}
+[data-theme="dark"] .accordion-body {
+    background-color: var(--bg-card);
+}
+
+/* ===== Component styles ===== */
+.status-card {
+    border-left: 4px solid var(--primary-color);
+}
+.status-card.connected {
+    border-left-color: var(--success-color);
+}
+.status-card.disconnected {
+    border-left-color: var(--danger-color);
+}
+.device-card {
+    transition: transform 0.2s;
+}
+.device-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--shadow-color);
+}
+.eep-tree {
+    max-height: 500px;
+    overflow-y: auto;
+}
+.eep-item {
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 4px;
+}
+.eep-item:hover {
+    background-color: var(--hover-bg);
+}
+.eep-item.custom {
+    background-color: #fff3cd;
+}
+[data-theme="dark"] .eep-item.custom {
+    background-color: rgba(241, 196, 15, 0.2);
+}
+.eep-item.overridden {
+    background-color: #d4edda;
+}
+[data-theme="dark"] .eep-item.overridden {
+    background-color: rgba(40, 167, 69, 0.2);
+}
+.eep-item.orphaned {
+    background-color: #f8d7da;
+}
+[data-theme="dark"] .eep-item.orphaned {
+    background-color: rgba(244, 67, 54, 0.2);
+}
+.teach-in-indicator {
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+.wizard-step {
+    display: none;
+}
+.wizard-step.active {
+    display: block;
+}
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1050;
+}

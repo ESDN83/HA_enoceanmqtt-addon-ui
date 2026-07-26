@@ -1,6 +1,6 @@
 # Frontend Refactor Plan: split the index.html monolith
 
-Status: planned, not started. Execute after v1.7.0 stable ships, as its own change, beta-first.
+Status: in progress since 2026-07-26, on the 1.8.0 beta line. Measurements below were taken against `addon-beta` at 1.7.0-beta9, which is also what stable 1.7.0 ships. Run it as its own change, beta-first, and do not mix it with functional work.
 
 ## Why
 
@@ -8,12 +8,15 @@ Status: planned, not started. Execute after v1.7.0 stable ships, as its own chan
 
 Left as is, further UI work keeps getting harder. This plan splits the frontend into focused files so each future change touches 200 to 400 lines.
 
-## Current state (measured)
+## Current state (measured 2026-07-25)
 
-- `addon-beta/rootfs/app/templates/index.html`: 4110 lines. 1 inline `<style>`, 3 inline `<script>`.
-- `static/css/`: empty. `static/js/`: only the vendored `js-yaml.min.js`.
-- 59 inline `onclick="..."` handlers in the HTML, all calling global functions.
-- Static is served at `/static` (`app.mount("/static", StaticFiles(...))` in `main.py:452`). Under HA Ingress the base path is dynamic, so assets must be loaded Ingress-aware. The app already does this for js-yaml (`base + '/static/js/js-yaml.min.js'`) and i18n (`getApiUrl('/static/i18n/...')`).
+- `addon-beta/rootfs/app/templates/index.html`: 4128 lines.
+- One inline `<style>`: 319 lines of CSS.
+- Three inline `<script>` blocks: 43, 9 and 3034 lines, so 3086 lines of JS holding 102 top-level functions. Nearly everything is in that third block.
+- 66 inline event handlers in the HTML, of which 59 are `onclick`, the rest `onchange` / `onsubmit` / `oninput`. All call bare global function names.
+- One external `<script src>`: Bootstrap 5.3.2 from a CDN. Out of scope here, but note it is the only remote dependency.
+- `static/css/`: empty (`.gitkeep`). `static/js/`: only the vendored `js-yaml.min.js`.
+- Static is served at `/static` (`app.mount("/static", StaticFiles(...))`, `main.py:466`). Under HA Ingress the base path is dynamic, so assets must be loaded Ingress-aware. The app already does this for js-yaml (`base + '/static/js/js-yaml.min.js'`, around line 1088) and i18n (`getApiUrl('/static/i18n/...')`).
 
 ## Hard constraints (do not break these)
 
@@ -23,6 +26,7 @@ Left as is, further UI work keeps getting harder. This plan splits the frontend 
 4. Early theme script stays inline. The small `<head>` script that sets the theme before first paint must remain inline to avoid a flash of the wrong theme. Do not externalize it. See [[theme-detection-ha-transparent-body]].
 5. Load order matters. Classic scripts run in order. Put shared helpers first, feature files after, init last.
 6. `{{ version }}` Jinja var stays in the template.
+7. Move each rule to exactly one place. Two bugs in beta7 and beta8 came from the same rule existing in two copies that drifted apart: discovery naming lived in both the edit path and the startup republish, and the "invert" field visibility lived in both the role dropdown and the edit form. Splitting a 3000-line file is precisely when a function gets copied instead of moved. After each slice, grep for the old name and confirm there is one definition, not two.
 
 ## Target layout
 
@@ -50,6 +54,28 @@ templates/index.html          HTML only, plus the inline anti-flash theme script
 
 Optional later: split the HTML pages into Jinja `{% include %}` partials (dashboard.html, devices.html, teachin.html, mappings.html, settings.html). Do this only after the JS/CSS split is stable.
 
+## Move the code, do not retype it
+
+Retyping the bodies through a model context is what would make this expensive,
+so do not. Move whole functions by line range with a throwaway script, and have
+it prove the move: the extracted lines plus the remaining lines must reproduce
+the original block line for line, or it writes nothing. The same round-trip
+check applies to the CSS extract, where the only permitted edit is removing the
+template's eight-space indent.
+
+Listing the top-level functions with their sizes is enough to plan a slice
+without opening the file. Measured: 2804 of the 3035 lines in that block sit
+inside top-level functions. The remaining ~230 lines are globals,
+`DOMContentLoaded` wiring and intervals; no line-range move handles those, so
+move them by hand into `app.js` in the last slice.
+
+Nothing automated should add the `<script src>` loader. Do that once, by hand,
+Ingress aware, when the first file is created.
+
+The helper scripts used for this live on the maintainer's machine and are
+deliberately not in the repo, so treat the method above as the contract, not any
+particular script.
+
 ## Execution steps (each step is shippable and testable on its own)
 
 1. Extract CSS. Move the `<style>` contents to `static/css/app.css`. Load it Ingress-aware. Verify both themes with the harness. Ship as one beta.
@@ -59,9 +85,20 @@ Optional later: split the HTML pages into Jinja `{% include %}` partials (dashbo
 
 Do it in `addon-beta/` first. Promote to `addon/` only after a beta confirms nothing regressed.
 
+`addon/` and `addon-beta/` were byte-identical when the split started (both the 1.7.0 template). Do not try to keep the two in sync during the split. Finish the split in beta, then promote by copying the whole result over.
+
 ## Validation (do this every step, it is cheap)
 
-Reuse the iframe harness pattern from the theme fix:
+Deploy the changed files into the running devcontainer add-on and restart it, which takes seconds. Syntax-check the remaining inline JS with `node --check` before copying: an unbalanced brace produces a page that serves fine and does nothing. After deploying, load the UI through Ingress and confirm the page still serves and the console is clean. Reading `main.py`'s served page with curl only proves it is served, not that it runs, so open it once per slice.
+
+A cheap guard against a lost function, run after each slice:
+
+```js
+['saveDevice','editDevice','navigateTo','startTeachIn','loadDevices']
+  .filter(f => typeof window[f] !== 'function')
+```
+
+Also reuse the iframe harness pattern from the theme fix:
 - A parent HTML with HA-like CSS vars and a transparent body, an iframe loading the template.
 - Assert with `javascript_tool` returning small JSON: theme attributes, computed styles of a few surfaces, and that key global functions exist (`typeof window.saveDevice === 'function'`, etc.).
 - Check the browser console for JS errors (ignore the expected API 404s in the static harness).
@@ -84,4 +121,15 @@ Avoid screenshots and full `read_page`. See [[token-cost-discipline]].
 
 ## Effort
 
-One focused session per major slice, roughly: CSS (small), core+theme+i18n (medium), the feature files (one each, medium), app.js wiring (medium). Spread across a few betas so each is easy to verify.
+Retyping 3000 lines through a model context is what makes this expensive, so do
+not: use `extract.py`. With the script the cost per slice is dominated by the
+template edit, the loader wiring and the validation, not by the code volume.
+
+Rough order, one slice at a time: CSS (small), core plus theme plus i18n
+(medium, this is also where the loader gets built), then one feature file per
+slice (each medium), then `app.js` with the leftover ~230 lines of wiring
+(medium, and the fiddliest, since it is the part the script will not move).
+
+Budget it as several sessions rather than one. The limit is not cleverness, it
+is that each slice needs a real Ingress check before the next one starts, and
+rushing that is how an inline handler silently loses its function.

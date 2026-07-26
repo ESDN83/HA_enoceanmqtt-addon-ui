@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0-beta1] - 2026-07-26 (beta channel)
+
+Internal restructuring of the web UI, no functional change intended. The whole frontend lived in one 4128-line file; it is being split into focused files so future UI work stays affordable. If anything in the interface behaves differently than it did in 1.7.0, that is a bug in this build, please report it.
+
+### Changed
+- **The stylesheet moved out of the template** into `static/css/app.css`. It is loaded Ingress-aware, the same way the app already resolves its API and js-yaml paths, and injected before the page body is parsed so there is no flash of unstyled content. No style rule was edited.
+
 ## [1.7.0] - 2026-07-26 (beta channel)
 
 Promoted to stable. The beta channel now serves exactly the same code as the stable add-on, so both are on 1.7.0 and the next beta starts from here. Nothing changed since beta9.
