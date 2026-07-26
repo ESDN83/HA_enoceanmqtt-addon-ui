@@ -254,7 +254,7 @@ class SerialHandler:
         packet_count = 0
         backoff = 1.0
         skipped_bytes = 0
-        skipped_sample = 0
+        skipped_sample = b""
 
         logger.info("Listening for EnOcean telegrams...")
 
@@ -281,14 +281,16 @@ class SerialHandler:
                     # keeps the diagnostic (how much noise, and what it was)
                     # without burying everything else.
                     skipped_bytes += 1
-                    skipped_sample = byte[0]
+                    if len(skipped_sample) < 24:
+                        skipped_sample += byte
                     if skipped_bytes % 1000 == 0:
-                        logger.debug(f"Still hunting for sync: {skipped_bytes} bytes discarded, last 0x{byte[0]:02X}")
+                        logger.debug(f"Still hunting for sync: {skipped_bytes} bytes discarded, starts {skipped_sample.hex().upper()}")
                     continue
 
                 if skipped_bytes:
-                    logger.debug(f"Found sync byte 0x55 after discarding {skipped_bytes} byte(s), last 0x{skipped_sample:02X}")
+                    logger.debug(f"Found sync byte 0x55 after discarding {skipped_bytes} byte(s), starts {skipped_sample.hex().upper()}")
                     skipped_bytes = 0
+                    skipped_sample = b""
                 else:
                     logger.debug("Found sync byte 0x55")
 
