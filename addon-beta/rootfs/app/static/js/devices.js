@@ -31,7 +31,7 @@ async function loadDevices() {
                                  negative margin so their outlines share an edge, which reads as
                                  the pencil and the bin overlapping. A flex row with a gap keeps
                                  them visibly separate. -->
-                            <div class="d-flex gap-1" onclick="event.stopPropagation()">
+                            <div class="d-flex gap-1 device-actions" onclick="event.stopPropagation()">
                                 <button class="btn btn-sm btn-outline-primary" onclick="editDevice('${device.name}')" title="Edit">
                                     <i class="bi bi-pencil"></i>
                                 </button>

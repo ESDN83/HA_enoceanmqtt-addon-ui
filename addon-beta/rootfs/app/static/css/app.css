@@ -316,3 +316,19 @@ textarea.form-control::placeholder {
     right: 20px;
     z-index: 1050;
 }
+
+/* ===== Device card header ===== */
+
+/* A flex item defaults to min-width:auto, which refuses to shrink below its
+   own content. The device name therefore pushed the edit and delete buttons
+   out of the card long before the layout stacked, and the longer the name the
+   earlier it happened. Letting the title shrink and wrap, and forbidding the
+   buttons to shrink, keeps both inside the card at every width. */
+.device-card .card-title {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.device-card .device-actions {
+    flex-shrink: 0;
+}
