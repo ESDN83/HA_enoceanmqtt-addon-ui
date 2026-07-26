@@ -154,6 +154,12 @@ async def lifespan(app: FastAPI):
     app.state.mapping_manager = mapping_manager
     app.state.telegram_buffer = telegram_buffer
     app.state.config_path = CONFIG_PATH
+    # Handles for the API routers. They must NOT do 'from main import ...':
+    # run.sh starts this file as 'python3 main.py', so the live module is
+    # __main__ and importing 'main' builds a second, empty copy whose
+    # globals are all None. Such a call then fails silently.
+    app.state.publish_all_discoveries = _publish_all_discoveries
+    app.state.echo_light_state = _echo_light_state
 
     logger.info("EnOcean MQTT Add-on started successfully — Web UI running on port 8099")
 

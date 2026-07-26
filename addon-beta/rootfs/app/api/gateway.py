@@ -66,7 +66,7 @@ async def get_gateway_info(request: Request) -> Dict[str, Any]:
     }
 
 
-async def _echo_light(device_name: str, command: str, brightness: int = None):
+async def _echo_light(request, device_name: str, command: str, brightness: int = None):
     """Publish the commanded state after a UI test, like the MQTT path does.
 
     This endpoint drives the actuator directly and used to publish nothing, so
@@ -74,9 +74,11 @@ async def _echo_light(device_name: str, command: str, brightness: int = None):
     entity showing the old value until the actuator reported back. Imported
     late because main imports this router, not the other way round.
     """
+    echo = getattr(request.app.state, "echo_light_state", None)
+    if not echo:
+        return
     try:
-        from main import _echo_light_state
-        await _echo_light_state(device_name, command, brightness)
+        await echo(device_name, command, brightness)
     except Exception as e:   # never fail the command because the echo failed
         logger.debug(f"State echo after UI test failed for {device_name}: {e}")
 
@@ -243,10 +245,10 @@ async def test_actuator(req: TestActuatorRequest, request: Request) -> Dict[str,
     if device.actuator_type == "light":
         if command == "ON":
             await serial_handler.send_a5_dimmer_command(sender_id, "DIM", dim_value=100)
-            await _echo_light(req.device_name, "ON", 100)
+            await _echo_light(request, req.device_name, "ON", 100)
         elif command == "OFF":
             await serial_handler.send_a5_dimmer_command(sender_id, "OFF")
-            await _echo_light(req.device_name, "OFF")
+            await _echo_light(request, req.device_name, "OFF")
         else:
             raise HTTPException(status_code=400, detail=f"Unknown command for dimmer: {command}. Use ON or OFF.")
 

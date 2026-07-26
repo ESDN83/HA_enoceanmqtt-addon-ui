@@ -3,6 +3,7 @@ System API - System status and configuration
 """
 
 import os
+import logging
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from fastapi.responses import FileResponse, StreamingResponse
 from typing import Dict, Any
@@ -18,6 +19,30 @@ router = APIRouter()
 
 # Single source of truth (reads config.yaml) — no manual bumping needed here.
 from app_version import VERSION
+
+logger = logging.getLogger(__name__)
+
+
+async def _republish_after_restore(request):
+    """Re-announce every device to Home Assistant after devices were replaced.
+
+    Import and restore rewrite devices.yaml and reload the device manager, but
+    nothing was published afterwards, so Home Assistant kept knowing only the
+    devices it had seen before: a restored device produced no discovery config
+    and no state until it was opened and saved one by one, or the add-on was
+    restarted. Reuses the startup path, which publishes discovery, then
+    availability, then the cached states in that order for a reason (see
+    _publish_all_discoveries).
+    """
+    publish = getattr(request.app.state, "publish_all_discoveries", None)
+    if not publish:
+        logger.warning("Re-publish after restore skipped: app state not initialised")
+        return
+    try:
+        await publish()
+        logger.info("Re-published discovery and states after restore")
+    except Exception as e:
+        logger.error(f"Re-publish after restore failed: {e}")
 
 
 @router.get("/status")
@@ -182,6 +207,7 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
                     # Reload devices
                     if device_manager:
                         await device_manager.load_devices()
+                        await _republish_after_restore(request)
 
                 elif filename == "mapping.yaml":
                     # Import mappings
@@ -478,6 +504,7 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
                     imported["devices"] = True
                     if device_manager:
                         await device_manager.load_devices()
+                        await _republish_after_restore(request)
 
                 elif name == "mapping.yaml":
                     data = zf.read(name)

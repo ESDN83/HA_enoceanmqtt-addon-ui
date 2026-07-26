@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0-beta2] - 2026-07-26 (beta channel)
+
+### Bug Fixes
+- **After restoring a backup, devices stayed invisible in Home Assistant until each one was opened and saved.** Import and restore rewrote the device list and reloaded it, but never announced the result: no discovery config and no state was published, so Home Assistant kept knowing only the devices it had seen before. Both paths now re-announce everything, the same way a restart does. Verified on a restore: 39 discovery configs and 11 states published without touching a single device.
+- **Two helpers in the API never ran at all.** They reached back into the application with `from main import ...`, but the add-on starts as `python3 main.py`, so the running module is `__main__` and that import quietly built a second, empty copy — every call returned without doing anything, while still logging success. Both take their handle from the application state now. This is what kept the restore fix above from working on the first attempt, and it also disabled the state echo after a test command from the add-on's own interface.
+- **The edit and delete icons in the device list touched each other.** They sat in a Bootstrap button group, which pulls adjacent buttons together with a negative margin so their outlines share an edge. They are spaced apart now.
+
 ## [1.8.0-beta1] - 2026-07-26 (beta channel)
 
 Mostly an internal restructuring of the web interface: it lived in one 4128-line file and is now split by topic, so future UI work stays affordable. That part changes nothing you can see, and **if anything in the interface behaves differently than it did in 1.7.0, that is a bug in this build, please report it.** Two small visible improvements ride along, listed below.

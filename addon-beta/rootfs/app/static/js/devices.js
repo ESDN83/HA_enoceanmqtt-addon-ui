@@ -27,11 +27,15 @@ async function loadDevices() {
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start">
                             <h5 class="card-title mb-1">${device.name}</h5>
-                            <div class="btn-group btn-group-sm" onclick="event.stopPropagation()">
-                                <button class="btn btn-outline-primary" onclick="editDevice('${device.name}')" title="Edit">
+                            <!-- Not a btn-group: that pulls adjacent buttons together with a
+                                 negative margin so their outlines share an edge, which reads as
+                                 the pencil and the bin overlapping. A flex row with a gap keeps
+                                 them visibly separate. -->
+                            <div class="d-flex gap-1" onclick="event.stopPropagation()">
+                                <button class="btn btn-sm btn-outline-primary" onclick="editDevice('${device.name}')" title="Edit">
                                     <i class="bi bi-pencil"></i>
                                 </button>
-                                <button class="btn btn-outline-danger" onclick="deleteDevice('${device.name}')" title="Delete">
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteDevice('${device.name}')" title="Delete">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
