@@ -2,10 +2,16 @@
 
 ## [1.8.0-beta1] - 2026-07-26 (beta channel)
 
-Internal restructuring of the web UI, no functional change intended. The whole frontend lived in one 4128-line file; it is being split into focused files so future UI work stays affordable. If anything in the interface behaves differently than it did in 1.7.0, that is a bug in this build, please report it.
+Mostly an internal restructuring of the web interface: it lived in one 4128-line file and is now split by topic, so future UI work stays affordable. That part changes nothing you can see, and **if anything in the interface behaves differently than it did in 1.7.0, that is a bug in this build, please report it.** Two small visible improvements ride along, listed below.
+
+### New Features
+- **A warning before changing a device's identity** (#35). Address, RORG, FUNC, TYPE and Sender ID say *which* physical module an entry describes. Editing one does not reconfigure anything over the air, so the entry quietly stops matching the module that was taught in. Saving such an edit now asks first and lists exactly what is about to change, old value next to new. Renaming is folded into the same dialog, so changing a name and an address at once asks once instead of twice.
+
+### Fixed
+- **Five interface strings were never translated in any language**, because their keys existed in no language file: the whole rename confirmation dialog, and the "Reverse direction" label for covers. On a German interface the switch role showed German and the cover role English in the same field. Both languages now carry the keys.
 
 ### Changed
-- **The stylesheet moved out of the template** into `static/css/app.css`. It is loaded Ingress-aware, the same way the app already resolves its API and js-yaml paths, and injected before the page body is parsed so there is no flash of unstyled content. No style rule was edited.
+- **The web interface is no longer one file.** `templates/index.html` went from 4128 lines to 808: the stylesheet is now `static/css/app.css` and the code sits in ten files by topic (core, theme, i18n, nav, dashboard, devices, teachin, mappings, settings, app). Nothing was rewritten, the code was moved. There is still no build step. Everything is loaded Ingress-aware and render-blocking, so the first paint is styled, and `app.js` deliberately loads at the end of the page, where the old inline code sat, so the theme is applied at exactly the same moment as before.
 
 ## [1.7.0] - 2026-07-26 (beta channel)
 

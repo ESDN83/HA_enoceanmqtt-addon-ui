@@ -367,5 +367,19 @@
   "device.sender_clash_title": "Sender-ID bereits in Verwendung",
   "device.sender_clash_body": "Diese Sender-ID wird bereits verwendet von",
   "device.sender_clash_hint": "Eltako-Aktoren brauchen je eine eigene Sender-ID — sonst reagieren beide auf dieselben Befehle. Trotzdem speichern?",
-  "device.sender_clash_btn": "Trotzdem speichern"
+  "device.sender_clash_btn": "Trotzdem speichern",
+  "teach_in.invert_label": "Laufrichtung umkehren (Auf/Zu vertauscht)",
+  "device.rename_title": "Gerät umbenennen?",
+  "device.rename_body": "Das ändert die MQTT-Topics des Geräts und die object_id der Entität.",
+  "device.rename_hint": "Die Home-Assistant-Entität bleibt erhalten, nur ihre Topics ändern sich. Umbenennen?",
+  "device.rename_btn": "Umbenennen",
+  "device.identity_title": "Geräte-Identität ändern?",
+  "device.identity_body": "Diese Felder bestimmen, welches physische Modul gemeint ist. Eine Änderung konfiguriert das Gerät nicht um: es behält, worauf es eingelernt wurde. Der Eintrag passt erst wieder, wenn das Modul neu eingelernt wird, und bestehende Home-Assistant-Entitäten werden ersetzt.",
+  "device.identity_btn": "Trotzdem ändern",
+  "device.field_name": "Name",
+  "device.field_address": "Adresse",
+  "device.field_rorg": "RORG",
+  "device.field_func": "FUNC",
+  "device.field_type": "TYPE",
+  "device.field_sender_id": "Sender-ID"
 }

@@ -80,6 +80,11 @@ function resetDeviceForm() {
     if (!form) return;
     form.reset();
     delete form.dataset.editMode;
+    // The identity snapshot belongs to the edit that is being abandoned. Left
+    // behind it would make the next entry compare against a stranger, which is
+    // the same class of bug as the name and sender ID that used to survive a
+    // canceled edit (#29, #30).
+    delete form.dataset.identityBefore;
     const nameField = form.querySelector('[name="name"]');
     if (nameField) nameField.readOnly = false;
     form.querySelectorAll('.field-detected').forEach(el => {
@@ -143,6 +148,42 @@ function toggleSenderIdField(select) {
         }
     }
 }
+// The fields that say WHICH physical module this entry is. Changing one does
+// not reconfigure anything over the air: the module keeps whatever it was
+// taught, and the entry simply stops describing it (#35).
+const IDENTITY_FIELDS = [
+    ['address', 'device.field_address', 'Address'],
+    ['rorg', 'device.field_rorg', 'RORG'],
+    ['func', 'device.field_func', 'FUNC'],
+    ['type', 'device.field_type', 'TYPE'],
+    ['sender_id', 'device.field_sender_id', 'Sender ID'],
+];
+
+// Collect every change that deserves a warning before saving an edit: the
+// rename (which re-homes the MQTT topics) and any identity field. One list,
+// because two stacked Bootstrap modals do not work, and because the user
+// wants to see everything they are about to change at once.
+function collectRiskyChanges(device, editMode, form) {
+    const changes = [];
+    if (!editMode) return changes;
+    if (device.name && device.name !== editMode) {
+        changes.push({ label: t('device.field_name', 'Name'), from: editMode, to: device.name });
+    }
+    let before;
+    try {
+        before = JSON.parse(form.dataset.identityBefore || 'null');
+    } catch (err) {
+        before = null;
+    }
+    if (!before) return changes;   // opened without a snapshot: warn on the rename only
+    for (const [key, i18nKey, fallback] of IDENTITY_FIELDS) {
+        const from = String(before[key] ?? '');
+        const to = String(device[key] ?? '');
+        if (from !== to) changes.push({ label: t(i18nKey, fallback), from, to, identity: true });
+    }
+    return changes;
+}
+
 async function saveDevice(e) {
     e.preventDefault();
     const form = e.target;
@@ -154,16 +195,25 @@ async function saveDevice(e) {
     device.invert = !!(invertCb && invertCb.checked);
     const editMode = form.dataset.editMode;
 
-    // Rename warning: the device name is the primary key and the MQTT
-    // topic base, so renaming re-homes its topics/object_id. The HA
-    // entity itself is preserved (its unique_id is name-independent).
-    if (editMode && device.name && device.name !== editMode) {
+    // Warn before a rename (the device name is the primary key and the MQTT
+    // topic base, so renaming re-homes its topics/object_id; the HA entity
+    // survives because its unique_id is name-independent) and before any
+    // identity change (#35).
+    const changes = collectRiskyChanges(device, editMode, form);
+    if (changes.length) {
+        const identity = changes.some(c => c.identity);
+        const list = '<ul class="mb-2">' + changes.map(c =>
+            '<li>' + escapeHtml(c.label) + ': <code>' + escapeHtml(c.from || '—') +
+            '</code> → <code>' + escapeHtml(c.to || '—') + '</code></li>').join('') + '</ul>';
         showConfirmDialog(
-            t('device.rename_title', 'Rename device?'),
-            t('device.rename_body', 'This changes the device\'s MQTT topics and entity object_id') +
-                ' ("' + escapeHtml(editMode) + '" → "' + escapeHtml(device.name) + '"). ' +
-                t('device.rename_hint', 'The Home Assistant entity is kept; only its topics change. Rename?'),
-            t('device.rename_btn', 'Rename'),
+            identity
+                ? t('device.identity_title', 'Change device identity?')
+                : t('device.rename_title', 'Rename device?'),
+            list + (identity
+                ? t('device.identity_body', 'These fields identify the physical module. Changing them does not reconfigure the device over the air — it keeps whatever it was taught in with. The entry will only match again after you teach the module in anew, and existing Home Assistant entities are replaced.')
+                : t('device.rename_body', 'This changes the device\'s MQTT topics and entity object_id') + ' ' +
+                  t('device.rename_hint', 'The Home Assistant entity is kept; only its topics change. Rename?')),
+            identity ? t('device.identity_btn', 'Change anyway') : t('device.rename_btn', 'Rename'),
             'btn-warning',
             () => performSaveDevice(device, editMode, form)
         );
@@ -300,6 +350,15 @@ async function editDevice(name) {
         // Mark as edit mode
         const form = document.getElementById('device-form');
         form.dataset.editMode = name;
+        // Snapshot the identity fields as they were loaded, so saveDevice can
+        // tell what the user actually changed and warn about it (#35).
+        form.dataset.identityBefore = JSON.stringify({
+            address: device.address ?? '',
+            rorg: device.rorg ?? '',
+            func: device.func ?? '',
+            type: device.type ?? '',
+            sender_id: device.sender_id ?? '',
+        });
 
         // Change button text. The name is editable in edit mode too
         // (rename is supported); saveDevice warns before an actual
