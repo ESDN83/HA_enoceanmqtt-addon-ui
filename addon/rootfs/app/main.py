@@ -99,8 +99,12 @@ async def lifespan(app: FastAPI):
             config_path=CONFIG_PATH,
             cache_states=CACHE_DEVICE_STATES
         )
+        # No success log here. The broker's connect callback already logs it,
+        # and only when it really happened: connect() returns after a timeout
+        # too, so a second line here claimed a connection that might not exist.
+        # Two identical "Connected to MQTT broker" lines also read like two
+        # connections, which sent one debugging session down the wrong path.
         await mqtt_handler.connect()
-        logger.info(f"Connected to MQTT broker at {mqtt_host}:{mqtt_port}")
 
         # Load persisted states into memory (published AFTER discoveries below)
         if CACHE_DEVICE_STATES:

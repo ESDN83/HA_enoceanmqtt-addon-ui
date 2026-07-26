@@ -11,10 +11,11 @@ with config.yaml as a safety net, but config.yaml remains the real source.
 import os
 import re
 
-_FALLBACK = "1.8.0-beta1"
 
 # Candidate locations: the copy baked into the image, and the repo layout
 # (rootfs/app/app_version.py -> ../../config.yaml) for local runs/tests.
+_FALLBACK = "1.8.0-beta1"
+
 _CANDIDATES = (
     "/app/config.yaml",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "config.yaml"),

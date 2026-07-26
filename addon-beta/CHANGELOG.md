@@ -13,6 +13,10 @@ Mostly an internal restructuring of the web interface: it lived in one 4128-line
 ### Changed
 - **The web interface is no longer one file.** `templates/index.html` went from 4128 lines to 808: the stylesheet is now `static/css/app.css` and the code sits in ten files by topic (core, theme, i18n, nav, dashboard, devices, teachin, mappings, settings, app). Nothing was rewritten, the code was moved. There is still no build step. Everything is loaded Ingress-aware and render-blocking, so the first paint is styled, and `app.js` deliberately loads at the end of the page, where the old inline code sat, so the theme is applied at exactly the same moment as before.
 
+## [1.7.1] - 2026-07-26 (beta channel)
+
+Same fixes as stable 1.7.1: every command was transmitted twice (overlapping MQTT subscriptions), the debug log flooded with one line per discarded byte, and a duplicated "Connected to MQTT broker" line. See the stable changelog for detail.
+
 ## [1.7.0] - 2026-07-26 (beta channel)
 
 Promoted to stable. The beta channel now serves exactly the same code as the stable add-on, so both are on 1.7.0 and the next beta starts from here. Nothing changed since beta9.
