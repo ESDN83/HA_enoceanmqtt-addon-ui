@@ -1,6 +1,7 @@
 // Extracted from templates/index.html. Classic script, no modules:
 // the inline onclick handlers call these by bare name, so they must stay global.
 
+// API base URL - handles HA Ingress path
 function getApiUrl(path) {
     // Get base path from current URL (for HA Ingress)
     // pathname could be "/" or "/api/hassio_ingress/<token>/" etc
@@ -17,11 +18,18 @@ function getApiUrl(path) {
     // For HA Ingress: basePath will be like /api/hassio_ingress/abc123
     return basePath + path;
 }
+// WebSocket URL helper
 function getWsUrl(path) {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const basePath = window.location.pathname.replace(/\/$/, '');
     return `${wsProtocol}//${window.location.host}${basePath}${path}`;
 }
+// Average brightness (0-255) of a CSS color, or null if the color is
+// fully transparent / unparseable. Transparency MUST count as "no
+// information": HA's <body> usually has NO own background, and
+// rgba(0,0,0,0) was parsed as pitch black — so a light HA was detected
+// as dark, and every Bootstrap-themed surface (tables, bg-body-tertiary,
+// <code>, native number spinners) rendered dark on the light page.
 function colorBrightness(str) {
     if (!str) return null;
     str = String(str).trim();

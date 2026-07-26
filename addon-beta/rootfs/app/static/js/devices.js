@@ -69,6 +69,10 @@ function updateDerivedSenderId() {
         output.value = '0x' + sender.toString(16).toUpperCase().padStart(8, '0');
     }
 }
+// Full reset of the device wizard form. MUST clear the edit state too:
+// a canceled edit used to leave the previous device's name (locked
+// read-only) and sender ID in the form, so the next manual entry
+// silently inherited them (#29, #30).
 function resetDeviceForm() {
     const note = document.getElementById('multichannel-note');
     if (note) note.style.display = 'none';
@@ -94,6 +98,7 @@ function resetDeviceForm() {
     const heading = document.querySelector('#step-2 h4');
     if (heading) heading.textContent = t('teach_in.step2', 'Step 2: Configure Device');
 }
+// Channel picker only makes sense for multi-channel D2-01 modules.
 function toggleChannelField(rorg, func) {
     const group = document.getElementById('channel-group');
     if (!group) return;
@@ -101,6 +106,8 @@ function toggleChannelField(rorg, func) {
     const f = String(func || '').toUpperCase().padStart(2, '0');
     group.style.display = (r === 'D2' && f === '01') ? '' : 'none';
 }
+// 2-channel EEPs — one physical module, two independently switchable
+// outputs (matches _multichannel_eeps in the backend).
 function isTwoChannelEep(rorg, func, type) {
     const r = String(rorg || '').toUpperCase().replace('0X', '');
     const f = String(func || '').toUpperCase().padStart(2, '0');

@@ -34,6 +34,11 @@ async function readBaseId() {
         input.value = 'Error: ' + e.message;
     }
 }
+// Each actuator needs its OWN sender offset — reusing one offset for
+// several actuators makes them respond to each other's commands. The
+// field used to always start at 1, so every teach-in got the same
+// Sender ID (#23). Pick the lowest offset not already used by a
+// configured device instead.
 async function suggestNextSenderOffset() {
     const offsetField = document.getElementById('sender-offset');
     const baseIdRaw = document.getElementById('gateway-base-id')?.value || '';
@@ -245,6 +250,7 @@ function startTeachIn() {
         status.querySelector('.alert').innerHTML = '<i class="bi bi-x-circle"></i> Connection failed. EnOcean gateway may not be connected.';
     };
 }
+// Backwards-compatible alias (old name, same behaviour)
 function resetTeachInForm() { resetDeviceForm(); }
 
 // Pick a sensible role from the EEP instead of always guessing "cover".
@@ -258,6 +264,9 @@ function roleFromEep(rorg, func) {
     if (r === 'A5' && f === '38') return 'light';   // Eltako dimmers
     return '';                                      // sensor
 }
+// After saving channel 1 of a 2-channel module, actively offer to add
+// the second channel with everything pre-filled — the passive hint in
+// step 2 was easy to miss (#24).
 function offerSecondChannel(saved) {
     showConfirmDialog(
         t('teach_in.second_channel_title', 'Add channel 2 now?'),
@@ -368,11 +377,15 @@ function resetTeachInPage() {
         step.classList.toggle('active', i === 0);
     });
 }
+// Mark a field as auto-detected so it's obvious which values came from
+// the telegram and which were typed by hand (#23).
 function markDetected(field, on) {
     if (!field) return;
     field.classList.toggle('field-detected', !!on);
     if (on) field.title = t('teach_in.detected_field', 'Detected from the teach-in telegram');
 }
+// Manual entry: show the channel picker as soon as the typed EEP is a
+// D2-01 (teach-in and edit call toggleChannelField directly).
 function onEepFieldInput() {
     const form = document.getElementById('device-form');
     if (!form) return;
