@@ -368,3 +368,48 @@ function resetTeachInPage() {
         step.classList.toggle('active', i === 0);
     });
 }
+function markDetected(field, on) {
+    if (!field) return;
+    field.classList.toggle('field-detected', !!on);
+    if (on) field.title = t('teach_in.detected_field', 'Detected from the teach-in telegram');
+}
+function onEepFieldInput() {
+    const form = document.getElementById('device-form');
+    if (!form) return;
+    toggleChannelField(form.querySelector('[name="rorg"]')?.value,
+                       form.querySelector('[name="func"]')?.value);
+}
+function showManualEntry() {
+    // Start from a clean slate — without this, a canceled edit left the
+    // previous device's locked name and sender ID in the form (#29/#30).
+    resetDeviceForm();
+    wizardNext();
+}
+function wizardNext() {
+    const steps = document.querySelectorAll('.wizard-step');
+    let currentIndex = -1;
+    steps.forEach((step, index) => {
+        if (step.classList.contains('active')) currentIndex = index;
+    });
+    if (currentIndex < steps.length - 1) {
+        steps[currentIndex].classList.remove('active');
+        steps[currentIndex + 1].classList.add('active');
+    }
+}
+function wizardBack() {
+    const steps = document.querySelectorAll('.wizard-step');
+    let currentIndex = -1;
+    steps.forEach((step, index) => {
+        if (step.classList.contains('active')) currentIndex = index;
+    });
+    if (currentIndex > 0) {
+        steps[currentIndex].classList.remove('active');
+        steps[currentIndex - 1].classList.add('active');
+    }
+}
+function resetWizard() {
+    document.querySelectorAll('.wizard-step').forEach((step, index) => {
+        step.classList.toggle('active', index === 0);
+    });
+    resetDeviceForm();
+}

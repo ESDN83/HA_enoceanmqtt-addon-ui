@@ -70,7 +70,7 @@
             var base = window.location.pathname.replace(/\/$/, '');
             if (base === '/') base = '';
             document.write('<link rel="stylesheet" href="' + base + '/static/css/app.css">');
-            ['core', 'theme', 'i18n', 'nav', 'dashboard', 'devices', 'teachin', 'mappings'].forEach(function(name) {
+            ['core', 'theme', 'i18n', 'nav', 'dashboard', 'devices', 'teachin', 'mappings', 'settings'].forEach(function(name) {
                 document.write('<script src="' + base + '/static/js/' + name + '.js"><\/script>');
             });
         })();
@@ -926,22 +926,11 @@
 
         // Mark a field as auto-detected so it's obvious which values came from
         // the telegram and which were typed by hand (#23).
-        function markDetected(field, on) {
-            if (!field) return;
-            field.classList.toggle('field-detected', !!on);
-            if (on) field.title = t('teach_in.detected_field', 'Detected from the teach-in telegram');
-        }
 
         // Channel picker only makes sense for multi-channel D2-01 modules.
 
         // Manual entry: show the channel picker as soon as the typed EEP is a
         // D2-01 (teach-in and edit call toggleChannelField directly).
-        function onEepFieldInput() {
-            const form = document.getElementById('device-form');
-            if (!form) return;
-            toggleChannelField(form.querySelector('[name="rorg"]')?.value,
-                               form.querySelector('[name="func"]')?.value);
-        }
 
         // 2-channel EEPs — one physical module, two independently switchable
         // outputs (matches _multichannel_eeps in the backend).
@@ -955,469 +944,42 @@
 
 
 
-        function showManualEntry() {
-            // Start from a clean slate — without this, a canceled edit left the
-            // previous device's locked name and sender ID in the form (#29/#30).
-            resetDeviceForm();
-            wizardNext();
-        }
-
-        function wizardNext() {
-            const steps = document.querySelectorAll('.wizard-step');
-            let currentIndex = -1;
-            steps.forEach((step, index) => {
-                if (step.classList.contains('active')) currentIndex = index;
-            });
-            if (currentIndex < steps.length - 1) {
-                steps[currentIndex].classList.remove('active');
-                steps[currentIndex + 1].classList.add('active');
-            }
-        }
-
-        function wizardBack() {
-            const steps = document.querySelectorAll('.wizard-step');
-            let currentIndex = -1;
-            steps.forEach((step, index) => {
-                if (step.classList.contains('active')) currentIndex = index;
-            });
-            if (currentIndex > 0) {
-                steps[currentIndex].classList.remove('active');
-                steps[currentIndex - 1].classList.add('active');
-            }
-        }
-
-        function resetWizard() {
-            document.querySelectorAll('.wizard-step').forEach((step, index) => {
-                step.classList.toggle('active', index === 0);
-            });
-            resetDeviceForm();
-        }
 
 
 
 
 
 
-        async function exportConfig() {
-            try {
-                const response = await fetch(getApiUrl('/api/system/export'), {method: 'POST'});
-                if (!response.ok) throw new Error(t('settings.export_failed', 'Export failed'));
-                const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                const disposition = response.headers.get('Content-Disposition');
-                a.download = disposition ? disposition.split('filename=')[1] : 'enocean_config.zip';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                showToast(t('export.success', 'Config exported successfully'), 'success');
-            } catch (error) {
-                showToast(t('export.failed', 'Export failed') + ': ' + error.message, 'danger');
-            }
-        }
 
-        async function importConfig(input) {
-            if (!input.files.length) return;
 
-            const formData = new FormData();
-            formData.append('file', input.files[0]);
 
-            try {
-                const response = await fetch(getApiUrl('/api/system/import'), {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-                showToast(`${t('settings.import_success', 'Import successful')}: ${result.details.devices ? 'devices, ' : ''}${result.details.mappings ? 'mappings, ' : ''}${result.details.custom_profiles} custom profiles`, 'success');
-                loadStatus();
-            } catch (error) {
-                showToast(t('settings.import_failed', 'Import failed'), 'danger');
-            }
-        }
 
-        async function restartServices() {
-            if (!confirm(t('settings.restart_confirm', 'Restart EnOcean and MQTT services?'))) return;
 
-            try {
-                await fetch(getApiUrl('/api/system/restart'), {method: 'POST'});
-                showToast(t('settings.restarting', 'Services restarting...'), 'info');
-                setTimeout(loadStatus, 3000);
-            } catch (error) {
-                showToast(t('settings.restart_failed', 'Restart failed'), 'danger');
-            }
-        }
 
 
 
         // ===== Backup Management =====
 
-        async function loadBackups() {
-            try {
-                const response = await fetch(getApiUrl('/api/system/backups'));
-                const backups = await response.json();
-                renderBackupList(backups);
-            } catch (error) {
-                document.getElementById('backup-list').innerHTML =
-                    `<p class="text-danger">${t('backup.load_failed', 'Failed to load backups')}</p>`;
-            }
-        }
 
-        function formatFileSize(bytes) {
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-        }
 
-        function renderBackupList(backups) {
-            const container = document.getElementById('backup-list');
 
-            if (backups.length === 0) {
-                container.innerHTML = `<p class="text-muted">${t('backup.no_backups', 'No backups yet. Click "Create Backup" to save your current configuration.')}</p>`;
-                return;
-            }
 
-            container.innerHTML = `
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th>${t('backup.filename', 'Filename')}</th>
-                                <th>${t('backup.created', 'Created')}</th>
-                                <th>${t('backup.size', 'Size')}</th>
-                                <th>${t('backup.devices', 'Devices')}</th>
-                                <th>${t('backup.version', 'Version')}</th>
-                                <th class="text-end">${t('backup.actions', 'Actions')}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${backups.map(b => `
-                                <tr>
-                                    <td><code class="small">${b.filename}</code></td>
-                                    <td><small>${new Date(b.created_at).toLocaleString()}</small></td>
-                                    <td><small>${formatFileSize(b.size)}</small></td>
-                                    <td><small>${b.devices}</small></td>
-                                    <td><small>${b.version}</small></td>
-                                    <td class="text-end text-nowrap">
-                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="downloadBackup('${b.filename}')" title="${t('backup.download', 'Download')}">
-                                            <i class="bi bi-download"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-warning me-1" onclick="confirmRestoreBackup('${b.filename}')" title="${t('backup.restore', 'Restore')}">
-                                            <i class="bi bi-arrow-counterclockwise"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteBackup('${b.filename}')" title="${t('backup.delete', 'Delete')}">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            `;
-        }
 
-        async function createBackup() {
-            try {
-                showToast(t('backup.creating', 'Creating backup...'), 'info');
-                const response = await fetch(getApiUrl('/api/system/backup'), {method: 'POST'});
-                if (!response.ok) throw new Error(t('backup.failed', 'Backup failed'));
-                const result = await response.json();
-                showToast(`${t('backup.created_success', 'Backup created')}: ${result.filename}`, 'success');
-                loadBackups();
-            } catch (error) {
-                showToast(t('backup.failed', 'Backup failed') + ': ' + error.message, 'danger');
-            }
-        }
 
-        function downloadBackup(filename) {
-            const a = document.createElement('a');
-            a.href = getApiUrl(`/api/system/backup/download/${filename}`);
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        }
-
-        function confirmRestoreBackup(filename) {
-            showConfirmDialog(
-                t('backup.restore_title', 'Restore Backup'),
-                `<p>${t('backup.restore_confirm', 'Are you sure you want to restore from:')}</p>
-                 <p><strong><code>${filename}</code></strong></p>
-                 <p class="text-warning mb-0"><i class="bi bi-exclamation-triangle"></i>
-                 ${t('backup.restore_warning', 'This will overwrite your current devices, mappings, and custom profiles.')}</p>`,
-                t('backup.restore', 'Restore'),
-                'btn-warning',
-                async () => {
-                    try {
-                        showToast(t('backup.restoring', 'Restoring backup...'), 'info');
-                        const response = await fetch(getApiUrl(`/api/system/backup/restore/${filename}`), {method: 'POST'});
-                        if (!response.ok) {
-                            const err = await response.json().catch(() => null);
-                            throw new Error(err?.detail || t('backup.restore_failed', 'Restore failed'));
-                        }
-                        const result = await response.json();
-                        showToast(`${t('backup.restored', 'Backup restored')}: ${result.details.devices ? t('nav.devices', 'devices') + ', ' : ''}${result.details.mappings ? t('nav.mappings', 'mappings') + ', ' : ''}${result.details.custom_profiles} ${t('backup.custom_profiles', 'custom profiles')}`, 'success');
-                        loadStatus();
-                        loadDevices();
-                        loadProfiles();
-                    } catch (error) {
-                        showToast(t('backup.restore_failed', 'Restore failed') + ': ' + error.message, 'danger');
-                    }
-                }
-            );
-        }
-
-        function confirmDeleteBackup(filename) {
-            showConfirmDialog(
-                t('backup.delete_title', 'Delete Backup'),
-                `<p>${t('backup.delete_confirm', 'Are you sure you want to delete:')}</p>
-                 <p><strong><code>${filename}</code></strong></p>
-                 <p class="text-danger mb-0"><i class="bi bi-exclamation-triangle"></i>
-                 ${t('backup.delete_warning', 'This cannot be undone.')}</p>`,
-                t('backup.delete', 'Delete'),
-                'btn-danger',
-                async () => {
-                    try {
-                        const response = await fetch(getApiUrl(`/api/system/backup/${filename}`), {method: 'DELETE'});
-                        if (!response.ok) throw new Error(t('backup.delete_failed', 'Delete failed'));
-                        showToast(t('backup.deleted', 'Backup deleted'), 'success');
-                        loadBackups();
-                    } catch (error) {
-                        showToast(t('backup.delete_failed', 'Delete failed') + ': ' + error.message, 'danger');
-                    }
-                }
-            );
-        }
 
         // ===== HA Mapping Builder =====
 
 
 
-        function removeHaMappingRow(btn) {
-            const row = btn.closest('.ha-mapping-row');
-            row.remove();
-            const container = document.getElementById('ha-mapping-rows');
-            if (container.children.length === 0) {
-                document.getElementById('ha-mapping-empty').style.display = '';
-            }
-        }
-
-        function onComponentChange(select) {
-            const row = select.closest('.ha-mapping-row');
-            const dcSelect = row.querySelector('[data-field="device_class"]');
-            const component = select.value;
-            dcSelect.innerHTML = getDeviceClassOptions(component, '');
-        }
 
 
-        function collectHaMapping() {
-            const rows = document.querySelectorAll('.ha-mapping-row');
-            if (rows.length === 0) return null;
 
-            const mapping = {};
-            let valid = true;
 
-            rows.forEach(row => {
-                const shortcut = (row.querySelector('[data-field="shortcut"]').value || '').trim();
-                if (!shortcut) {
-                    valid = false;
-                    return;
-                }
-
-                const entry = {
-                    component: row.querySelector('[data-field="component"]').value
-                };
-
-                const name = row.querySelector('[data-field="name"]').value.trim();
-                if (name) entry.name = name;
-
-                const dc = row.querySelector('[data-field="device_class"]').value;
-                if (dc) entry.device_class = dc;
-
-                const icon = row.querySelector('[data-field="icon"]').value.trim();
-                if (icon) entry.icon = icon;
-
-                const unit = row.querySelector('[data-field="unit_of_measurement"]').value.trim();
-                if (unit) entry.unit_of_measurement = unit;
-
-                // Advanced fields
-                const stateClass = row.querySelector('[data-field="state_class"]')?.value || '';
-                if (stateClass) entry.state_class = stateClass;
-                const entityCat = row.querySelector('[data-field="entity_category"]')?.value || '';
-                if (entityCat) entry.entity_category = entityCat;
-                const expireStr = row.querySelector('[data-field="expire_after"]')?.value || '';
-                if (expireStr !== '') entry.expire_after = parseInt(expireStr);
-                const precisionStr = row.querySelector('[data-field="suggested_display_precision"]')?.value || '';
-                if (precisionStr !== '') entry.suggested_display_precision = parseInt(precisionStr);
-                const forceUpdate = row.querySelector('[data-field="force_update"]')?.checked || false;
-                if (forceUpdate) entry.force_update = true;
-                const valTpl = row.querySelector('[data-field="value_template"]')?.value?.trim() || '';
-                if (valTpl) entry.value_template = valTpl;
-
-                mapping[shortcut] = entry;
-            });
-
-            if (!valid) return undefined; // signal validation error
-            return Object.keys(mapping).length > 0 ? mapping : null;
-        }
-
-        function populateHaMapping(haMapping) {
-            const container = document.getElementById('ha-mapping-rows');
-            container.innerHTML = '';
-
-            if (!haMapping || Object.keys(haMapping).length === 0) {
-                document.getElementById('ha-mapping-empty').style.display = '';
-                return;
-            }
-
-            document.getElementById('ha-mapping-empty').style.display = 'none';
-
-            for (const [shortcut, config] of Object.entries(haMapping)) {
-                addHaMappingRow(
-                    shortcut,
-                    config.component || 'binary_sensor',
-                    config.name || '',
-                    config.device_class || '',
-                    config.icon || '',
-                    config.unit_of_measurement || '',
-                    {
-                        state_class: config.state_class,
-                        entity_category: config.entity_category,
-                        expire_after: config.expire_after,
-                        force_update: config.force_update,
-                        suggested_display_precision: config.suggested_display_precision,
-                        value_template: config.value_template
-                    }
-                );
-            }
-        }
 
         // ===== Save/Edit Custom Profile =====
 
-        async function saveCustomProfile() {
-            const form = document.getElementById('custom-profile-form');
-            const formData = new FormData(form);
-
-            // Validate required fields (HTML 'required' doesn't work with onclick)
-            const rorg = (formData.get('rorg') || '').trim();
-            const func = (formData.get('func') || '').trim();
-            const type = (formData.get('type') || '').trim();
-            const description = (formData.get('description') || '').trim();
-
-            if (!rorg || !func || !type) {
-                showToast(t('toast.rorg_func_type_required', 'RORG, FUNC, and TYPE are required'), 'danger');
-                return;
-            }
-            if (!description) {
-                showToast(t('toast.description_required', 'Description is required'), 'danger');
-                return;
-            }
-
-            try {
-                let fields = [];
-                const fieldsText = (formData.get('fields') || '').trim();
-                if (fieldsText) {
-                    fields = JSON.parse(fieldsText);
-                    if (!Array.isArray(fields)) {
-                        showToast(t('toast.fields_json_array', 'Fields must be a JSON array'), 'danger');
-                        return;
-                    }
-                }
-
-                // Collect HA mapping from builder (visual or text mode)
-                const haMapping = getHaMappingData();
-                if (haMapping === undefined) {
-                    showToast(t('mapping_editor.ha_need_shortcut', 'HA Mapping: All rows need a Shortcut (or fix YAML errors)'), 'danger');
-                    return;
-                }
-
-                // Check if we're editing or creating
-                const editEepId = form.dataset.editEepId;
-                const url = editEepId
-                    ? getApiUrl(`/api/eep/custom/${editEepId}`)
-                    : getApiUrl('/api/eep/custom');
-                const method = editEepId ? 'PUT' : 'POST';
-
-                const payload = {
-                    rorg: rorg,
-                    func: func,
-                    type: type,
-                    description: description,
-                    fields: fields
-                };
-                if (haMapping) {
-                    payload.ha_mapping = haMapping;
-                }
-
-                const response = await fetch(url, {
-                    method: method,
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    const errData = await response.json().catch(() => null);
-                    const detail = errData?.detail || `Server error (${response.status})`;
-                    throw new Error(detail);
-                }
-
-                bootstrap.Modal.getInstance(document.getElementById('customProfileModal')).hide();
-                form.reset();
-                delete form.dataset.editEepId;
-                document.querySelector('#customProfileModal .modal-title').textContent = t('modal.custom_profile_title', 'Create Custom EEP Profile');
-                // Clear HA mapping rows
-                document.getElementById('ha-mapping-rows').innerHTML = '';
-                document.getElementById('ha-mapping-empty').style.display = '';
-                loadProfiles();
-                showToast(editEepId ? t('modal.profile_updated', 'Custom profile updated') : t('modal.profile_saved', 'Custom profile created'), 'success');
-                // Show the profile details (use editEepId for updates, compute from form for new)
-                const showEepId = editEepId || `${rorg.toUpperCase().replace('0X','')}-${func.toUpperCase().replace('0X','').padStart(2,'0')}-${type.toUpperCase().replace('0X','').padStart(2,'0')}`;
-                showProfileDetails(showEepId);
-            } catch (error) {
-                showToast(error.message, 'danger');
-            }
-        }
 
 
-        function filterProfiles() {
-            const query = document.getElementById('profile-search').value.toLowerCase();
-            const container = document.getElementById('eep-tree');
-            const allItems = container.querySelectorAll('.eep-item');
-
-            if (!query) {
-                // Reset: show all elements, then re-collapse standard tree nodes
-                container.querySelectorAll('*').forEach(el => el.style.display = '');
-                container.querySelectorAll('[id^="rorg-"], [id^="func-"]').forEach(el => {
-                    el.style.display = 'none';
-                });
-                return;
-            }
-
-            // Hide everything inside the container first
-            Array.from(container.children).forEach(child => child.style.display = 'none');
-            allItems.forEach(item => item.style.display = 'none');
-            container.querySelectorAll('[id^="rorg-"], [id^="func-"]').forEach(el => {
-                el.style.display = 'none';
-            });
-
-            // Show matching items and expand their parent chain
-            let matchCount = 0;
-            allItems.forEach(item => {
-                const text = item.dataset.search || item.textContent.toLowerCase();
-                if (text.includes(query)) {
-                    matchCount++;
-                    item.style.display = '';
-                    // Walk up and show all ancestor nodes up to the container
-                    let parent = item.parentElement;
-                    while (parent && parent !== container) {
-                        parent.style.display = '';
-                        parent = parent.parentElement;
-                    }
-                }
-            });
-        }
 
 
 
@@ -1428,167 +990,14 @@
 
         // === EEP.xml Upload Management ===
 
-        async function loadEepInfo() {
-            try {
-                const response = await fetch(getApiUrl('/api/system/eep-info'));
-                const data = await response.json();
 
-                const sourceLabels = {
-                    user: t('settings.eep_source_user', 'Custom (uploaded)'),
-                    bundled: t('settings.eep_source_bundled', 'Bundled (default)'),
-                    minimal: t('settings.eep_source_minimal', 'Minimal (fallback)')
-                };
 
-                document.getElementById('eep-source').textContent = sourceLabels[data.source] || data.source;
 
-                const fileSize = data.source === 'user' ? data.user_file_size : data.bundled_file_size;
-                document.getElementById('eep-file-size').textContent = fileSize > 0 ? formatFileSize(fileSize) : '-';
-                document.getElementById('eep-profile-count').textContent = data.profile_count;
 
-                document.getElementById('eep-delete-btn').style.display = data.user_file_exists ? '' : 'none';
-            } catch (error) {
-                console.error('Failed to load EEP info:', error);
-            }
-        }
 
-        async function uploadEep(input) {
-            if (!input.files.length) return;
 
-            const formData = new FormData();
-            formData.append('file', input.files[0]);
 
-            try {
-                const response = await fetch(getApiUrl('/api/system/upload-eep'), {
-                    method: 'POST',
-                    body: formData
-                });
 
-                if (!response.ok) {
-                    const error = await response.json();
-                    showToast(t('settings.eep_upload_failed', 'EEP.xml upload failed') + ': ' + (error.detail || ''), 'danger');
-                    return;
-                }
-
-                showToast(t('settings.eep_upload_success', 'EEP.xml uploaded successfully'), 'success');
-                loadEepInfo();
-                loadStatus();
-                loadProfiles(); // Refresh tree to detect orphaned mappings
-            } catch (error) {
-                showToast(t('settings.eep_upload_failed', 'EEP.xml upload failed'), 'danger');
-            }
-
-            input.value = '';
-        }
-
-        async function deleteEep() {
-            if (!confirm(t('settings.eep_delete_confirm', 'Delete custom EEP.xml and revert to bundled version?'))) return;
-
-            try {
-                const response = await fetch(getApiUrl('/api/system/delete-eep'), {
-                    method: 'DELETE'
-                });
-
-                if (!response.ok) {
-                    showToast(t('settings.eep_delete_failed', 'Failed to delete custom EEP.xml'), 'danger');
-                    return;
-                }
-
-                showToast(t('settings.eep_delete_success', 'Custom EEP.xml deleted, reverted to bundled'), 'success');
-                loadEepInfo();
-                loadStatus();
-                loadProfiles(); // Refresh tree to detect orphaned mappings
-            } catch (error) {
-                showToast(t('settings.eep_delete_failed', 'Failed to delete custom EEP.xml'), 'danger');
-            }
-        }
-
-        async function downloadEep() {
-            try {
-                const response = await fetch(getApiUrl('/api/system/download-eep'));
-                if (!response.ok) throw new Error('HTTP ' + response.status);
-                const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'EEP.xml';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            } catch (error) {
-                showToast(t('settings.eep_download_failed', 'EEP.xml download failed') + ': ' + error.message, 'danger');
-            }
-        }
-
-        // === MQTT Settings (Web UI editor for /data/options.json mqtt block) ===
-        const MQTT_CFG_FIELDS = ['host', 'port', 'username', 'password', 'discovery_prefix', 'prefix', 'client_id'];
-
-        function mqttCfgInput(key) {
-            return document.getElementById('mqtt-cfg-' + key.replace(/_/g, '-'));
-        }
-
-        async function loadMqttConfig() {
-            try {
-                const response = await fetch(getApiUrl('/api/system/mqtt-config'));
-                if (!response.ok) return;
-                const data = await response.json();
-                for (const key of MQTT_CFG_FIELDS) {
-                    const el = mqttCfgInput(key);
-                    if (el) el.value = data.mqtt[key] ?? '';
-                }
-            } catch (error) {
-                console.error('loadMqttConfig failed', error);
-            }
-        }
-
-        async function saveMqttConfig(restart) {
-            const mqtt = {};
-            for (const key of MQTT_CFG_FIELDS) {
-                const el = mqttCfgInput(key);
-                if (el) mqtt[key] = el.value;
-            }
-            try {
-                const response = await fetch(getApiUrl('/api/system/mqtt-config'), {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({mqtt: mqtt, restart: !!restart})
-                });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.detail || 'HTTP ' + response.status);
-                if (data.restarting) {
-                    showToast(t('settings.mqtt_saved_restarting', 'MQTT settings saved — app is restarting...'), 'success');
-                } else {
-                    showToast(t('settings.mqtt_saved', 'MQTT settings saved — restart the app to apply'), 'success');
-                }
-                loadMqttConfig();
-            } catch (error) {
-                showToast(t('settings.mqtt_save_failed', 'Failed to save MQTT settings') + ': ' + error.message, 'danger');
-            }
-        }
-
-        function resetMqttConfig() {
-            showConfirmDialog(
-                t('settings.mqtt_reset_confirm_title', 'Reset MQTT settings?'),
-                t('settings.mqtt_reset_confirm', 'This restores all MQTT options to their defaults (auto-discovery via Home Assistant broker). The app must be restarted to apply.'),
-                t('settings.mqtt_reset', 'Reset to Defaults'),
-                'btn-danger',
-                async () => {
-                    try {
-                        const response = await fetch(getApiUrl('/api/system/mqtt-config'), {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({reset: true})
-                        });
-                        const data = await response.json();
-                        if (!response.ok) throw new Error(data.detail || 'HTTP ' + response.status);
-                        showToast(t('settings.mqtt_reset_done', 'MQTT settings reset to defaults — restart the app to apply'), 'success');
-                        loadMqttConfig();
-                    } catch (error) {
-                        showToast(t('settings.mqtt_save_failed', 'Failed to save MQTT settings') + ': ' + error.message, 'danger');
-                    }
-                }
-            );
-        }
 
     </script>
 </body>

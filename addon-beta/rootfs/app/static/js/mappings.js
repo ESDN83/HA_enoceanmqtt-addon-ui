@@ -996,3 +996,217 @@ function addHaMappingRow(shortcut = '', component = 'binary_sensor', name = '', 
 
     container.appendChild(row);
 }
+function removeHaMappingRow(btn) {
+    const row = btn.closest('.ha-mapping-row');
+    row.remove();
+    const container = document.getElementById('ha-mapping-rows');
+    if (container.children.length === 0) {
+        document.getElementById('ha-mapping-empty').style.display = '';
+    }
+}
+function onComponentChange(select) {
+    const row = select.closest('.ha-mapping-row');
+    const dcSelect = row.querySelector('[data-field="device_class"]');
+    const component = select.value;
+    dcSelect.innerHTML = getDeviceClassOptions(component, '');
+}
+function collectHaMapping() {
+    const rows = document.querySelectorAll('.ha-mapping-row');
+    if (rows.length === 0) return null;
+
+    const mapping = {};
+    let valid = true;
+
+    rows.forEach(row => {
+        const shortcut = (row.querySelector('[data-field="shortcut"]').value || '').trim();
+        if (!shortcut) {
+            valid = false;
+            return;
+        }
+
+        const entry = {
+            component: row.querySelector('[data-field="component"]').value
+        };
+
+        const name = row.querySelector('[data-field="name"]').value.trim();
+        if (name) entry.name = name;
+
+        const dc = row.querySelector('[data-field="device_class"]').value;
+        if (dc) entry.device_class = dc;
+
+        const icon = row.querySelector('[data-field="icon"]').value.trim();
+        if (icon) entry.icon = icon;
+
+        const unit = row.querySelector('[data-field="unit_of_measurement"]').value.trim();
+        if (unit) entry.unit_of_measurement = unit;
+
+        // Advanced fields
+        const stateClass = row.querySelector('[data-field="state_class"]')?.value || '';
+        if (stateClass) entry.state_class = stateClass;
+        const entityCat = row.querySelector('[data-field="entity_category"]')?.value || '';
+        if (entityCat) entry.entity_category = entityCat;
+        const expireStr = row.querySelector('[data-field="expire_after"]')?.value || '';
+        if (expireStr !== '') entry.expire_after = parseInt(expireStr);
+        const precisionStr = row.querySelector('[data-field="suggested_display_precision"]')?.value || '';
+        if (precisionStr !== '') entry.suggested_display_precision = parseInt(precisionStr);
+        const forceUpdate = row.querySelector('[data-field="force_update"]')?.checked || false;
+        if (forceUpdate) entry.force_update = true;
+        const valTpl = row.querySelector('[data-field="value_template"]')?.value?.trim() || '';
+        if (valTpl) entry.value_template = valTpl;
+
+        mapping[shortcut] = entry;
+    });
+
+    if (!valid) return undefined; // signal validation error
+    return Object.keys(mapping).length > 0 ? mapping : null;
+}
+function populateHaMapping(haMapping) {
+    const container = document.getElementById('ha-mapping-rows');
+    container.innerHTML = '';
+
+    if (!haMapping || Object.keys(haMapping).length === 0) {
+        document.getElementById('ha-mapping-empty').style.display = '';
+        return;
+    }
+
+    document.getElementById('ha-mapping-empty').style.display = 'none';
+
+    for (const [shortcut, config] of Object.entries(haMapping)) {
+        addHaMappingRow(
+            shortcut,
+            config.component || 'binary_sensor',
+            config.name || '',
+            config.device_class || '',
+            config.icon || '',
+            config.unit_of_measurement || '',
+            {
+                state_class: config.state_class,
+                entity_category: config.entity_category,
+                expire_after: config.expire_after,
+                force_update: config.force_update,
+                suggested_display_precision: config.suggested_display_precision,
+                value_template: config.value_template
+            }
+        );
+    }
+}
+async function saveCustomProfile() {
+    const form = document.getElementById('custom-profile-form');
+    const formData = new FormData(form);
+
+    // Validate required fields (HTML 'required' doesn't work with onclick)
+    const rorg = (formData.get('rorg') || '').trim();
+    const func = (formData.get('func') || '').trim();
+    const type = (formData.get('type') || '').trim();
+    const description = (formData.get('description') || '').trim();
+
+    if (!rorg || !func || !type) {
+        showToast(t('toast.rorg_func_type_required', 'RORG, FUNC, and TYPE are required'), 'danger');
+        return;
+    }
+    if (!description) {
+        showToast(t('toast.description_required', 'Description is required'), 'danger');
+        return;
+    }
+
+    try {
+        let fields = [];
+        const fieldsText = (formData.get('fields') || '').trim();
+        if (fieldsText) {
+            fields = JSON.parse(fieldsText);
+            if (!Array.isArray(fields)) {
+                showToast(t('toast.fields_json_array', 'Fields must be a JSON array'), 'danger');
+                return;
+            }
+        }
+
+        // Collect HA mapping from builder (visual or text mode)
+        const haMapping = getHaMappingData();
+        if (haMapping === undefined) {
+            showToast(t('mapping_editor.ha_need_shortcut', 'HA Mapping: All rows need a Shortcut (or fix YAML errors)'), 'danger');
+            return;
+        }
+
+        // Check if we're editing or creating
+        const editEepId = form.dataset.editEepId;
+        const url = editEepId
+            ? getApiUrl(`/api/eep/custom/${editEepId}`)
+            : getApiUrl('/api/eep/custom');
+        const method = editEepId ? 'PUT' : 'POST';
+
+        const payload = {
+            rorg: rorg,
+            func: func,
+            type: type,
+            description: description,
+            fields: fields
+        };
+        if (haMapping) {
+            payload.ha_mapping = haMapping;
+        }
+
+        const response = await fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => null);
+            const detail = errData?.detail || `Server error (${response.status})`;
+            throw new Error(detail);
+        }
+
+        bootstrap.Modal.getInstance(document.getElementById('customProfileModal')).hide();
+        form.reset();
+        delete form.dataset.editEepId;
+        document.querySelector('#customProfileModal .modal-title').textContent = t('modal.custom_profile_title', 'Create Custom EEP Profile');
+        // Clear HA mapping rows
+        document.getElementById('ha-mapping-rows').innerHTML = '';
+        document.getElementById('ha-mapping-empty').style.display = '';
+        loadProfiles();
+        showToast(editEepId ? t('modal.profile_updated', 'Custom profile updated') : t('modal.profile_saved', 'Custom profile created'), 'success');
+        // Show the profile details (use editEepId for updates, compute from form for new)
+        const showEepId = editEepId || `${rorg.toUpperCase().replace('0X','')}-${func.toUpperCase().replace('0X','').padStart(2,'0')}-${type.toUpperCase().replace('0X','').padStart(2,'0')}`;
+        showProfileDetails(showEepId);
+    } catch (error) {
+        showToast(error.message, 'danger');
+    }
+}
+function filterProfiles() {
+    const query = document.getElementById('profile-search').value.toLowerCase();
+    const container = document.getElementById('eep-tree');
+    const allItems = container.querySelectorAll('.eep-item');
+
+    if (!query) {
+        // Reset: show all elements, then re-collapse standard tree nodes
+        container.querySelectorAll('*').forEach(el => el.style.display = '');
+        container.querySelectorAll('[id^="rorg-"], [id^="func-"]').forEach(el => {
+            el.style.display = 'none';
+        });
+        return;
+    }
+
+    // Hide everything inside the container first
+    Array.from(container.children).forEach(child => child.style.display = 'none');
+    allItems.forEach(item => item.style.display = 'none');
+    container.querySelectorAll('[id^="rorg-"], [id^="func-"]').forEach(el => {
+        el.style.display = 'none';
+    });
+
+    // Show matching items and expand their parent chain
+    let matchCount = 0;
+    allItems.forEach(item => {
+        const text = item.dataset.search || item.textContent.toLowerCase();
+        if (text.includes(query)) {
+            matchCount++;
+            item.style.display = '';
+            // Walk up and show all ancestor nodes up to the container
+            let parent = item.parentElement;
+            while (parent && parent !== container) {
+                parent.style.display = '';
+                parent = parent.parentElement;
+            }
+        }
+    });
+}
