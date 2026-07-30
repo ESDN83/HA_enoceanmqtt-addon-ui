@@ -177,7 +177,7 @@ async function testActuator(deviceName, command) {
         const data = await resp.json();
 
         if (resp.ok) {
-            resultSpan.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> ${command} sent to ${deviceName}</span>`;
+            resultSpan.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> ${command} sent to ${escapeHtml(deviceName)}</span>`;
         } else {
             resultSpan.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle"></i> ${data.detail || 'Error'}</span>`;
         }

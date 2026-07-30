@@ -25,37 +25,46 @@ async function loadDevices() {
                 device.actuator_type, device.room, device.description, device.sender_id
             ].filter(Boolean).join(' ').toLowerCase();
             card.dataset.search = searchText;
+            // The name is user text, so it never goes into an onclick
+            // attribute. An apostrophe ("Volet d'entrée") used to end the JS
+            // string and kill the whole handler, which left the device with no
+            // way to be edited or deleted at all (#36). Handlers are attached
+            // below and take the name from the closure. See ADR-0009.
             card.innerHTML = `
-                <div class="card device-card" style="cursor: pointer;" onclick="showDeviceDetail('${device.name}')">
+                <div class="card device-card" style="cursor: pointer;">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start">
-                            <h5 class="card-title mb-1">${device.name}</h5>
+                            <h5 class="card-title mb-1">${escapeHtml(device.name)}</h5>
                             <!-- Not a btn-group: that pulls adjacent buttons together with a
                                  negative margin so their outlines share an edge, which reads as
                                  the pencil and the bin overlapping. A flex row with a gap keeps
                                  them visibly separate. -->
-                            <div class="d-flex gap-1 device-actions" onclick="event.stopPropagation()">
-                                <button class="btn btn-sm btn-outline-primary" onclick="editDevice('${device.name}')" title="Edit">
+                            <div class="d-flex gap-1 device-actions">
+                                <button class="btn btn-sm btn-outline-primary" data-action="edit" title="Edit">
                                     <i class="bi bi-pencil"></i>
                                 </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteDevice('${device.name}')" title="Delete">
+                                <button class="btn btn-sm btn-outline-danger" data-action="delete" title="Delete">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
                         </div>
                         <p class="card-text mb-1">
-                            <code class="text-muted">${device.address}</code>
+                            <code class="text-muted">${escapeHtml(device.address)}</code>
                         </p>
                         <p class="card-text mb-1">
-                            <span class="badge bg-primary">${device.rorg}-${device.func}-${device.type}</span>
-                            ${device.actuator_type ? `<span class="badge bg-warning text-dark ms-1"><i class="bi bi-lightning"></i> ${device.actuator_type}</span>` : ''}
-                            ${device.room ? `<span class="badge bg-secondary ms-1">${device.room}</span>` : ''}
+                            <span class="badge bg-primary">${escapeHtml(device.rorg)}-${escapeHtml(device.func)}-${escapeHtml(device.type)}</span>
+                            ${device.actuator_type ? `<span class="badge bg-warning text-dark ms-1"><i class="bi bi-lightning"></i> ${escapeHtml(device.actuator_type)}</span>` : ''}
+                            ${device.room ? `<span class="badge bg-secondary ms-1">${escapeHtml(device.room)}</span>` : ''}
                         </p>
-                        ${device.description ? `<p class="card-text mb-0"><small class="text-muted">${device.description}</small></p>` : ''}
-                        ${device.sender_id ? `<p class="card-text mb-0"><small class="text-muted"><i class="bi bi-arrow-left-right"></i> Sender: ${device.sender_id}</small></p>` : ''}
+                        ${device.description ? `<p class="card-text mb-0"><small class="text-muted">${escapeHtml(device.description)}</small></p>` : ''}
+                        ${device.sender_id ? `<p class="card-text mb-0"><small class="text-muted"><i class="bi bi-arrow-left-right"></i> Sender: ${escapeHtml(device.sender_id)}</small></p>` : ''}
                     </div>
                 </div>
             `;
+            card.querySelector('.device-card').addEventListener('click', () => showDeviceDetail(device.name));
+            card.querySelector('.device-actions').addEventListener('click', e => e.stopPropagation());
+            card.querySelector('[data-action="edit"]').addEventListener('click', () => editDevice(device.name));
+            card.querySelector('[data-action="delete"]').addEventListener('click', () => deleteDevice(device.name));
             container.appendChild(card);
         });
 
@@ -263,7 +272,7 @@ async function performSaveDevice(device, editMode, form) {
         let response;
         if (editMode) {
             // Update existing device
-            response = await fetch(getApiUrl(`/api/devices/${editMode}`), {
+            response = await fetch(getApiUrl(`/api/devices/${encodeURIComponent(editMode)}`), {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(device)
@@ -318,7 +327,10 @@ async function performSaveDevice(device, editMode, form) {
 }
 async function editDevice(name) {
     try {
-        const response = await fetch(getApiUrl(`/api/devices/${name}`));
+        // encodeURIComponent, or a name containing '/' or '#' produces a URL
+        // that never reaches this route and the device becomes uneditable (#36).
+        const response = await fetch(getApiUrl(`/api/devices/${encodeURIComponent(name)}`));
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
         const device = await response.json();
 
         // Navigate to teach-in page
@@ -384,7 +396,8 @@ async function editDevice(name) {
 }
 async function showDeviceDetail(name) {
     try {
-        const response = await fetch(getApiUrl(`/api/devices/${name}`));
+        const response = await fetch(getApiUrl(`/api/devices/${encodeURIComponent(name)}`));
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
         const device = await response.json();
 
         // Fetch recent telegrams for this device
@@ -405,33 +418,33 @@ async function showDeviceDetail(name) {
                     <button class="btn btn-outline-secondary btn-sm" onclick="loadDevices()">
                         <i class="bi bi-arrow-left"></i> ${t('device.back', 'Back to Devices')}
                     </button>
-                    <button class="btn btn-outline-primary btn-sm ms-2" onclick="editDevice('${device.name}')">
+                    <button class="btn btn-outline-primary btn-sm ms-2" data-action="edit">
                         <i class="bi bi-pencil"></i> ${t('device.edit', 'Edit Device')}
                     </button>
                 </div>
 
                 <div class="card mb-3">
                     <div class="card-header">
-                        <h5 class="mb-0"><i class="bi bi-cpu"></i> ${device.name}</h5>
+                        <h5 class="mb-0"><i class="bi bi-cpu"></i> ${escapeHtml(device.name)}</h5>
                     </div>
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-6">
                                 <table class="table table-sm">
-                                    <tr><th>${t('device.address', 'Address')}</th><td><code>${device.address}</code></td></tr>
-                                    <tr><th>${t('device.eep_profile', 'EEP Profile')}</th><td><span class="badge bg-primary">${device.rorg}-${device.func}-${device.type}</span></td></tr>
-                                    ${device.description ? `<tr><th>${t('device.description', 'Description')}</th><td>${device.description}</td></tr>` : ''}
-                                    ${device.room ? `<tr><th>${t('device.room', 'Room')}</th><td>${device.room}</td></tr>` : ''}
-                                    ${device.sender_id ? `<tr><th>${t('device.sender_id', 'Sender ID')}</th><td><code>${device.sender_id}</code></td></tr>` : ''}
-                                    ${device.actuator_type ? `<tr><th>${t('device.device_role', 'Device Role')}</th><td><span class="badge bg-warning text-dark">${device.actuator_type}</span></td></tr>` : ''}
-                                    ${device.manufacturer ? `<tr><th>${t('device.manufacturer', 'Manufacturer')}</th><td>${device.manufacturer}</td></tr>` : ''}
+                                    <tr><th>${t('device.address', 'Address')}</th><td><code>${escapeHtml(device.address)}</code></td></tr>
+                                    <tr><th>${t('device.eep_profile', 'EEP Profile')}</th><td><span class="badge bg-primary">${escapeHtml(device.rorg)}-${escapeHtml(device.func)}-${escapeHtml(device.type)}</span></td></tr>
+                                    ${device.description ? `<tr><th>${t('device.description', 'Description')}</th><td>${escapeHtml(device.description)}</td></tr>` : ''}
+                                    ${device.room ? `<tr><th>${t('device.room', 'Room')}</th><td>${escapeHtml(device.room)}</td></tr>` : ''}
+                                    ${device.sender_id ? `<tr><th>${t('device.sender_id', 'Sender ID')}</th><td><code>${escapeHtml(device.sender_id)}</code></td></tr>` : ''}
+                                    ${device.actuator_type ? `<tr><th>${t('device.device_role', 'Device Role')}</th><td><span class="badge bg-warning text-dark">${escapeHtml(device.actuator_type)}</span></td></tr>` : ''}
+                                    ${device.manufacturer ? `<tr><th>${t('device.manufacturer', 'Manufacturer')}</th><td>${escapeHtml(device.manufacturer)}</td></tr>` : ''}
                                 </table>
                             </div>
                             <div class="col-md-6">
                                 <h6>${t('device.mqtt_topics', 'MQTT Topics')}</h6>
                                 <small class="text-muted">
-                                    <code>enocean/${device.name}/state</code><br>
-                                    ${device.sender_id ? `<code>enocean/${device.name}/set</code>` : ''}
+                                    <code>enocean/${escapeHtml(device.name)}/state</code><br>
+                                    ${device.sender_id ? `<code>enocean/${escapeHtml(device.name)}/set</code>` : ''}
                                 </small>
                             </div>
                         </div>
@@ -447,20 +460,20 @@ async function showDeviceDetail(name) {
                         <p class="small text-muted mb-2">${t('device.actuator_hint', 'Send F6 rocker commands directly to test if teach-in was successful.')}</p>
                         <div class="d-flex gap-2 align-items-center flex-wrap">
                             ${device.actuator_type === 'cover' ? `
-                                <button class="btn btn-success" onclick="testActuator('${device.name}', 'OPEN')">
+                                <button class="btn btn-success" data-test-command="OPEN">
                                     <i class="bi bi-arrow-up"></i> ${t('device.open', 'Open')}
                                 </button>
-                                <button class="btn btn-secondary" onclick="testActuator('${device.name}', 'STOP')">
+                                <button class="btn btn-secondary" data-test-command="STOP">
                                     <i class="bi bi-stop-fill"></i> ${t('device.stop', 'Stop')}
                                 </button>
-                                <button class="btn btn-danger" onclick="testActuator('${device.name}', 'CLOSE')">
+                                <button class="btn btn-danger" data-test-command="CLOSE">
                                     <i class="bi bi-arrow-down"></i> ${t('device.close', 'Close')}
                                 </button>
                             ` : `
-                                <button class="btn btn-success" onclick="testActuator('${device.name}', 'ON')">
+                                <button class="btn btn-success" data-test-command="ON">
                                     <i class="bi bi-power"></i> ${t('device.test_on', 'Test ON')}
                                 </button>
-                                <button class="btn btn-danger" onclick="testActuator('${device.name}', 'OFF')">
+                                <button class="btn btn-danger" data-test-command="OFF">
                                     <i class="bi bi-power"></i> ${t('device.test_off', 'Test OFF')}
                                 </button>
                             `}
@@ -497,6 +510,11 @@ async function showDeviceDetail(name) {
                 </div>
             </div>
         `;
+        // Same reason as the device cards: the name stays out of the markup and
+        // is carried by the closure instead (#36).
+        container.querySelector('[data-action="edit"]').addEventListener('click', () => editDevice(device.name));
+        container.querySelectorAll('[data-test-command]').forEach(btn =>
+            btn.addEventListener('click', () => testActuator(device.name, btn.dataset.testCommand)));
     } catch (error) {
         showToast(t('device.details_failed', 'Failed to load device details'), 'danger');
     }
@@ -505,11 +523,19 @@ async function deleteDevice(name) {
     if (!confirm(`${t('devices.delete_confirm', 'Delete device')} "${name}"?`)) return;
 
     try {
-        await fetch(getApiUrl(`/api/devices/${name}`), {method: 'DELETE'});
+        // The response was never checked, so a failed delete still reported
+        // success while the device stayed in the list. That is what made #36
+        // look unfixable from the UI.
+        const response = await fetch(getApiUrl(`/api/devices/${encodeURIComponent(name)}`), {method: 'DELETE'});
+        if (!response.ok) {
+            let detail = `${response.status} ${response.statusText}`;
+            try { detail = (await response.json()).detail || detail; } catch (e) { /* keep status */ }
+            throw new Error(detail);
+        }
         loadDevices();
         showToast(t('devices.deleted', 'Device deleted'), 'success');
     } catch (error) {
-        showToast(t('devices.delete_failed', 'Failed to delete device'), 'danger');
+        showToast(`${t('devices.delete_failed', 'Failed to delete device')}: ${error.message}`, 'danger');
     }
 }
 function getDeviceClassOptions(component, selected) {

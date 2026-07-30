@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.0-beta4] - 2026-07-30 (beta channel)
+
+Carries the 1.7.2 hotfix. Details in the stable changelog; the short version:
+
+### Bug Fixes
+- **A device could become impossible to edit or delete** (#36) — The device name was written straight into the buttons' `onclick` code and into the API address. A name containing an apostrophe ("Volet d'entrée") killed the Edit and Delete buttons outright, and a name containing `/` or `#` produced an address that never reached the add-on. Names are kept out of the markup now and encoded in every request.
+- **A failed delete reported success** (#36) — The delete button never checked the answer, so a failed delete still showed "Device deleted" while the device stayed in the list. Failures now name the reason.
+- **Deleted and renamed devices left ghosts behind** (#36) — Their last state stayed in the cache under the old name and was republished as a retained message on every start, so a new device given that name later inherited it. Delete and rename clear the old name completely, a rename carries the state over, and leftovers from earlier versions are cleaned up once at the next start.
+- **The state cache could lose a change** — It was only written after a telegram arrived, so a delete made shortly before stopping the add-on came back on the next start.
+
+### Changes
+- **Device names are checked when saved** — `/`, `+` and `#` are rejected with an explanation; they are not valid in an MQTT topic. Apostrophes, quotes and accented characters are fine.
+
 ## [1.8.0-beta3] - 2026-07-26 (beta channel)
 
 ### Bug Fixes
