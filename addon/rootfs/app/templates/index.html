@@ -3161,8 +3161,8 @@
                                     <div class="col-md-6">
                                         <h6>${t('device.mqtt_topics', 'MQTT Topics')}</h6>
                                         <small class="text-muted">
-                                            <code>enocean/${device.name}/state</code><br>
-                                            ${device.sender_id ? `<code>enocean/${device.name}/set</code>` : ''}
+                                            <code>enocean/${escapeHtml(device.name)}/state</code><br>
+                                            ${device.sender_id ? `<code>enocean/${escapeHtml(device.name)}/set</code>` : ''}
                                         </small>
                                     </div>
                                 </div>
@@ -3254,7 +3254,7 @@
                 loadDevices();
                 showToast(t('devices.deleted', 'Device deleted'), 'success');
             } catch (error) {
-                showToast(t('devices.delete_failed', 'Failed to delete device'), 'danger');
+                showToast(`${t('devices.delete_failed', 'Failed to delete device')}: ${error.message}`, 'danger');
             }
         }
 
