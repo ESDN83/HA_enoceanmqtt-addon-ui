@@ -284,7 +284,7 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
             # topic on every restart). Carry the last state over to the new name
             # first so the entity does not fall back to unknown (#36).
             if old_name != name:
-                mqtt_handler.rename_cached_state(old_name, name)
+                await mqtt_handler.rename_cached_state(old_name, name)
                 await mqtt_handler.clear_device_topics(old_name)
         except Exception as e:
             import logging

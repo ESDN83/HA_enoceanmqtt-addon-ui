@@ -339,16 +339,22 @@ class MQTTHandler:
             await self.publish(f"{self.prefix}/{device_name}/{suffix}", "", retain=True, qos=1)
         logger.info(f"Cleared retained topics and cached state for {device_name}")
 
-    def rename_cached_state(self, old_name: str, new_name: str):
-        """Move a cached state to a new device name.
+    async def rename_cached_state(self, old_name: str, new_name: str):
+        """Move a cached state to a new device name and publish it there.
 
-        Without this a rename loses the last known state, and the entity sits
-        at 'unknown' after the next restart until the device reports again,
-        which for a battery sensor can be a long wait.
+        Without the move a rename loses the last known state, and the entity
+        sits at 'unknown' after the next restart until the device reports
+        again, which for a battery sensor can be a long wait. Without the
+        publish the broker holds nothing under the new name until then, so a
+        Home Assistant restart in that window shows the entity as unknown even
+        though the add-on knows the value.
         """
-        if old_name in self._last_states:
-            self._last_states[new_name] = self._last_states.pop(old_name)
-            self._schedule_state_save()
+        state = self._last_states.pop(old_name, None)
+        if state is None:
+            return
+        self._last_states[new_name] = state
+        self._schedule_state_save()
+        await self.publish(f"{self.prefix}/{new_name}/state", state, retain=True)
 
     async def prune_cached_states(self, known_names) -> int:
         """Forget cached states for devices that no longer exist.
