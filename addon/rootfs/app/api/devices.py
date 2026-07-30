@@ -41,6 +41,32 @@ class DeviceUpdate(BaseModel):
     channel: Optional[int] = None
 
 
+# A device name is three things at once: the primary key, the base of its MQTT
+# topics, and a URL path segment. '/', '+' and '#' are illegal or ambiguous in
+# an MQTT topic segment, and a control character has no business in any of the
+# three. Reject them at the door rather than letting them create an entry that
+# cannot be addressed afterwards (issue #36). Quotes and accents are fine, the
+# UI escapes them properly now.
+_ILLEGAL_NAME_CHARS = ("/", "+", "#")
+
+
+def _validate_device_name(name: str) -> str:
+    """Return the cleaned name, or raise 400 if it cannot be used as a key."""
+    cleaned = (name or "").strip()
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="Device name must not be empty")
+    bad = [c for c in _ILLEGAL_NAME_CHARS if c in cleaned]
+    if bad:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Device name must not contain {' or '.join(bad)} "
+                   f"(these characters are not allowed in an MQTT topic)"
+        )
+    if any(ord(c) < 32 or ord(c) == 127 for c in cleaned):
+        raise HTTPException(status_code=400, detail="Device name must not contain control characters")
+    return cleaned
+
+
 def _build_discovery_configs(device, mqtt_handler, mapping_manager, device_manager):
     """Build the HA discovery configs for one device, multi-channel aware.
 
@@ -107,6 +133,8 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
     device_manager = request.app.state.device_manager
     if not device_manager:
         raise HTTPException(status_code=500, detail="Device manager not initialized")
+
+    device.name = _validate_device_name(device.name)
 
     # Check if device already exists
     if device_manager.get_device(device.name):
@@ -208,6 +236,11 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
     # the new key. The HA unique_id does not depend on the name, so the entity
     # is preserved — only its topics/object_id change.
     old_name = name
+    # Validate before comparing: " Salon " and "Salon" are the same name, and
+    # the stripped form must not be treated as a rename onto itself (which
+    # rename_device would reject as "already in use").
+    if update.name is not None:
+        update.name = _validate_device_name(update.name)
     if update.name is not None and update.name != name:
         if not await device_manager.rename_device(name, update.name):
             raise HTTPException(
@@ -245,10 +278,14 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
             to_publish[updated_device.name] = updated_device
             for d in to_publish.values():
                 await _publish_discovery(d, mqtt_handler, mapping_manager, device_manager)
-            # A rename leaves the old name's retained availability behind; mark
-            # it offline so no ghost 'online' lingers on the old topic.
+            # A rename re-homes the topics, so everything retained under the
+            # old name is now unreachable: its state, its availability, and its
+            # entry in the state cache (which would otherwise republish the old
+            # topic on every restart). Carry the last state over to the new name
+            # first so the entity does not fall back to unknown (#36).
             if old_name != name:
-                await mqtt_handler.publish_device_availability(old_name, available=False)
+                mqtt_handler.rename_cached_state(old_name, name)
+                await mqtt_handler.clear_device_topics(old_name)
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Failed to re-publish discovery for {name}: {e}")
@@ -302,10 +339,17 @@ async def delete_device(name: str, request: Request) -> Dict[str, str]:
                         component=item["component"],
                         unique_id=item["unique_id"]
                     )
-            await mqtt_handler.publish_device_availability(device.name, available=False)
             # Re-publish survivors so a 2->1 transition drops the module naming.
+            # This happens before the cleanup below because a shared sensor
+            # (RSSI, Last Seen) may still be pointing at the deleted device's
+            # state topic; republishing re-homes it to a surviving channel.
             for d in survivors:
                 await _publish_discovery(d, mqtt_handler, mapping_manager, device_manager)
+            # Now nothing references this name any more, so drop everything
+            # retained under it plus its cached state. Without the cache part
+            # the next restart would republish the state topic of a device that
+            # no longer exists (#36).
+            await mqtt_handler.clear_device_topics(device.name)
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Failed to remove discovery for {name}: {e}")

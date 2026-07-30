@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.7.2] - 2026-07-30
+
+### Bug Fixes
+- **A device could become impossible to edit or delete** (#36) — The device name was written straight into the buttons' `onclick` code and into the API address. A name containing an apostrophe ("Volet d'entrée") ended the code string and killed the Edit and Delete buttons outright; a name containing `/` or `#` produced an address that never reached the add-on. Either way the device could no longer be opened, edited or removed from the web UI, and re-teaching the module in did not help because the old entry was still there. Names are now kept out of the markup entirely and properly encoded in every request, so any name works.
+- **A failed delete reported success** (#36) — The delete button never checked the add-on's answer. When the request failed the UI still showed "Device deleted" and the device stayed in the list, which is what made the problem above look unfixable. Failures are reported with the reason now.
+- **Deleted and renamed devices left ghosts behind** (#36) — Deleting or renaming a device left its last state cached under the old name, and the add-on republished that cache on every start. The result was a retained state message for a device that no longer exists, and a new device given that same name later inherited the old device's state before its first telegram arrived. Delete and rename now clear the old name completely, a rename carries the last state over to the new name, and any leftovers from earlier versions are cleaned up once at the next start.
+- **The state cache could lose a change** — The cache was only ever written after a telegram arrived, so a delete made shortly before stopping the add-on was lost and came back on the next start.
+
+### Changes
+- **Device names are checked when saved** — `/`, `+` and `#` are rejected with an explanation, because they are not valid in an MQTT topic and produced an entry that could not be addressed afterwards. Apostrophes, quotes and accented characters are fine.
+
 ## [1.7.1] - 2026-07-26
 
 ### Bug Fixes

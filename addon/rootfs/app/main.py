@@ -248,6 +248,11 @@ async def _publish_all_discoveries():
     # Re-publish cached states AFTER all discoveries are sent
     # Give HA time to process discovery configs before sending states
     if mqtt_handler.cache_states:
+        # Drop cached states of devices that are gone before anything is sent.
+        # Deletes and renames made before 1.7.2 left their entries behind, and
+        # every start republished them as retained state under a name nothing
+        # points at, which a later device reusing that name would inherit (#36).
+        await mqtt_handler.prune_cached_states(device_manager.devices.keys())
         await asyncio.sleep(2)
         await mqtt_handler.republish_cached_states()
 

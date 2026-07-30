@@ -305,6 +305,71 @@ class MQTTHandler:
         payload = "online" if available else "offline"
         await self.publish(topic, payload, retain=True, qos=1)
 
+    def _schedule_state_save(self):
+        """Mark the state cache dirty and make sure a flush is queued.
+
+        The flush used to be scheduled only from publish_state, so a change
+        made by any other path (a delete, a rename) sat unsaved until the next
+        telegram happened to arrive. Stop the add-on in between and the change
+        was lost, which for a delete means the ghost comes back.
+        """
+        if not self.cache_states:
+            return
+        self._save_dirty = True
+        if self._save_task is None or self._save_task.done():
+            self._save_task = asyncio.create_task(self._debounced_save())
+
+    async def clear_device_topics(self, device_name: str):
+        """Drop everything this add-on retains under a device name.
+
+        A device name is the base of its MQTT topics, so a deleted or renamed
+        device leaves two retained messages behind (state and availability)
+        plus its entry in the state cache. The cache is the one that really
+        bites: republish_cached_states writes a retained state for every name
+        it holds on every start, so simply emptying the topics would recreate
+        them at the next restart. Both have to go together (issue #36).
+
+        An empty retained payload is how a broker is told to forget a topic.
+        Call this only after the discovery configs are retracted, so no entity
+        is left pointing at the topics.
+        """
+        self._last_states.pop(device_name, None)
+        self._schedule_state_save()
+        for suffix in ("state", "availability"):
+            await self.publish(f"{self.prefix}/{device_name}/{suffix}", "", retain=True, qos=1)
+        logger.info(f"Cleared retained topics and cached state for {device_name}")
+
+    def rename_cached_state(self, old_name: str, new_name: str):
+        """Move a cached state to a new device name.
+
+        Without this a rename loses the last known state, and the entity sits
+        at 'unknown' after the next restart until the device reports again,
+        which for a battery sensor can be a long wait.
+        """
+        if old_name in self._last_states:
+            self._last_states[new_name] = self._last_states.pop(old_name)
+            self._schedule_state_save()
+
+    async def prune_cached_states(self, known_names) -> int:
+        """Forget cached states for devices that no longer exist.
+
+        Deletes and renames before this existed left their entries in the
+        cache, and every start republished them as retained state under a name
+        nothing points at any more. Reusing that name later would inherit the
+        stale state. Runs before republish_cached_states so the ghosts never
+        go out (issue #36).
+
+        Only names this add-on wrote into its own cache are touched, so no
+        foreign topic under the prefix is at risk.
+        """
+        known = set(known_names)
+        orphans = [name for name in self._last_states if name not in known]
+        for name in orphans:
+            await self.clear_device_topics(name)
+        if orphans:
+            logger.info(f"Pruned {len(orphans)} orphaned cached states: {', '.join(orphans)}")
+        return len(orphans)
+
     async def publish_state(self, device_name: str, state: Dict[str, Any]):
         """Publish device state and persist for recovery after restart"""
         topic = f"{self.prefix}/{device_name}/state"
@@ -320,9 +385,7 @@ class MQTTHandler:
         # single background task flushes the full YAML every _save_interval.
         if self.cache_states:
             self._last_states[device_name] = state
-            self._save_dirty = True
-            if self._save_task is None or self._save_task.done():
-                self._save_task = asyncio.create_task(self._debounced_save())
+            self._schedule_state_save()
 
         await self.publish(topic, state, retain=True)
 

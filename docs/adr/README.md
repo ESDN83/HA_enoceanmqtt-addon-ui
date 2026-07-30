@@ -17,3 +17,4 @@ Rules:
 - [0006](0006-buildless-frontend.md) The frontend stays buildless
 - [0007](0007-multichannel-discovery-naming.md) Multi-channel discovery naming and edit-path entity lifecycle
 - [0008](0008-switch-state-feedback-and-echo.md) Switch state feedback: Eltako confirmation convention and commanded-state echo
+- [0009](0009-device-name-as-key.md) The device name is a key, a topic and a URL segment at once
