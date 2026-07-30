@@ -522,6 +522,21 @@
                                 <input type="text" class="form-control" name="manufacturer" data-i18n-placeholder="teach_in.manufacturer_placeholder" placeholder="e.g., Eltako, Thermokon, Kessel">
                             </div>
 
+                            <div class="mb-3">
+                                <label class="form-label" data-i18n="teach_in.availability">Availability</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="availability_watch" id="availability-watch" onchange="toggleAvailabilityField()">
+                                    <label class="form-check-label" for="availability-watch" data-i18n="teach_in.availability_label">Report as unavailable when the device goes silent</label>
+                                </div>
+                                <div id="availability-timeout-group" class="mt-2" style="display: none;">
+                                    <div class="input-group" style="max-width: 320px;">
+                                        <input type="number" class="form-control" name="availability_timeout" id="availability-timeout" min="1" step="1" value="1440">
+                                        <span class="input-group-text" data-i18n="teach_in.availability_unit">minutes</span>
+                                    </div>
+                                    <small class="text-muted" id="availability-hint" data-i18n="teach_in.availability_hint">Expected time between signs of life. Leave generous room: a device that reports every 8 hours needs well over 8 hours here, or it will be reported unavailable during normal quiet periods.</small>
+                                </div>
+                            </div>
+
                             <div id="profile-suggestion" class="alert alert-info" style="display: none;">
                                 <strong data-i18n="teach_in.suggested_profile">Suggested Profile:</strong> <span id="suggested-profile"></span>
                             </div>

@@ -114,10 +114,24 @@ function resetDeviceForm() {
     }
     const channelGroup = document.getElementById('channel-group');
     if (channelGroup) channelGroup.style.display = 'none';
+    // form.reset() restores the markup default (1440), so only the visibility
+    // of the interval field has to follow the now-unticked checkbox.
+    toggleAvailabilityField();
     const submitBtn = form.querySelector('button[type="submit"]');
     if (submitBtn) submitBtn.textContent = t('teach_in.add_device', 'Add Device');
     const heading = document.querySelector('#step-2 h4');
     if (heading) heading.textContent = t('teach_in.step2', 'Step 2: Configure Device');
+}
+// The interval only means anything once the watchdog is switched on, so it
+// stays hidden until then (#37). Deliberately not tied to the device role: an
+// actuator is a poor candidate, since it only transmits when it is switched,
+// but a D2-01 module does report unsolicited on every physical toggle, so
+// hiding the option for actuators would take a legitimate case away.
+function toggleAvailabilityField() {
+    const cb = document.getElementById('availability-watch');
+    const group = document.getElementById('availability-timeout-group');
+    if (!cb || !group) return;
+    group.style.display = cb.checked ? '' : 'none';
 }
 // Channel picker only makes sense for multi-channel D2-01 modules.
 function toggleChannelField(rorg, func) {
@@ -209,6 +223,15 @@ async function saveDevice(e) {
     // explicit boolean so unchecking "invert" is persisted too.
     const invertCb = form.querySelector('input[name="invert"]');
     device.invert = !!(invertCb && invertCb.checked);
+    // The watchdog is one number on the wire: minutes, 0 meaning never. The
+    // checkbox only decides whether the number is sent at all, so unticking it
+    // has to reach the backend as 0 rather than as a missing field (#37).
+    const watchCb = form.querySelector('input[name="availability_watch"]');
+    const timeoutField = form.querySelector('input[name="availability_timeout"]');
+    device.availability_timeout = (watchCb && watchCb.checked)
+        ? Math.max(1, parseInt(timeoutField && timeoutField.value, 10) || 1)
+        : 0;
+    delete device.availability_watch;
     const editMode = form.dataset.editMode;
 
     // Warn before a rename (the device name is the primary key and the MQTT
@@ -360,6 +383,15 @@ async function editDevice(name) {
         document.querySelector('[name="sender_id"]').value = device.sender_id || '';
         const invertCb = document.querySelector('[name="invert"]');
         if (invertCb) invertCb.checked = !!device.invert;
+
+        // Availability watchdog: a stored 0 means off, anything else is the
+        // number of minutes (#37).
+        const watchTimeout = parseInt(device.availability_timeout, 10) || 0;
+        const watchCb = document.getElementById('availability-watch');
+        const timeoutField = document.getElementById('availability-timeout');
+        if (watchCb) watchCb.checked = watchTimeout > 0;
+        if (timeoutField && watchTimeout > 0) timeoutField.value = watchTimeout;
+        toggleAvailabilityField();
 
         // Channel (2-channel D2-01 modules)
         const chField = document.querySelector('[name="channel"]');

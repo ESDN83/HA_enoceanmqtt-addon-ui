@@ -1295,6 +1295,23 @@ class MappingManager:
             }
         })
 
+        # Every entity depends on two things being alive: the device itself and
+        # the add-on relaying for it. Until now only the per-device topic was
+        # referenced, so a hard kill of the add-on left every entity reading
+        # "online" while nothing was listening to the radio. The graceful
+        # shutdown path writes offline per device, but a crash never gets there,
+        # and that is exactly when the LWT matters. Applied here, in one place,
+        # rather than at each of the eight config sites, so none can be missed.
+        # availability_mode "all" means both have to be up (#37).
+        gateway_avail = {
+            "topic": f"{mqtt_prefix}/__system/status",
+            "payload_available": "online",
+            "payload_not_available": "offline",
+        }
+        for item in configs:
+            item["config"]["availability"] = [avail_config, gateway_avail]
+            item["config"]["availability_mode"] = "all"
+
         return configs
 
     def discovery_naming(self, device, devices_on_address) -> tuple:

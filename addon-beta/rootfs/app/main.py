@@ -9,6 +9,8 @@ import os
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Optional
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -44,6 +46,10 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/data")
 ENOCEAN_PORT = os.getenv("ENOCEAN_PORT", "")
 CACHE_DEVICE_STATES = os.getenv("CACHE_DEVICE_STATES", "true").lower() == "true"
+# How often the availability watchdog looks at the clock (#37). The shortest
+# timeout a user can set is a minute, so checking once a minute is enough; the
+# cost of being late is at most one interval of delay on a device coming back.
+AVAILABILITY_CHECK_SECONDS = 60
 from app_version import VERSION  # single source of truth (reads config.yaml)
 
 # Global instances
@@ -53,12 +59,18 @@ device_manager: DeviceManager = None
 eep_manager: EEPManager = None
 mapping_manager: MappingManager = None
 telegram_buffer: TelegramBuffer = None
+availability_task: asyncio.Task = None
+# Last availability the watchdog published per device, so the retained topic is
+# only rewritten on a change, plus the moment the add-on came up (#37).
+_availability_known: Dict[str, bool] = {}
+_availability_started_at: Optional[datetime] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan - startup and shutdown"""
     global mqtt_handler, serial_handler, device_manager, eep_manager, mapping_manager, telegram_buffer
+    global availability_task
 
     logger.info("Starting EnOcean MQTT Add-on...")
 
@@ -160,6 +172,14 @@ async def lifespan(app: FastAPI):
     # globals are all None. Such a call then fails silently.
     app.state.publish_all_discoveries = _publish_all_discoveries
     app.state.echo_light_state = _echo_light_state
+    app.state.availability_after_edit = _availability_after_edit
+
+    # Started here, after the initial discovery and availability publish, so its
+    # first pass cannot contradict what was just announced (#37).
+    if mqtt_handler and device_manager:
+        availability_task = asyncio.create_task(
+            _availability_watchdog(datetime.now(timezone.utc))
+        )
 
     logger.info("EnOcean MQTT Add-on started successfully — Web UI running on port 8099")
 
@@ -167,6 +187,13 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down EnOcean MQTT Add-on...")
+
+    if availability_task:
+        availability_task.cancel()
+        try:
+            await availability_task
+        except asyncio.CancelledError:
+            pass
 
     if serial_handler:
         await serial_handler.disconnect()
@@ -176,6 +203,126 @@ async def lifespan(app: FastAPI):
         await mqtt_handler.disconnect()
 
     logger.info("EnOcean MQTT Add-on stopped")
+
+
+async def _availability_watchdog(started_at: datetime):
+    """Report devices unavailable once they have been silent for too long (#37).
+
+    Opt-in per device: `availability_timeout` is minutes, 0 means never, which
+    is the default and the behaviour of every earlier version. An actuator only
+    transmits when it is switched, so a blanket watchdog would declare healthy
+    hardware dead.
+
+    The deadline is measured from the LATER of the device's last telegram and
+    the add-on's own start. That covers both directions of the problem:
+
+    - Judging by `last_seen` alone means a device that really died stays dead
+      across restarts, which is the whole point. Resetting the clock at every
+      start would clear the very case this exists for, because the state cache
+      republishes the last known value on each start and makes a flat battery
+      look freshly reported.
+    - Judging by `last_seen` alone would also punish devices for the add-on
+      being down: after a two-day outage every timestamp is old through no
+      fault of any device. Starting the clock at boot gives each device one
+      full interval to check in before anything is claimed about it.
+
+    Availability is published only when it changes, so the retained topic is
+    not rewritten every minute.
+    """
+    global _availability_started_at
+    _availability_started_at = started_at
+    _availability_known.clear()
+    _availability_known.update({d: True for d in device_manager.devices})
+
+    while True:
+        try:
+            await asyncio.sleep(AVAILABILITY_CHECK_SECONDS)
+            if not mqtt_handler or not device_manager:
+                continue
+
+            for name in list(device_manager.devices):
+                await _evaluate_availability(name)
+
+            for gone in set(_availability_known) - set(device_manager.devices):
+                _availability_known.pop(gone, None)
+
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"Availability watchdog failed: {e}")
+
+
+async def _availability_after_edit(name: str):
+    """Re-decide a device's availability right after it was saved.
+
+    Saving republishes discovery, and `_publish_discovery` writes
+    `availability=online` unconditionally. The watchdog's memory has to be
+    aligned to that first, otherwise its next pass compares its own stale
+    verdict against the unchanged truth, finds no difference, and never
+    corrects the `online` the edit just wrote (#37).
+    """
+    _availability_known[name] = True
+    await _evaluate_availability(name)
+
+
+async def _evaluate_availability(name: str):
+    """Decide whether one device counts as alive and publish only on a change.
+
+    Also called straight after a device is edited. That matters: saving a device
+    republishes its discovery and with it `availability=online` unconditionally,
+    which would otherwise contradict a verdict this watchdog had already
+    published. Worse, the watchdog would then see no change against its own
+    memory and stay quiet, leaving a long-dead device reading "online" forever
+    after an unrelated edit. Re-deciding right after the edit closes that.
+    """
+    if not mqtt_handler or not device_manager or _availability_started_at is None:
+        return
+    device = device_manager.get_device(name)
+    if not device:
+        return
+
+    timeout = int(getattr(device, "availability_timeout", 0) or 0)
+    now = datetime.now(timezone.utc)
+
+    if timeout <= 0:
+        # Watchdog switched off for this device. If it had been marked
+        # unavailable earlier, undo that once rather than leaving it stuck.
+        if _availability_known.get(name) is False:
+            await mqtt_handler.publish_device_availability(name, available=True)
+            _availability_known[name] = True
+            logger.info(f"{name} availability watch is off, reported available again")
+        else:
+            _availability_known[name] = True
+        return
+
+    state = mqtt_handler.get_last_state(name) or {}
+    last_seen = _parse_last_seen(state.get("last_seen"))
+    reference = max(last_seen, _availability_started_at) if last_seen else _availability_started_at
+    alive = (now - reference) < timedelta(minutes=timeout)
+
+    if _availability_known.get(name) != alive:
+        await mqtt_handler.publish_device_availability(name, available=alive)
+        _availability_known[name] = alive
+        silent = int((now - reference).total_seconds() // 60)
+        logger.info(
+            f"{name} is {'available again' if alive else 'unavailable'} "
+            f"(silent for {silent} min, limit {timeout} min)"
+        )
+
+
+def _parse_last_seen(value) -> Optional[datetime]:
+    """Read the cached `last_seen` timestamp, or None if it is missing or bad.
+
+    Written by the serial handler as a UTC isoformat string. Anything without a
+    timezone is read as UTC, so a comparison never raises on naive input.
+    """
+    if not value:
+        return None
+    try:
+        ts = datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+    return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
 
 
 async def _serial_background_connect(handler, port: str):

@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.8.0-beta5] - 2026-07-30 (beta channel)
+
+### New Features
+- **A device can now be reported as unavailable when it goes silent** (#37). Off by default and switched on per device, because devices differ: a window contact may report twice a day, a temperature sensor every few minutes, and a switch actuator only ever transmits when it is switched. Tick the box in the device form and give the time within which a sign of life is expected. Leave generous room: a device that normally reports every 8 hours needs well over 8 hours, or it is marked unavailable during its normal quiet periods.
+
+  The clock runs from the later of the device's last telegram and the add-on's own start. That way a device that really has been silent for weeks is marked shortly after a restart instead of looking freshly reported (the state cache republishes its last value on every start, which used to hide exactly this), while a device is never blamed for the add-on having been switched off: after a restart everything gets one full interval to check in first.
+
+### Bug Fixes
+- **Entities stayed "online" when the add-on died unexpectedly.** Every entity watched only its own device topic. The gateway's Last Will, which the broker publishes on an unexpected disconnect, sat on a topic nothing referenced, so a crash left every device looking alive while nothing was listening to the radio. A clean stop was fine, but a clean stop is not the case that matters. Entities now depend on the device and the gateway together.
+
 ## [1.8.0-beta4] - 2026-07-30 (beta channel)
 
 Carries the 1.7.2 hotfix. Details in the stable changelog; the short version:

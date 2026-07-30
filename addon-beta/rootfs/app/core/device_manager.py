@@ -29,6 +29,11 @@ class Device:
     actuator_type: str = ""  # "light", "switch", "cover", or "" for sensor-only
     channel: int = 0  # I/O channel for multi-channel actuators (D2-01-11/12)
     invert: bool = False  # Cover only: reverse Open/Close + position direction
+    # Minutes of silence after which the device is reported unavailable to Home
+    # Assistant. 0 means never, which is the old behaviour and the default: a
+    # switch actuator only transmits when it is switched, so a watchdog would
+    # declare a perfectly healthy one dead. See issue #37 and ADR-0011.
+    availability_timeout: int = 0
 
     @property
     def eep_id(self) -> str:
@@ -61,7 +66,8 @@ class Device:
             manufacturer=data.get("manufacturer", ""),
             actuator_type=data.get("actuator_type", ""),
             invert=bool(data.get("invert", False)),
-            channel=int(data.get("channel", 0) or 0)
+            channel=int(data.get("channel", 0) or 0),
+            availability_timeout=int(data.get("availability_timeout", 0) or 0)
         )
 
 

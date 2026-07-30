@@ -333,5 +333,9 @@
   "common.status_failed": "Échec du chargement de l'état",
   "common.unknown_error": "Erreur inconnue",
   "common.cannot_undo": "Cette action est irréversible.",
-  "device.save_failed": "Échec de la sauvegarde de l'appareil"
+  "device.save_failed": "Échec de la sauvegarde de l'appareil",
+  "teach_in.availability": "Disponibilité",
+  "teach_in.availability_label": "Signaler comme indisponible lorsque l'appareil ne donne plus signe de vie",
+  "teach_in.availability_unit": "minutes",
+  "teach_in.availability_hint": "Durée attendue entre deux signes de vie. Prévoyez large : un appareil qui émet toutes les 8 heures a besoin de nettement plus de 8 heures ici, sinon il sera signalé indisponible pendant ses périodes calmes normales."
 }
