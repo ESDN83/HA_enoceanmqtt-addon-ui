@@ -1,4 +1,4 @@
-# 0009. Loading the split frontend without a build step
+# 0010. Loading the split frontend without a build step
 
 Status: accepted (1.8.0-beta1).
 
