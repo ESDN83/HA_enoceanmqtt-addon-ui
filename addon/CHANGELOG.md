@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.3] - 2026-08-01
+
+### Bug Fixes
+- **A device whose name contains a slash could still not be opened, renamed or deleted** (#36). 1.7.2 stopped new names from containing `/`, but it did nothing for the devices that already had one, and those stayed completely out of reach: every attempt failed with "Not Found". The name is part of the web address of the request, and a slash inside it splits that address, so the request never arrived at the add-on at all. Those devices can be opened, renamed and deleted again.
+
+  **Please rename them.** The slash also breaks commands: Home Assistant's command topic for such a device does not match what the add-on listens to, so a switch or blind with a slash in its name never receives anything. Renaming it (any separator other than `/`, `+` or `#`) fixes that, and the entities in Home Assistant follow the new name.
+
 ## [1.7.2] - 2026-07-30
 
 ### Bug Fixes

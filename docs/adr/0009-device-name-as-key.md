@@ -69,3 +69,29 @@ Retained messages under names removed *before* 1.7.2 are cleared by the prune
 on the first start after updating, because the name is still in the state cache
 even though the device is gone. A name that was never in the cache (a device
 deleted before it ever reported) leaves nothing behind to clear.
+
+## Follow-up: names that already contain a slash (v1.7.3, 1.8.0-beta6)
+
+Validation stops a new slash, but it does nothing for the devices that already
+have one, and 1.7.2 left those completely stranded. The reporter of #36 came
+back with `Boulodrome/Chemin` and two more like it: still impossible to delete,
+now with the message "Not Found".
+
+The cause is in the routing, not in the handler. The server decodes the URL
+before matching a route, so `encodeURIComponent`'s `%2F` arrives as a real `/`,
+`/api/devices/Boulodrome/Chemin` matches no route at all, and FastAPI answers
+with its own 404 `{"detail": "Not Found"}`. GET, PUT and DELETE were all
+unreachable, so the device could not even be opened, let alone renamed out of
+the problem. Verified against a running instance: `/api/devices/a%2Fb` returns
+`{"detail": "Not Found"}` while `/api/devices/zzz` reaches the handler and
+returns `{"detail": "Device 'zzz' not found"}`.
+
+The three routes take `{name:path}`. The `search` route is declared before them
+and still wins, since routes match in declaration order. Validation is
+unchanged, so this creates no new slash names; it only makes the existing ones
+reachable long enough to be renamed.
+
+Renaming them is not optional, because the slash breaks a second thing that no
+routing change can fix: commands are subscribed as `{prefix}/+/set`, and a
+single-level wildcard does not match `enoceanmqtt/Boulodrome/Chemin/set`. An
+actuator with a slash in its name receives nothing from Home Assistant.
