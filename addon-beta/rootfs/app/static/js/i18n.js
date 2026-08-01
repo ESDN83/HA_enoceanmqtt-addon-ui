@@ -11,7 +11,9 @@ async function initI18n() {
     const supported = ['en','de','zh','hi','es','fr','ar','bn','pt','ru','ja'];
     currentLang = supported.includes(lang) ? lang : 'en';
     try {
-        const resp = await fetch(getApiUrl(`/static/i18n/${currentLang}.json`));
+        // Version-stamped for the same reason as the scripts: without it a
+        // browser keeps last version's translations and new keys never show.
+        const resp = await fetch(getApiUrl(`/static/i18n/${currentLang}.json?v=${window.APP_ASSET_V || ''}`));
         if (resp.ok) {
             i18nStrings = await resp.json();
         }

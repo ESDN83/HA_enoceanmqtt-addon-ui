@@ -1,6 +1,7 @@
-# 0011. Availability is opt-in per device, and measured from the later of last contact and boot
+# 0011. Availability is opt-in per device, and measured from last contact
 
-Status: accepted (1.8.0-beta5). Implements issue #37.
+Status: accepted (1.8.0-beta5), reference rule revised in 1.8.0-beta6 after field
+data. Implements issue #37.
 
 ## Context
 
@@ -43,19 +44,25 @@ it is ticked.
 unsolicited on every physical toggle, so watching one is legitimate. Defaulting
 to off is enough protection; removing the choice would take a real case away.
 
-**The deadline runs from the later of the device's `last_seen` and the add-on's
-start time.** This is the crux, and either half alone is wrong:
+**The deadline runs from the device's `last_seen`, which survives a restart in
+the state cache.** Boot is the reference only for a device nothing has ever been
+heard from, which has no timestamp to judge; that one gets one full interval to
+introduce itself.
 
-- Judging by `last_seen` only would be correct for a dead device but would
-  punish every device for the add-on being down. After a two-day outage each
-  timestamp is old through no fault of any device.
-- Judging from boot only would reset the clock at every restart and clear the
-  exact case the feature exists for, because the cache makes a dead device look
-  freshly reported.
+beta5 shipped a different rule, the later of `last_seen` and the add-on's start,
+on the argument that an add-on outage would otherwise punish every device for
+timestamps that went stale through no fault of their own. Field data on #37
+disproved it. An A5-30-03 that had been silent for 47 hours was reported
+unavailable exactly one interval after a restart, so every restart cleared a
+genuinely dead device and cost up to a full interval of detection time. The
+add-on being down does not shorten a device's own reporting interval, so booting
+is no reason to grant an extra one. A device that is in fact alive corrects the
+verdict with its next telegram, which is what `unavailable` is supposed to mean.
 
-Taking the later of the two gives every device one full interval to check in
-after a start, while a device that has genuinely been silent for longer than its
-interval is marked as soon as that grace expires.
+What boot does need is a **settling window**: MQTT has to connect and the cached
+states have to be republished before any verdict is based on real data.
+`AVAILABILITY_STARTUP_GRACE_SECONDS` is two minutes, a one-off pause, not a
+second interval.
 
 **Availability is published only when it changes**, so the retained topic is not
 rewritten every minute. Switching the watchdog off republishes `online` once, so

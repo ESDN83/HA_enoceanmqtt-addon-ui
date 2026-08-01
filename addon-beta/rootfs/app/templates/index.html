@@ -66,12 +66,22 @@
         // reason: parser-inserted scripts run in order, before the inline
         // block further down, so everything it calls is already defined. Keep
         // shared helpers first and feature files after.
+        // Every asset URL carries the add-on version. Without it the browser
+        // keeps serving the JS it cached from the previous version while the
+        // template itself comes back fresh, so new markup runs against old
+        // code: a handler the markup calls simply does not exist and the click
+        // does nothing, with no error the user can see. That is not
+        // hypothetical, it happened on the first 1.8.0-beta5 install. A build
+        // step would hash the files; without one the version is the honest
+        // substitute, since it changes exactly when the files do.
         (function() {
             var base = window.location.pathname.replace(/\/$/, '');
             if (base === '/') base = '';
-            document.write('<link rel="stylesheet" href="' + base + '/static/css/app.css">');
+            var v = '?v={{ version }}';
+            window.APP_ASSET_V = '{{ version }}';
+            document.write('<link rel="stylesheet" href="' + base + '/static/css/app.css' + v + '">');
             ['core', 'theme', 'i18n', 'nav', 'dashboard', 'devices', 'teachin', 'mappings', 'settings'].forEach(function(name) {
-                document.write('<script src="' + base + '/static/js/' + name + '.js"><\/script>');
+                document.write('<script src="' + base + '/static/js/' + name + '.js' + v + '"><\/script>');
             });
         })();
     </script>
@@ -528,9 +538,9 @@
                                     <input class="form-check-input" type="checkbox" name="availability_watch" id="availability-watch" onchange="toggleAvailabilityField()">
                                     <label class="form-check-label" for="availability-watch" data-i18n="teach_in.availability_label">Report as unavailable when the device goes silent</label>
                                 </div>
-                                <div id="availability-timeout-group" class="mt-2" style="display: none;">
+                                <div id="availability-timeout-group" class="mt-2 opacity-50">
                                     <div class="input-group" style="max-width: 320px;">
-                                        <input type="number" class="form-control" name="availability_timeout" id="availability-timeout" min="1" step="1" value="1440">
+                                        <input type="number" class="form-control" name="availability_timeout" id="availability-timeout" min="1" step="1" value="1440" disabled>
                                         <span class="input-group-text" data-i18n="teach_in.availability_unit">minutes</span>
                                     </div>
                                     <small class="text-muted" id="availability-hint" data-i18n="teach_in.availability_hint">Expected time between signs of life. Leave generous room: a device that reports every 8 hours needs well over 8 hours here, or it will be reported unavailable during normal quiet periods.</small>
@@ -805,7 +815,7 @@
         var base = window.location.pathname.replace(/\/$/, '');
         if (base === '/') base = '';
         var s = document.createElement('script');
-        s.src = base + '/static/js/js-yaml.min.js';
+        s.src = base + '/static/js/js-yaml.min.js?v=' + (window.APP_ASSET_V || '');
         document.head.appendChild(s);
     })();
     </script>
@@ -816,7 +826,7 @@
     (function() {
         var base = window.location.pathname.replace(/\/$/, '');
         if (base === '/') base = '';
-        document.write('<script src="' + base + '/static/js/app.js"><\/script>');
+        document.write('<script src="' + base + '/static/js/app.js?v=' + (window.APP_ASSET_V || '') + '"><\/script>');
     })();
     </script>
 </body>

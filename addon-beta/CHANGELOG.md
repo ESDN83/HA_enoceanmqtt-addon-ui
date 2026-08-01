@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.0-beta6] - 2026-08-01 (beta channel)
+
+### Bug Fixes
+- **A device whose name contains a slash could still not be opened, renamed or deleted** (#36). Carries the 1.7.3 fix. New names with `/` were already rejected, but devices that already had one stayed out of reach and failed with "Not Found", because the name is part of the web address of the request and a slash inside it splits that address. Those devices are reachable again.
+
+  **Please rename them.** The slash also breaks commands: Home Assistant's command topic for such a device does not match what the add-on listens to, so a switch or blind with a slash in its name never receives anything. Renaming it fixes that.
+- **The availability watchdog started its clock at every restart** (#37). Found in the field on an A5-30-03 that reports once a day. The device had been silent for 47 hours, the add-on was restarted, and it was reported unavailable exactly one full interval later instead of straight away. Restarting therefore cleared a genuinely dead device and cost up to a full interval of detection time each time. The clock now runs from the device's own last telegram, which survives a restart in the state cache. Only a device nothing has ever been heard from is counted from the start of the add-on. There is a two minute settling window after a start, so no verdict is formed before the connection is up and the cached states are back.
+- **The browser could keep the previous version's web UI.** The add-on's stylesheet, scripts and translations were requested without a version, so after an update a browser was free to serve its cached copies of the old ones next to the new page. Firefox did exactly that and a new field went missing. Every asset now carries the add-on version in its address, so an update always loads the matching files. This takes effect from this version on: on the update to beta6 one hard reload may still be needed, after that no longer.
+
+### Changes
+- **The interval field in the device form is always visible.** It used to appear only when the box was ticked, which left the setting looking incomplete. It is shown greyed out instead and becomes editable when the box is ticked.
+
 ## [1.8.0-beta5] - 2026-07-30 (beta channel)
 
 ### New Features

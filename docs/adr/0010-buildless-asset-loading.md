@@ -25,3 +25,13 @@ Emit the `<link>` and the `<script src>` tags with `document.write`, from a smal
 - `app.js` calls `detectAndApplyTheme()` immediately at the point it loads. The inline block it replaced sat at the end of the body, so loading it in `<head>` would apply the theme earlier than before. Keeping its position keeps the timing, which is what makes the split a move rather than a change. See ADR-0002 for why theme timing is delicate here.
 - Functions stay global. No ES modules in this pass: module scope would break every inline handler.
 - The cost is one small piece of inline JavaScript that cannot itself be moved into a file, since it is what loads the files.
+
+## Follow-up: cache busting (1.8.0-beta6)
+
+Splitting the file created a cache problem the monolith could not have. The template is rendered per request and always fresh, but the ten assets it pulls in are static files under `/static`, and nothing in their address changed between releases. A browser was therefore free to keep serving last version's copies alongside the new page. That is not theoretical: beta5 added a field to the device form, the template arrived with the new markup, Firefox reused its cached `devices.js` from beta4 where the function driving that field does not exist, and the field silently stayed away. Chrome revalidated and showed it, which is what made the report look like a template bug.
+
+Every asset address now carries `?v=<add-on version>`, taken from the same `VERSION` the footer shows, so an update changes the address and the browser cannot substitute an old file. `window.APP_ASSET_V` carries the same value to the two loads that happen from JavaScript rather than from the template, the translation JSON and js-yaml.
+
+A version query is enough here and a content hash is not needed: there is no build step to compute one, the assets only ever change together with a release, and the version is already read from `config.yaml` at runtime.
+
+The fix only takes effect from the release that introduces it, since the page carrying the stamped addresses is the new one. Upgrading to beta6 may still need one hard reload; after that it cannot recur.

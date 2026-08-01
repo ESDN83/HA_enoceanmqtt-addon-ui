@@ -130,8 +130,16 @@ function resetDeviceForm() {
 function toggleAvailabilityField() {
     const cb = document.getElementById('availability-watch');
     const group = document.getElementById('availability-timeout-group');
-    if (!cb || !group) return;
-    group.style.display = cb.checked ? '' : 'none';
+    const field = document.getElementById('availability-timeout');
+    if (!cb || !group || !field) return;
+    // Greyed out rather than hidden. The first person to use this asked where
+    // the time was entered, because a field that only appears after ticking a
+    // box cannot be found by anyone who does not already know it is there.
+    // Disabled keeps it visible and explains itself, and a disabled input is
+    // left out of FormData anyway, which is harmless here because saveDevice
+    // reads the value from the element and decides by the checkbox.
+    field.disabled = !cb.checked;
+    group.classList.toggle('opacity-50', !cb.checked);
 }
 // Channel picker only makes sense for multi-channel D2-01 modules.
 function toggleChannelField(rorg, func) {

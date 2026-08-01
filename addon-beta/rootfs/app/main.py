@@ -50,6 +50,10 @@ CACHE_DEVICE_STATES = os.getenv("CACHE_DEVICE_STATES", "true").lower() == "true"
 # timeout a user can set is a minute, so checking once a minute is enough; the
 # cost of being late is at most one interval of delay on a device coming back.
 AVAILABILITY_CHECK_SECONDS = 60
+# One-off settling window after a start, before the first verdict is formed.
+# Long enough for MQTT to connect and the cached states to be republished, short
+# enough that a dead device is not covered up for another interval (#37).
+AVAILABILITY_STARTUP_GRACE_SECONDS = 120
 from app_version import VERSION  # single source of truth (reads config.yaml)
 
 # Global instances
@@ -213,18 +217,22 @@ async def _availability_watchdog(started_at: datetime):
     transmits when it is switched, so a blanket watchdog would declare healthy
     hardware dead.
 
-    The deadline is measured from the LATER of the device's last telegram and
-    the add-on's own start. That covers both directions of the problem:
+    The deadline is measured from the device's last telegram, which survives a
+    restart in the state cache. beta5 measured from the LATER of that and the
+    add-on's own start, and field data on #37 showed what that costs: an A5-30-03
+    that had been silent for 47 hours was reported unavailable exactly one full
+    interval after the restart, not immediately. Every restart therefore cleared
+    a genuinely dead device and threw away up to one interval of detection time.
 
-    - Judging by `last_seen` alone means a device that really died stays dead
-      across restarts, which is the whole point. Resetting the clock at every
-      start would clear the very case this exists for, because the state cache
-      republishes the last known value on each start and makes a flat battery
-      look freshly reported.
-    - Judging by `last_seen` alone would also punish devices for the add-on
-      being down: after a two-day outage every timestamp is old through no
-      fault of any device. Starting the clock at boot gives each device one
-      full interval to check in before anything is claimed about it.
+    The add-on being down does not shorten a device's own reporting interval, so
+    booting is no reason to grant an extra one. What boot does need is a settling
+    window: MQTT has to connect and the cached states have to be republished
+    before any verdict means anything. That is what the startup grace below is,
+    a one-off pause of a couple of minutes, not a second interval.
+
+    The remaining case is a device nothing has ever been heard from, where there
+    is no timestamp at all. That one is counted from boot, so it gets one full
+    interval to introduce itself before anything is claimed about it.
 
     Availability is published only when it changes, so the retained topic is
     not rewritten every minute.
@@ -284,6 +292,13 @@ async def _evaluate_availability(name: str):
     timeout = int(getattr(device, "availability_timeout", 0) or 0)
     now = datetime.now(timezone.utc)
 
+    # Settling window, one-off per start. MQTT connects and the cached states
+    # are republished in the first seconds, so a verdict formed before that
+    # would be based on data that has not arrived yet. Skipping costs nothing:
+    # the next pass is a minute later.
+    if (now - _availability_started_at).total_seconds() < AVAILABILITY_STARTUP_GRACE_SECONDS:
+        return
+
     if timeout <= 0:
         # Watchdog switched off for this device. If it had been marked
         # unavailable earlier, undo that once rather than leaving it stuck.
@@ -297,7 +312,9 @@ async def _evaluate_availability(name: str):
 
     state = mqtt_handler.get_last_state(name) or {}
     last_seen = _parse_last_seen(state.get("last_seen"))
-    reference = max(last_seen, _availability_started_at) if last_seen else _availability_started_at
+    # The device's own timestamp decides. Boot is the reference only when there
+    # is no timestamp at all, see the watchdog docstring.
+    reference = last_seen or _availability_started_at
     alive = (now - reference) < timedelta(minutes=timeout)
 
     if _availability_known.get(name) != alive:

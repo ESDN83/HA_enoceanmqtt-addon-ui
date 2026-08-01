@@ -115,7 +115,14 @@ async def search_devices(query: str, request: Request) -> List[Dict[str, Any]]:
     return [d.to_dict() for d in results]
 
 
-@router.get("/{name}")
+# ":path" instead of a plain path parameter, because a device created before
+# name validation existed may contain a slash. The server decodes the URL
+# before routing, so "%2F" arrives as a real "/" and a plain "{name}" no longer
+# matches: the request 404s with FastAPI's own "Not Found" and the device
+# cannot be read, renamed or deleted at all (#36). New slashes stay rejected by
+# _validate_device_name; this only keeps existing ones reachable so they can be
+# renamed out.
+@router.get("/{name:path}")
 async def get_device(name: str, request: Request) -> Dict[str, Any]:
     """Get a specific device"""
     device_manager = request.app.state.device_manager
@@ -180,7 +187,7 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
     return {"status": "created", "device": new_device.to_dict()}
 
 
-@router.put("/{name}")
+@router.put("/{name:path}")  # see get_device for why ":path"
 async def update_device(name: str, update: DeviceUpdate, request: Request) -> Dict[str, Any]:
     """Update a device"""
     device_manager = request.app.state.device_manager
@@ -310,7 +317,7 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
     return {"status": "updated", "device": updated_device.to_dict()}
 
 
-@router.delete("/{name}")
+@router.delete("/{name:path}")  # see get_device for why ":path"
 async def delete_device(name: str, request: Request) -> Dict[str, str]:
     """Delete a device"""
     device_manager = request.app.state.device_manager
