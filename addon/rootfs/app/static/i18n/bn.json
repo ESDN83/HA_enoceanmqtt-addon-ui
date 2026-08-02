@@ -98,7 +98,7 @@
   "teach_in.detected": "ডিভাইস শনাক্ত হয়েছে!",
   "teach_in.connection_failed": "সংযোগ ব্যর্থ হয়েছে। EnOcean গেটওয়ে সংযুক্ত নাও থাকতে পারে।",
   "teach_in.teach_in_badge": "Teach-In",
-  "teach_in.timeout": "Teach-In সময় শেষ হয়ে গেছে — কোনো ডিভাইস শনাক্ত হয়নি",
+  "teach_in.timeout": "Teach-In সময় শেষ হয়ে গেছে, কোনো ডিভাইস শনাক্ত হয়নি",
   "teach_in.actuator_teach_in": "অ্যাকচুয়েটর Teach-In",
   "teach_in.actuator_desc": "Eltako ডিমার, সুইচ, ব্লাইন্ডের জন্য Teach-in",
   "teach_in.teach_in_actuator_btn": "অ্যাকচুয়েটর Teach-In",

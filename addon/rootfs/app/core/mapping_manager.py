@@ -187,7 +187,7 @@ DEFAULT_MAPPINGS = {
             "unit_of_measurement": "°"
         }
     },
-    # 4BS Temperature Sensors (A5-02 family) — from arno0392 fork
+    # 4BS Temperature Sensors (A5-02 family), from arno0392 fork
     "A5-02-01": {
         "TMP": {
             "component": "sensor",
@@ -380,7 +380,7 @@ DEFAULT_MAPPINGS = {
             "unit_of_measurement": "°C"
         }
     },
-    # 4BS Temperature and Humidity (A5-04) — from arno0392 fork
+    # 4BS Temperature and Humidity (A5-04), from arno0392 fork
     "A5-04-02": {
         "TMP": {
             "component": "sensor",
@@ -409,7 +409,7 @@ DEFAULT_MAPPINGS = {
             "unit_of_measurement": "%"
         }
     },
-    # 4BS Light Sensors (A5-06) — from arno0392 fork
+    # 4BS Light Sensors (A5-06), from arno0392 fork
     "A5-06-01": {
         "ILL": {
             "component": "sensor",
@@ -424,7 +424,7 @@ DEFAULT_MAPPINGS = {
             "unit_of_measurement": "V"
         }
     },
-    # 4BS Occupancy Sensors (A5-07) — from arno0392 fork
+    # 4BS Occupancy Sensors (A5-07), from arno0392 fork
     "A5-07-02": {
         "PIR": {
             "component": "binary_sensor",
@@ -457,7 +457,7 @@ DEFAULT_MAPPINGS = {
             "unit_of_measurement": "V"
         }
     },
-    # 4BS Light/Temp/Occupancy combos (A5-08) — from arno0392 fork
+    # 4BS Light/Temp/Occupancy combos (A5-08), from arno0392 fork
     "A5-08-01": {
         "ILL": {
             "component": "sensor",
@@ -533,7 +533,7 @@ DEFAULT_MAPPINGS = {
             "unit_of_measurement": "V"
         }
     },
-    # 4BS Air Quality: CO2 / VOC (A5-09) — from arno0392 fork
+    # 4BS Air Quality: CO2 / VOC (A5-09), from arno0392 fork
     "A5-09-02": {
         "CO2": {
             "component": "sensor",
@@ -588,7 +588,7 @@ DEFAULT_MAPPINGS = {
             "unit_of_measurement": "%"
         }
     },
-    # 4BS HVAC / Room Panels (A5-10) — from arno0392 fork
+    # 4BS HVAC / Room Panels (A5-10), from arno0392 fork
     "A5-10-01": {
         "TMP": {
             "component": "sensor",
@@ -622,7 +622,7 @@ DEFAULT_MAPPINGS = {
             "unit_of_measurement": "°C"
         }
     },
-    # 4BS Meters: electricity/gas/water (A5-12) — from arno0392 fork
+    # 4BS Meters: electricity/gas/water (A5-12), from arno0392 fork
     "A5-12-01": {
         "MR": {
             "component": "sensor",
@@ -656,7 +656,7 @@ DEFAULT_MAPPINGS = {
             "state_class": "total_increasing"
         }
     },
-    # 4BS Multi-sensors: vibration/window/lux (A5-14) — from arno0392 fork
+    # 4BS Multi-sensors: vibration/window/lux (A5-14), from arno0392 fork
     "A5-14-01": {
         "VIB": {
             "component": "binary_sensor",
@@ -731,7 +731,7 @@ DEFAULT_MAPPINGS = {
             "unit_of_measurement": "V"
         }
     },
-    # 4BS Digital Input (A5-30) — from arno0392 fork
+    # 4BS Digital Input (A5-30), from arno0392 fork
     "A5-30-01": {
         "DI0": {
             "component": "binary_sensor",
@@ -752,7 +752,7 @@ DEFAULT_MAPPINGS = {
             "device_class": "power"
         }
     },
-    # VLD Electronic Switches and Dimmers (D2-01) — from arno0392 fork
+    # VLD Electronic Switches and Dimmers (D2-01), from arno0392 fork
     "D2-01-01": {
         "OV": {
             "component": "binary_sensor",
@@ -882,7 +882,7 @@ DEFAULT_MAPPINGS = {
             "value_template": "{{ value_json.OV_CH1 | string }}"
         }
     },
-    # VLD Blinds Control variants (D2-05) — from arno0392 fork
+    # VLD Blinds Control variants (D2-05), from arno0392 fork
     "D2-05-01": {
         "POS": {
             "component": "cover",
@@ -895,7 +895,7 @@ DEFAULT_MAPPINGS = {
             "unit_of_measurement": "°"
         }
     },
-    # RPS Rocker Switch, 4 Rockers (F6-03) — from arno0392 fork
+    # RPS Rocker Switch, 4 Rockers (F6-03), from arno0392 fork
     "F6-03-01": {
         "R1": {
             "component": "sensor",
@@ -934,7 +934,7 @@ DEFAULT_MAPPINGS = {
             "device_class": "power"
         }
     },
-    # RPS Window Handle (F6-10) — from arno0392 fork
+    # RPS Window Handle (F6-10), from arno0392 fork
     "F6-10-00": {
         "WIN": {
             "component": "sensor",
@@ -1196,7 +1196,7 @@ class MappingManager:
                 "config": config
             })
 
-            # Return early — actuators don't need sensor entities from EEP profile
+            # Return early, actuators don't need sensor entities from EEP profile
             # Still add diagnostic entities below
         else:
             # Sensor mode: create entities from EEP mapping

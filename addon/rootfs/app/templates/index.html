@@ -7,14 +7,14 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <script>
-        // Early dark mode detection — set Bootstrap theme before first paint
+        // Early dark mode detection: set Bootstrap theme before first paint
         (function() {
             function applyTheme(dark) {
                 document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
                 document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
             }
             // Check the HA Ingress parent. Prefer HA's own background CSS
-            // variable — HA's <body> usually has NO background of its own, and
+            // variable. HA's <body> usually has NO background of its own, and
             // its computed rgba(0,0,0,0) used to be parsed as pitch black, so a
             // light HA was mistaken for dark. Transparent = no information.
             function brightness(str) {
@@ -41,7 +41,7 @@
                 if (lum === null) lum = brightness(getComputedStyle(pdoc.body).backgroundColor);
                 if (lum !== null) {
                     applyTheme(lum < 128);
-                    return;   // HA verdict is authoritative — no OS fallback/listener
+                    return;   // HA verdict is authoritative, no OS fallback/listener
                 }
             } catch(e) {}
             // Fallback: OS preference (standalone browser only)
@@ -187,7 +187,7 @@
             background-color: var(--hover-bg);
             color: var(--text-color);
         }
-        /* Form fields — theme-independent (#25).
+        /* Form fields, theme-independent (#25).
            These used to be styled only under [data-theme="dark"], so the field
            background came from one theme while the text colour came from
            another (Bootstrap's own data-bs-theme, or the HA variables we copy
@@ -649,18 +649,18 @@
 
                                     <h6>Step-by-Step</h6>
                                     <ol class="small mb-3">
-                                        <li><strong>Read Base ID</strong> — Click "Read" to get the gateway's base address</li>
-                                        <li><strong>Enter actuator address</strong> — The address printed on the actuator or its packaging (e.g., <code>0x05834FA4</code>)</li>
-                                        <li><strong>Choose sender offset</strong> — Pick a unique number (1-127) for this actuator</li>
+                                        <li><strong>Read Base ID</strong>: click "Read" to get the gateway's base address</li>
+                                        <li><strong>Enter actuator address</strong>: the address printed on the actuator or its packaging (e.g., <code>0x05834FA4</code>)</li>
+                                        <li><strong>Choose sender offset</strong>: pick a unique number (1-127) for this actuator</li>
                                         <li><strong>Put actuator in learn mode:</strong>
                                             <ul>
-                                                <li><strong>Eltako FD62NPN (Dimmer):</strong> Press the rotary knob <strong>4× short + 1× long (&gt;2s)</strong> — lamp flickers briefly to confirm learn mode</li>
-                                                <li><strong>Eltako FSR61 (Switch):</strong> Short press the learn button — LED blinks</li>
+                                                <li><strong>Eltako FD62NPN (Dimmer):</strong> Press the rotary knob <strong>4× short + 1× long (&gt;2s)</strong>, the lamp flickers briefly to confirm learn mode</li>
+                                                <li><strong>Eltako FSR61 (Switch):</strong> Short press the learn button, the LED blinks</li>
                                                 <li><strong>Eltako FSB61 (Blind):</strong> Turn the rotary dial to desired run time, then press learn button</li>
-                                                <li><strong>Other Eltako:</strong> Check manual — typically short press the learn/prog button</li>
+                                                <li><strong>Other Eltako:</strong> Check the manual, typically a short press of the learn/prog button</li>
                                             </ul>
                                         </li>
-                                        <li><strong>Click "Send Teach-In"</strong> within 30 seconds — the actuator confirms with a brief lamp flicker or LED flash</li>
+                                        <li><strong>Click "Send Teach-In"</strong> within 30 seconds, the actuator confirms with a brief lamp flicker or LED flash</li>
                                         <li><strong>Add the device</strong> with the sender ID shown below using "Manual Entry"</li>
                                     </ol>
 
@@ -677,7 +677,7 @@
                                         <ul class="mb-0 mt-1">
                                             <li>Make sure you use a <strong>momentary pushbutton (Taster)</strong>, not a toggle switch (Schalter)</li>
                                             <li>Clear all learned senders: press the learn button <strong>5× quickly</strong> (LED flashes = cleared)</li>
-                                            <li>Try "Repeat Teach-In" — it sends continuously for 30s while you activate learn mode</li>
+                                            <li>Try "Repeat Teach-In", it sends continuously for 30s while you activate learn mode</li>
                                         </ul>
                                     </div>
 
@@ -743,7 +743,7 @@
 
                         <div class="alert alert-info" id="multichannel-note" style="display: none;">
                             <i class="bi bi-info-circle"></i>
-                            <span data-i18n="teach_in.multichannel_note">This module has 2 channels. One teach-in covers the whole module — pick the channel below, save, then add a second device with the same address for the other channel.</span>
+                            <span data-i18n="teach_in.multichannel_note">This module has 2 channels. One teach-in covers the whole module: pick the channel below, save, then add a second device with the same address for the other channel.</span>
                         </div>
 
                         <form id="device-form">
@@ -1165,7 +1165,7 @@
         // Average brightness (0-255) of a CSS color, or null if the color is
         // fully transparent / unparseable. Transparency MUST count as "no
         // information": HA's <body> usually has NO own background, and
-        // rgba(0,0,0,0) was parsed as pitch black — so a light HA was detected
+        // rgba(0,0,0,0) was parsed as pitch black, so a light HA was detected
         // as dark, and every Bootstrap-themed surface (tables, bg-body-tertiary,
         // <code>, native number spinners) rendered dark on the light page.
         function colorBrightness(str) {
@@ -1202,7 +1202,7 @@
                     dark = true;
                     haDetected = true;
                 }
-                // 1b: HA's own background variable — the color the page really
+                // 1b: HA's own background variable, the color the page really
                 // paints, and the same source applyHAThemeVars() inherits from.
                 // Using it keeps the theme attributes and the inherited colors
                 // consistent by construction.
@@ -1215,7 +1215,7 @@
                         haDetected = true;
                     }
                 }
-                // 1c: computed body background — but transparent means unknown
+                // 1c: computed body background, but transparent means unknown
                 if (!haDetected) {
                     const lum = colorBrightness(getComputedStyle(parentDoc.body).backgroundColor);
                     if (lum !== null) {
@@ -1227,10 +1227,10 @@
                 // Try to inherit HA's CSS custom properties for exact theme matching
                 applyHAThemeVars(parentDoc);
             } catch (e) {
-                // Cross-origin — not in HA Ingress, fall through
+                // Cross-origin, not in HA Ingress, fall through
             }
 
-            // Method 2: OS preference — ONLY when not embedded in HA
+            // Method 2: OS preference, ONLY when not embedded in HA
             if (!haDetected && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
                 dark = true;
             }
@@ -1262,7 +1262,7 @@
             // Input colours must follow the SAME theme as the text we just
             // inherited. Without this they kept the values from our own
             // stylesheet, so an inherited dark text colour could end up on a
-            // light field (or the reverse) — the unreadable fields in #25.
+            // light field (or the reverse), the unreadable fields in #25.
             const cardBg = style.getPropertyValue('--card-background-color').trim();
             if (cardBg) root.style.setProperty('--input-bg', cardBg);
             const divider = style.getPropertyValue('--divider-color').trim();
@@ -2428,7 +2428,7 @@
             }
         }
 
-        // Each actuator needs its OWN sender offset — reusing one offset for
+        // Each actuator needs its OWN sender offset, reusing one offset for
         // several actuators makes them respond to each other's commands. The
         // field used to always start at 1, so every teach-in got the same
         // Sender ID (#23). Pick the lowest offset not already used by a
@@ -2454,7 +2454,7 @@
                     }
                 });
             } catch (e) {
-                return;  // best effort — keep whatever is in the field
+                return;  // best effort, keep whatever is in the field
             }
 
             for (let off = 1; off <= 127; off++) {
@@ -2604,7 +2604,7 @@
         let teachInTimer = null;
 
         function startTeachIn() {
-            // Cancel any previous session first — otherwise a second start
+            // Cancel any previous session first, otherwise a second start
             // orphans the old setInterval (its handle is overwritten and can no
             // longer be cleared). The orphan keeps firing every second once
             // `remaining` goes negative, spamming the timeout toast unstoppably.
@@ -2634,7 +2634,7 @@
                     clearInterval(timer);
                     if (teachInTimer === timer) teachInTimer = null;
                     cancelTeachIn();
-                    showToast(t('teach_in.timeout', 'Teach-in timed out — no device detected'), 'warning');
+                    showToast(t('teach_in.timeout', 'Teach-in timed out, no device detected'), 'warning');
                 }
             }, 1000);
             teachInTimer = timer;
@@ -2649,7 +2649,7 @@
                 applyTeachInData(data.data);
 
                 // A UTE teach-in carries the NUMBER of channels (DB5), never a
-                // channel index — so a 2-channel module cannot tell us "this
+                // channel index, so a 2-channel module cannot tell us "this
                 // pairing is for output 2", and waiting for a follow-up
                 // telegram would be pointless (#24). One teach-in binds the
                 // whole module; the individual outputs are addressed by the
@@ -2700,7 +2700,7 @@
         function resetTeachInForm() { resetDeviceForm(); }
 
         // Pick a sensible role from the EEP instead of always guessing "cover".
-        // A NodOn SIN-2-2-01 (D2-01-12) is a relay, not a blind — defaulting
+        // A NodOn SIN-2-2-01 (D2-01-12) is a relay, not a blind, defaulting
         // every UTE device to cover silently mis-registered them (#23).
         function roleFromEep(rorg, func) {
             const r = String(rorg || '').toUpperCase().replace('0X', '');
@@ -2737,7 +2737,7 @@
                                form.querySelector('[name="func"]')?.value);
         }
 
-        // 2-channel EEPs — one physical module, two independently switchable
+        // 2-channel EEPs: one physical module, two independently switchable
         // outputs (matches _multichannel_eeps in the backend).
         function isTwoChannelEep(rorg, func, type) {
             const r = String(rorg || '').toUpperCase().replace('0X', '');
@@ -2747,12 +2747,12 @@
         }
 
         // After saving channel 1 of a 2-channel module, actively offer to add
-        // the second channel with everything pre-filled — the passive hint in
+        // the second channel with everything pre-filled, the passive hint in
         // step 2 was easy to miss (#24).
         function offerSecondChannel(saved) {
             showConfirmDialog(
                 t('teach_in.second_channel_title', 'Add channel 2 now?'),
-                t('teach_in.second_channel_body', 'This module has two outputs. Add a second device for channel 2 with the same address and sender ID? Everything will be pre-filled — you only confirm the name.'),
+                t('teach_in.second_channel_body', 'This module has two outputs. Add a second device for channel 2 with the same address and sender ID? Everything will be pre-filled, you only confirm the name.'),
                 t('teach_in.second_channel_btn', 'Add channel 2'),
                 'btn-primary',
                 () => {
@@ -2820,7 +2820,7 @@
                 markDetected(roleField, !!role);
             }
 
-            // UTE binds a specific Sender ID — the device must use exactly it.
+            // UTE binds a specific Sender ID, the device must use exactly it.
             if (d.teach_method === 'UTE' && d.response_sender) {
                 const senderField = document.querySelector('[name="sender_id"]');
                 if (senderField) {
@@ -2866,7 +2866,7 @@
                 }
             }
             // Invert applies to covers (Open/Close direction) and to switches
-            // (ON/OFF meaning of Eltako status reports — which rocker side
+            // (ON/OFF meaning of Eltako status reports, which rocker side
             // means ON depends on how the actuator was taught in).
             const invertGroup = document.getElementById('invert-group');
             if (invertGroup) {
@@ -2895,7 +2895,7 @@
         }
 
         function showManualEntry() {
-            // Start from a clean slate — without this, a canceled edit left the
+            // Start from a clean slate. Without this, a canceled edit left the
             // previous device's locked name and sender ID in the form (#29/#30).
             resetDeviceForm();
             wizardNext();
@@ -2977,7 +2977,7 @@
                             showConfirmDialog(
                                 t('device.sender_clash_title', 'Sender ID already in use'),
                                 t('device.sender_clash_body', 'This Sender ID is already used by') + ' "' + escapeHtml(clash.name) + '". ' +
-                                t('device.sender_clash_hint', 'Eltako-style actuators each need their own Sender ID — otherwise both react to the same commands. Save anyway?'),
+                                t('device.sender_clash_hint', 'Eltako-style actuators each need their own Sender ID, otherwise both react to the same commands. Save anyway?'),
                                 t('device.sender_clash_btn', 'Save anyway'),
                                 'btn-warning',
                                 () => performSaveDevice(device, editMode, form)
@@ -2985,7 +2985,7 @@
                             return;
                         }
                     }
-                } catch (err) { /* best effort — fall through to save */ }
+                } catch (err) { /* best effort, fall through to save */ }
             }
 
             await performSaveDevice(device, editMode, form);
@@ -4100,9 +4100,9 @@
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.detail || 'HTTP ' + response.status);
                 if (data.restarting) {
-                    showToast(t('settings.mqtt_saved_restarting', 'MQTT settings saved — app is restarting...'), 'success');
+                    showToast(t('settings.mqtt_saved_restarting', 'MQTT settings saved, the app is restarting...'), 'success');
                 } else {
-                    showToast(t('settings.mqtt_saved', 'MQTT settings saved — restart the app to apply'), 'success');
+                    showToast(t('settings.mqtt_saved', 'MQTT settings saved. Restart the app to apply'), 'success');
                 }
                 loadMqttConfig();
             } catch (error) {
@@ -4125,7 +4125,7 @@
                         });
                         const data = await response.json();
                         if (!response.ok) throw new Error(data.detail || 'HTTP ' + response.status);
-                        showToast(t('settings.mqtt_reset_done', 'MQTT settings reset to defaults — restart the app to apply'), 'success');
+                        showToast(t('settings.mqtt_reset_done', 'MQTT settings reset to defaults. Restart the app to apply'), 'success');
                         loadMqttConfig();
                     } catch (error) {
                         showToast(t('settings.mqtt_save_failed', 'Failed to save MQTT settings') + ': ' + error.message, 'danger');

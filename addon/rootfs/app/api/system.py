@@ -16,7 +16,7 @@ from lxml import etree
 
 router = APIRouter()
 
-# Single source of truth (reads config.yaml) — no manual bumping needed here.
+# Single source of truth (reads config.yaml), no manual bumping needed here.
 from app_version import VERSION
 
 

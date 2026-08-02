@@ -98,7 +98,7 @@
   "teach_in.detected": "Dispositivo detectado!",
   "teach_in.connection_failed": "Falha na conexão. O gateway EnOcean pode não estar conectado.",
   "teach_in.teach_in_badge": "Teach-In",
-  "teach_in.timeout": "Teach-In expirou — nenhum dispositivo detectado",
+  "teach_in.timeout": "Teach-In expirou, nenhum dispositivo detectado",
   "teach_in.actuator_teach_in": "Teach-In de atuador",
   "teach_in.actuator_desc": "Teach-in de dimmers, interruptores e persianas Eltako",
   "teach_in.teach_in_actuator_btn": "Teach-In atuador",

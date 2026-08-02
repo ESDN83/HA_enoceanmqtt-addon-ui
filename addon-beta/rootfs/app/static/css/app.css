@@ -134,7 +134,7 @@ body {
     background-color: var(--hover-bg);
     color: var(--text-color);
 }
-/* Form fields — theme-independent (#25).
+/* Form fields, theme-independent (#25).
    These used to be styled only under [data-theme="dark"], so the field
    background came from one theme while the text colour came from
    another (Bootstrap's own data-bs-theme, or the HA variables we copy

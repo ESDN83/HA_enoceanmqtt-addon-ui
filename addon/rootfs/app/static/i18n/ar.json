@@ -98,7 +98,7 @@
   "teach_in.detected": "تم الكشف عن الجهاز!",
   "teach_in.connection_failed": "فشل الاتصال. قد لا تكون بوابة EnOcean متصلة.",
   "teach_in.teach_in_badge": "Teach-In",
-  "teach_in.timeout": "انتهت مهلة Teach-In — لم يتم الكشف عن أي جهاز",
+  "teach_in.timeout": "انتهت مهلة Teach-In، لم يتم الكشف عن أي جهاز",
   "teach_in.actuator_teach_in": "Teach-In للمشغّل",
   "teach_in.actuator_desc": "Teach-in لأجهزة Eltako: مخفّتات، مفاتيح، ستائر",
   "teach_in.teach_in_actuator_btn": "Teach-In للمشغّل",

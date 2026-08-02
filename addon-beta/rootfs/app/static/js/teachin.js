@@ -34,7 +34,7 @@ async function readBaseId() {
         input.value = 'Error: ' + e.message;
     }
 }
-// Each actuator needs its OWN sender offset — reusing one offset for
+// Each actuator needs its OWN sender offset, reusing one offset for
 // several actuators makes them respond to each other's commands. The
 // field used to always start at 1, so every teach-in got the same
 // Sender ID (#23). Pick the lowest offset not already used by a
@@ -60,7 +60,7 @@ async function suggestNextSenderOffset() {
             }
         });
     } catch (e) {
-        return;  // best effort — keep whatever is in the field
+        return;  // best effort, keep whatever is in the field
     }
 
     for (let off = 1; off <= 127; off++) {
@@ -189,7 +189,7 @@ async function testActuator(deviceName, command) {
     setTimeout(() => { resultSpan.innerHTML = ''; }, 5000);
 }
 function startTeachIn() {
-    // Cancel any previous session first — otherwise a second start
+    // Cancel any previous session first, otherwise a second start
     // orphans the old setInterval (its handle is overwritten and can no
     // longer be cleared). The orphan keeps firing every second once
     // `remaining` goes negative, spamming the timeout toast unstoppably.
@@ -219,7 +219,7 @@ function startTeachIn() {
             clearInterval(timer);
             if (teachInTimer === timer) teachInTimer = null;
             cancelTeachIn();
-            showToast(t('teach_in.timeout', 'Teach-in timed out — no device detected'), 'warning');
+            showToast(t('teach_in.timeout', 'Teach-in timed out, no device detected'), 'warning');
         }
     }, 1000);
     teachInTimer = timer;
@@ -234,7 +234,7 @@ function startTeachIn() {
         applyTeachInData(data.data);
 
         // A UTE teach-in carries the NUMBER of channels (DB5), never a
-        // channel index — so a 2-channel module cannot tell us "this
+        // channel index, so a 2-channel module cannot tell us "this
         // pairing is for output 2", and waiting for a follow-up
         // telegram would be pointless (#24). One teach-in binds the
         // whole module; the individual outputs are addressed by the
@@ -254,7 +254,7 @@ function startTeachIn() {
 function resetTeachInForm() { resetDeviceForm(); }
 
 // Pick a sensible role from the EEP instead of always guessing "cover".
-// A NodOn SIN-2-2-01 (D2-01-12) is a relay, not a blind — defaulting
+// A NodOn SIN-2-2-01 (D2-01-12) is a relay, not a blind, defaulting
 // every UTE device to cover silently mis-registered them (#23).
 function roleFromEep(rorg, func) {
     const r = String(rorg || '').toUpperCase().replace('0X', '');
@@ -265,12 +265,12 @@ function roleFromEep(rorg, func) {
     return '';                                      // sensor
 }
 // After saving channel 1 of a 2-channel module, actively offer to add
-// the second channel with everything pre-filled — the passive hint in
+// the second channel with everything pre-filled, the passive hint in
 // step 2 was easy to miss (#24).
 function offerSecondChannel(saved) {
     showConfirmDialog(
         t('teach_in.second_channel_title', 'Add channel 2 now?'),
-        t('teach_in.second_channel_body', 'This module has two outputs. Add a second device for channel 2 with the same address and sender ID? Everything will be pre-filled — you only confirm the name.'),
+        t('teach_in.second_channel_body', 'This module has two outputs. Add a second device for channel 2 with the same address and sender ID? Everything will be pre-filled, you only confirm the name.'),
         t('teach_in.second_channel_btn', 'Add channel 2'),
         'btn-primary',
         () => {
@@ -337,7 +337,7 @@ function applyTeachInData(d) {
         markDetected(roleField, !!role);
     }
 
-    // UTE binds a specific Sender ID — the device must use exactly it.
+    // UTE binds a specific Sender ID, the device must use exactly it.
     if (d.teach_method === 'UTE' && d.response_sender) {
         const senderField = document.querySelector('[name="sender_id"]');
         if (senderField) {
@@ -393,7 +393,7 @@ function onEepFieldInput() {
                        form.querySelector('[name="func"]')?.value);
 }
 function showManualEntry() {
-    // Start from a clean slate — without this, a canceled edit left the
+    // Start from a clean slate. Without this, a canceled edit left the
     // previous device's locked name and sender ID in the form (#29/#30).
     resetDeviceForm();
     wizardNext();

@@ -98,7 +98,7 @@
   "teach_in.detected": "Устройство обнаружено!",
   "teach_in.connection_failed": "Ошибка подключения. Возможно, шлюз EnOcean не подключён.",
   "teach_in.teach_in_badge": "Teach-In",
-  "teach_in.timeout": "Teach-In истёк — устройство не обнаружено",
+  "teach_in.timeout": "Teach-In истёк, устройство не обнаружено",
   "teach_in.actuator_teach_in": "Teach-In актуатора",
   "teach_in.actuator_desc": "Teach-In для диммеров, переключателей, жалюзи Eltako",
   "teach_in.teach_in_actuator_btn": "Teach-In актуатора",

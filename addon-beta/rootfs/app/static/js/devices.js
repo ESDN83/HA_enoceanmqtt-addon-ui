@@ -149,7 +149,7 @@ function toggleChannelField(rorg, func) {
     const f = String(func || '').toUpperCase().padStart(2, '0');
     group.style.display = (r === 'D2' && f === '01') ? '' : 'none';
 }
-// 2-channel EEPs — one physical module, two independently switchable
+// 2-channel EEPs: one physical module, two independently switchable
 // outputs (matches _multichannel_eeps in the backend).
 function isTwoChannelEep(rorg, func, type) {
     const r = String(rorg || '').toUpperCase().replace('0X', '');
@@ -168,7 +168,7 @@ function toggleSenderIdField(select) {
         }
     }
     // Invert applies to covers (Open/Close direction) and to switches
-    // (ON/OFF meaning of Eltako status reports — which rocker side
+    // (ON/OFF meaning of Eltako status reports, which rocker side
     // means ON depends on how the actuator was taught in).
     const invertGroup = document.getElementById('invert-group');
     if (invertGroup) {
@@ -250,14 +250,14 @@ async function saveDevice(e) {
     if (changes.length) {
         const identity = changes.some(c => c.identity);
         const list = '<ul class="mb-2">' + changes.map(c =>
-            '<li>' + escapeHtml(c.label) + ': <code>' + escapeHtml(c.from || '—') +
-            '</code> → <code>' + escapeHtml(c.to || '—') + '</code></li>').join('') + '</ul>';
+            '<li>' + escapeHtml(c.label) + ': <code>' + escapeHtml(c.from || '(empty)') +
+            '</code> → <code>' + escapeHtml(c.to || '(empty)') + '</code></li>').join('') + '</ul>';
         showConfirmDialog(
             identity
                 ? t('device.identity_title', 'Change device identity?')
                 : t('device.rename_title', 'Rename device?'),
             list + (identity
-                ? t('device.identity_body', 'These fields identify the physical module. Changing them does not reconfigure the device over the air — it keeps whatever it was taught in with. The entry will only match again after you teach the module in anew, and existing Home Assistant entities are replaced.')
+                ? t('device.identity_body', 'These fields identify the physical module. Changing them does not reconfigure the device over the air. It keeps whatever it was taught in with. The entry will only match again after you teach the module in anew, and existing Home Assistant entities are replaced.')
                 : t('device.rename_body', 'This changes the device\'s MQTT topics and entity object_id') + ' ' +
                   t('device.rename_hint', 'The Home Assistant entity is kept; only its topics change. Rename?')),
             identity ? t('device.identity_btn', 'Change anyway') : t('device.rename_btn', 'Rename'),
@@ -285,7 +285,7 @@ async function saveDevice(e) {
                     showConfirmDialog(
                         t('device.sender_clash_title', 'Sender ID already in use'),
                         t('device.sender_clash_body', 'This Sender ID is already used by') + ' "' + escapeHtml(clash.name) + '". ' +
-                        t('device.sender_clash_hint', 'Eltako-style actuators each need their own Sender ID — otherwise both react to the same commands. Save anyway?'),
+                        t('device.sender_clash_hint', 'Eltako-style actuators each need their own Sender ID, otherwise both react to the same commands. Save anyway?'),
                         t('device.sender_clash_btn', 'Save anyway'),
                         'btn-warning',
                         () => performSaveDevice(device, editMode, form)
@@ -293,7 +293,7 @@ async function saveDevice(e) {
                     return;
                 }
             }
-        } catch (err) { /* best effort — fall through to save */ }
+        } catch (err) { /* best effort, fall through to save */ }
     }
 
     await performSaveDevice(device, editMode, form);

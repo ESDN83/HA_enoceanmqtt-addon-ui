@@ -98,7 +98,7 @@
   "teach_in.detected": "デバイスを検出しました！",
   "teach_in.connection_failed": "接続に失敗しました。EnOcean ゲートウェイが接続されていない可能性があります。",
   "teach_in.teach_in_badge": "Teach-In",
-  "teach_in.timeout": "Teach-In がタイムアウトしました — デバイスが検出されませんでした",
+  "teach_in.timeout": "Teach-In がタイムアウトしました、デバイスが検出されませんでした",
   "teach_in.actuator_teach_in": "アクチュエータ Teach-In",
   "teach_in.actuator_desc": "Eltako 調光器、スイッチ、ブラインドの Teach-In",
   "teach_in.teach_in_actuator_btn": "アクチュエータ Teach-In",

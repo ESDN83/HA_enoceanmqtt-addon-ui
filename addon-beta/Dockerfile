@@ -20,7 +20,7 @@ RUN apk add --no-cache \
 COPY rootfs /
 
 # Copy the add-on manifest so the app can read its version at runtime
-# (single source of truth for the UI/API version — see app_version.py)
+# (single source of truth for the UI/API version, see app_version.py)
 COPY config.yaml /app/config.yaml
 
 # Install Python dependencies with retry logic for network issues

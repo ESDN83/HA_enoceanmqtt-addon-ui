@@ -246,7 +246,7 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
     # topic base, so this is done after the old-discovery snapshot (to clean up
     # the old topics) and before the field update, so the rest of the flow uses
     # the new key. The HA unique_id does not depend on the name, so the entity
-    # is preserved — only its topics/object_id change.
+    # is preserved, only its topics/object_id change.
     old_name = name
     # Validate before comparing: " Salon " and "Salon" are the same name, and
     # the stripped form must not be treated as a rename onto itself (which

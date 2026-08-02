@@ -133,7 +133,7 @@ class SerialHandler:
         # bidirectional learn mode expect a UTE teach-in *response* carrying the
         # controller Sender ID they must bind to (base_id + offset). Commands
         # are addressed (destination = actuator), so one gateway sender can
-        # drive many covers — a single offset is fine. Set per teach-in session.
+        # drive many covers, a single offset is fine. Set per teach-in session.
         self._ute_response_offset: int = 1
         self._base_id: Optional[int] = None
         self._response_future: Optional[asyncio.Future] = None
@@ -195,7 +195,7 @@ class SerialHandler:
         """Connect via TCP with keepalive enabled.
 
         Without TCP keepalive, half-open connections (ESP32 crash, WiFi drop,
-        router reboot — anything that prevents a clean FIN) are only detected
+        router reboot, anything that prevents a clean FIN) are only detected
         after the OS default of ~2 hours. Tuning KEEPIDLE/INTVL/CNT brings
         that down to ~60s so the read loop can trigger a reconnect.
         """
@@ -246,7 +246,7 @@ class SerialHandler:
         Recovers from connection loss by closing the dead transport and
         retrying the connect with exponential backoff. Previously any
         ConnectionError/SerialException killed the task and left the addon
-        in a zombie state — /health still reported connected, but no data
+        in a zombie state, /health still reported connected, but no data
         flowed and nothing in the log said why.
         """
         loop = asyncio.get_event_loop()
@@ -350,7 +350,7 @@ class SerialHandler:
             except (ConnectionError, serial.SerialException, OSError) as e:
                 if not self._running:
                     break
-                logger.warning(f"Transport lost: {e} — reconnecting in {backoff:.0f}s")
+                logger.warning(f"Transport lost: {e}, reconnecting in {backoff:.0f}s")
                 self._connected = False
                 await self._close_transport()
                 if not await self._wait_and_reconnect(backoff):
@@ -405,7 +405,7 @@ class SerialHandler:
                 await self._connect_serial()
             self._connected = True
             logger.info(f"Reconnected to EnOcean transceiver at {self.port}")
-            # Re-read base ID in a separate task — we're still running inside
+            # Re-read base ID in a separate task, we're still running inside
             # _read_loop, and _send_command() waits on _response_future which
             # only _read_loop can deliver. Awaiting it here deadlocks until
             # the command times out (3s). Firing it as a task lets the read
@@ -434,11 +434,11 @@ class SerialHandler:
     def _serial_read(self, size: int) -> bytes:
         """Blocking serial/TCP read - called via run_in_executor.
 
-        Returns b"" on timeout (normal — the read loop treats this as idle).
+        Returns b"" on timeout (normal, the read loop treats this as idle).
         Raises ConnectionError / serial.SerialException on real failure so the
         read loop can trigger a reconnect. The previous version swallowed
         peer-closed (FIN -> recv returns b"") as "timeout", leaving the loop
-        spinning forever with no log — exactly the silent-disconnect symptom.
+        spinning forever with no log, exactly the silent-disconnect symptom.
         """
         if self.is_tcp:
             if not self._socket:
@@ -494,7 +494,7 @@ class SerialHandler:
         logger.debug(f"RX [{telegram.sender_hex}] RORG={telegram.rorg_hex} Data={telegram.data.hex().upper()} dBm={telegram.dbm}")
 
         # Check if this is a teach-in telegram.
-        # Only treat as teach-in if the sender is NOT already configured —
+        # Only treat as teach-in if the sender is NOT already configured:
         # some non-standard devices (e.g. Eltako Staufix boiler sensor) send
         # data packets with LRN=0 in data[3], which the A5 check would
         # otherwise mis-flag as a teach-in on every single telegram.
@@ -503,8 +503,8 @@ class SerialHandler:
             and self.device_manager.get_device_by_address(telegram.sender_hex) is not None
         )
         if telegram.rorg == 0xD4:
-            # UTE (RORG 0xD4) teach-in queries — e.g. NodOn D2-05-00 in
-            # bidirectional learn mode — must be answered with a UTE response
+            # UTE (RORG 0xD4) teach-in queries, e.g. NodOn D2-05-00 in
+            # bidirectional learn mode, must be answered with a UTE response
             # to complete pairing. This is handled independently of
             # `already_configured` (re-pairing a known device must work too),
             # but only while a teach-in session is active so stray UTE traffic
@@ -625,7 +625,7 @@ class SerialHandler:
         # unidirectional module just wants us to remember its EEP.
         if bidirectional and response_expected:
             if response_sender is None:
-                logger.warning("UTE teach-in: base ID not read yet — cannot send response")
+                logger.warning("UTE teach-in: base ID not read yet, cannot send response")
             else:
                 await self.send_ute_response(
                     destination=telegram.sender_id,
@@ -645,7 +645,7 @@ class SerialHandler:
                 # modules (e.g. NodOn SIN-2-2-01) can send a follow-up telegram
                 # selecting the target channel, so the UI waits for it (#24).
                 "channels": channels,
-                # Sender ID the module was told to bind — the new device MUST be
+                # Sender ID the module was told to bind, the new device MUST be
                 # configured with exactly this value for commands to reach it.
                 "response_sender": f"0x{response_sender:08X}" if response_sender else None,
             })
@@ -701,12 +701,12 @@ class SerialHandler:
             logger.warning(f"Unknown EEP profile: {device.eep_id}")
             return device.name, device.eep_id, None
 
-        # Check RORG matches the EEP profile — FD62NPN sends F6+A5+D1 but
+        # Check RORG matches the EEP profile, FD62NPN sends F6+A5+D1 but
         # only A5 matches A5-38-08. Decoding F6/D1 with A5 profile = garbage.
         try:
             expected_rorg = int(profile.rorg, 16)
             if telegram.rorg != expected_rorg:
-                logger.debug(f"RX [{telegram.sender_hex}] RORG mismatch: got 0x{telegram.rorg:02X}, expected 0x{expected_rorg:02X} for {device.eep_id} — skipping decode")
+                logger.debug(f"RX [{telegram.sender_hex}] RORG mismatch: got 0x{telegram.rorg:02X}, expected 0x{expected_rorg:02X} for {device.eep_id}, skipping decode")
                 return device.name, device.eep_id, None
         except (ValueError, AttributeError):
             pass  # If RORG can't be parsed, proceed with decode anyway
@@ -752,7 +752,7 @@ class SerialHandler:
 
         logger.debug(f"RX [{telegram.sender_hex}] Device={device.name} EEP={device.eep_id} Decoded={decoded}")
 
-        # Publish to MQTT — to EVERY device on this address. A 2-channel module
+        # Publish to MQTT, to EVERY device on this address. A 2-channel module
         # is configured once per output, all sharing the module address, so
         # publishing only to the first one left the second channel without any
         # state (#24).
@@ -852,7 +852,7 @@ class SerialHandler:
 
         # RPS (F6) rocker switches: when Energy Bow is released (EB=0),
         # the rocker fields (R1, R2) contain zeroed data which maps to
-        # "Button AI" — misleading in MQTT Explorer. Override to "released".
+        # "Button AI", misleading in MQTT Explorer. Override to "released".
         if decoded.get("EB") == 0:
             for field_key in ("R1", "R2"):
                 if f"{field_key}_text" in decoded:
@@ -863,7 +863,7 @@ class SerialHandler:
     async def _write_packet(self, packet: bytes):
         """Write a raw packet to the transport without blocking the event loop.
 
-        socket.send() and serial.write() are synchronous — calling them
+        socket.send() and serial.write() are synchronous, calling them
         directly from an async handler can freeze the whole FastAPI app
         when the transport is slow or half-dead (full send buffer).
         """
@@ -872,7 +872,7 @@ class SerialHandler:
             await loop.run_in_executor(None, self._serial.write, packet)
         elif self._socket:
             # sendall() loops internally until all bytes are written or an
-            # error is raised — safer than send() for the multi-byte packets
+            # error is raised, safer than send() for the multi-byte packets
             # we emit here.
             await loop.run_in_executor(None, self._socket.sendall, packet)
         else:
@@ -1028,7 +1028,7 @@ class SerialHandler:
         logger.info(f"=== DIMMER TEACH-IN === sender=0x{sender_id:08X}, dest=0x{destination:08X}")
 
         # Step 1: Pre-teach data telegram (proven kipe/enocean #130 sequence)
-        # DB0=0x28: bit3=1 (data, not teach-in), bit5=1 — "wakes up" the actuator
+        # DB0=0x28: bit3=1 (data, not teach-in), bit5=1, "wakes up" the actuator
         pre_teach = bytes([0x00, 0x00, 0x00, 0x28])
         logger.info("  [1/3] A5 pre-teach telegram: 00000028 (broadcast)")
         await self.send_telegram(
@@ -1109,21 +1109,21 @@ class SerialHandler:
                                  channel: int = 0, invert: bool = False) -> bool:
         """Send a D2-05-00 (Blinds Control for Position and Angle) VLD command.
 
-        Unlike Eltako actuators — which react to simulated F6 rocker presses —
+        Unlike Eltako actuators, which react to simulated F6 rocker presses,
         NodOn/EnOcean D2-05-00 shutter modules expect a structured VLD telegram
         (RORG 0xD2) that carries the command in the payload. This is an
         *addressed* telegram: destination is the actuator's own ID.
 
         D2-05-00 message layouts differ per command:
-          "Go to Position and Angle" (CMD 1) — 4 data bytes:
+          "Go to Position and Angle" (CMD 1), 4 data bytes:
             DB3 = POS  Position 0..100 %, 127 (0x7F) = "do not change / not used"
             DB2 = ANG  Angle    0..100 %, 127 (0x7F) = not used
-            DB1 = REPO(bits 7..4) | LOCK(bits 3..0)  — 0 = normal repositioning
+            DB1 = REPO(bits 7..4) | LOCK(bits 3..0) , 0 = normal repositioning
             DB0 = CHN (bits 7..4) | CMD (bits 3..0) = 1
-          "Stop" (CMD 2) — 1 data byte:
+          "Stop" (CMD 2), 1 data byte:
             DB0 = CHN (bits 7..4) | CMD (bits 3..0) = 2
         The Stop command carries no POS/ANG/REPO fields, so it MUST be a
-        single byte — sending the 4-byte layout makes the actuator reject it
+        single byte, sending the 4-byte layout makes the actuator reject it
         (the reason Stop did nothing in issue #2).
 
         Position convention differs between EnOcean and Home Assistant:
@@ -1134,11 +1134,11 @@ class SerialHandler:
 
         Args:
             sender_id: Controller ID the actuator was taught in with (int)
-            destination: Actuator address (int) — addressed, not broadcast
+            destination: Actuator address (int), addressed, not broadcast
             command: "OPEN", "CLOSE", "STOP" or "POSITION"
             ha_position: Target position 0..100 in HA convention (POSITION only)
             channel: Output channel (default 0)
-            invert: Reverse direction for shutters wired/mounted the other way —
+            invert: Reverse direction for shutters wired/mounted the other way:
                 OPEN/CLOSE are swapped and the HA->EnOcean position mapping is
                 not inverted. Must match the position-feedback inversion in the
                 MQTT discovery config (see mapping_manager).
@@ -1187,12 +1187,12 @@ class SerialHandler:
         """Send a D2-01 (Electronic switch/dimmer) "Actuator Set Output" command.
 
         D2-01-xx actuators (e.g. NodOn In-Wall relay / boiler contact,
-        EEP D2-01-0F) are VLD (RORG 0xD2) devices — they do NOT react to F6
+        EEP D2-01-0F) are VLD (RORG 0xD2) devices, they do NOT react to F6
         rocker presses. Driving them with an F6 broadcast both fails to switch
         them AND makes other broadcast-listening actuators (e.g. a D2-05 blind)
         move by mistake (issue #2). This sends the proper addressed telegram.
 
-        "Actuator Set Output" (CMD 1) — 3 data bytes:
+        "Actuator Set Output" (CMD 1), 3 data bytes:
             DB2 = ...CMD(bits 3..0) = 1
             DB1 = DV(bits 7..5) | IO(bits 4..0)   DV 0 = switch to new value
             DB0 = OV(bits 6..0)                    0 = OFF, 1..100 = ON at %
@@ -1200,7 +1200,7 @@ class SerialHandler:
 
         Args:
             sender_id: Controller ID the actuator was taught in with (int)
-            destination: Actuator address (int) — addressed, not broadcast
+            destination: Actuator address (int), addressed, not broadcast
             command: "ON" / "OFF", or a numeric string / int 0-100 (dim level)
             channel: I/O channel (0 = first output, 1 = second output on
                 2-channel modules like the NodOn SIN-2-2-01)

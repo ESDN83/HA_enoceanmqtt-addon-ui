@@ -27,7 +27,7 @@ function getWsUrl(path) {
 // Average brightness (0-255) of a CSS color, or null if the color is
 // fully transparent / unparseable. Transparency MUST count as "no
 // information": HA's <body> usually has NO own background, and
-// rgba(0,0,0,0) was parsed as pitch black — so a light HA was detected
+// rgba(0,0,0,0) was parsed as pitch black, so a light HA was detected
 // as dark, and every Bootstrap-themed surface (tables, bg-body-tertiary,
 // <code>, native number spinners) rendered dark on the light page.
 function colorBrightness(str) {

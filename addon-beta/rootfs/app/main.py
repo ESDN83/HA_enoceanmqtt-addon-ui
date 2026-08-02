@@ -131,7 +131,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize Serial Handler (EnOcean communication).
     # A failing initial connect (gateway offline at startup) must NOT crash
-    # the whole addon — otherwise the supervisor restarts us in a loop and
+    # the whole addon, otherwise the supervisor restarts us in a loop and
     # the UI is never reachable for reconfiguration. On failure we start a
     # background task that retries until the gateway comes up.
     if ENOCEAN_PORT:
@@ -146,7 +146,7 @@ async def lifespan(app: FastAPI):
             await serial_handler.connect()
             logger.info(f"Connected to EnOcean transceiver at {ENOCEAN_PORT}")
         except Exception as e:
-            logger.error(f"Initial EnOcean connect failed: {e} — will retry in background")
+            logger.error(f"Initial EnOcean connect failed: {e}, will retry in background")
             asyncio.create_task(_serial_background_connect(serial_handler, ENOCEAN_PORT))
     else:
         logger.warning("EnOcean port not configured - running without EnOcean communication")
@@ -185,7 +185,7 @@ async def lifespan(app: FastAPI):
             _availability_watchdog(datetime.now(timezone.utc))
         )
 
-    logger.info("EnOcean MQTT Add-on started successfully — Web UI running on port 8099")
+    logger.info("EnOcean MQTT Add-on started successfully, Web UI running on port 8099")
 
     yield
 
@@ -360,7 +360,7 @@ async def _serial_background_connect(handler, port: str):
             logger.info(f"EnOcean transceiver connected at {port} (was offline at startup)")
             return
         except Exception as e:
-            logger.warning(f"Retry connect to {port} failed: {e} — next attempt in {min(backoff * 2, 60.0):.0f}s")
+            logger.warning(f"Retry connect to {port} failed: {e}, next attempt in {min(backoff * 2, 60.0):.0f}s")
             backoff = min(backoff * 2, 60.0)
 
 
@@ -449,7 +449,7 @@ async def _echo_light_state(device_name: str, command: str, brightness: int = No
     """Same idea as _echo_switch_state, for dimmers.
 
     A light entity is not optimistic either, so until the actuator reports
-    back, Home Assistant keeps showing the previous value — the lamp obeys the
+    back, Home Assistant keeps showing the previous value, the lamp obeys the
     command while the entity still reads 18%. Eltako dimmers do report, but
     only after a moment, and a lost telegram leaves the stale value standing
     forever. Echoing the commanded state closes that window; the actuator's
@@ -469,7 +469,7 @@ async def _echo_light_state(device_name: str, command: str, brightness: int = No
 
 
 async def _handle_device_command(device_name: str, payload: str, entity: str = None):
-    """Handle MQTT command for an actuator device — send F6 telegram.
+    """Handle MQTT command for an actuator device, send F6 telegram.
 
     For Eltako actuators (FD62NPN, FSR61, FSB61, etc.):
     - ON: F6 rocker BI (0x50) press + release
@@ -523,7 +523,7 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
     is_d2_01 = device.rorg.upper() == "D2" and str(device.func).zfill(2) == "01"
     if is_d2_01:
         channel = int(getattr(device, "channel", 0) or 0)
-        # ON/OFF from a switch role, brightness 0-100 from a light role —
+        # ON/OFF from a switch role, brightness 0-100 from a light role.
         # send_d2_01_command maps all of them to the output value.
         await serial_handler.send_d2_01_command(
             sender_id, destination, command, channel=channel
@@ -547,7 +547,7 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             logger.info(f"Sent OFF (A5-38-08) to {device_name}")
             await _echo_light_state(device_name, "OFF")
         else:
-            # Brightness value from HA (0-100) — send as 0-100 directly
+            # Brightness value from HA (0-100), send as 0-100 directly
             # Eltako dimmers use 0-100 range (not standard 0-255)
             try:
                 val = int(command)
@@ -557,7 +557,7 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                     logger.info(f"Sent OFF (A5-38-08 brightness=0) to {device_name}")
                     await _echo_light_state(device_name, "OFF")
                 else:
-                    # DIM mode: dim_mode=1 (use DB2 value) — actually sets brightness
+                    # DIM mode: dim_mode=1 (use DB2 value), actually sets brightness
                     await serial_handler.send_a5_dimmer_command(sender_id, "DIM", dim_value=dim)
                     logger.info(f"Sent DIM (A5-38-08 dim={dim}, {val}%) to {device_name}")
                     await _echo_light_state(device_name, "ON", brightness=dim)

@@ -98,7 +98,7 @@
   "teach_in.detected": "Appareil détecté !",
   "teach_in.connection_failed": "Échec de la connexion. La passerelle EnOcean n'est peut-être pas connectée.",
   "teach_in.teach_in_badge": "Teach-In",
-  "teach_in.timeout": "Délai du Teach-In expiré — aucun appareil détecté",
+  "teach_in.timeout": "Délai du Teach-In expiré, aucun appareil détecté",
   "teach_in.actuator_teach_in": "Teach-In d'actionneur",
   "teach_in.actuator_desc": "Teach-in de dimmers, interrupteurs et volets Eltako",
   "teach_in.teach_in_actuator_btn": "Teach-In actionneur",

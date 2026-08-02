@@ -8,7 +8,7 @@
 
 Modern web-based EnOcean to MQTT bridge for Home Assistant with visual device configuration.
 
-**This is an All-in-One solution** — No separate app required!
+**This is an All-in-One solution**: No separate app required!
 
 Questions or feedback? Join the discussion in the [Home Assistant Community forum](https://community.home-assistant.io/t/enocean-mqtt-ui-enocean-app-with-web-based-device-configuration/1017264).
 
@@ -16,21 +16,21 @@ Questions or feedback? Join the discussion in the [Home Assistant Community foru
 
 ## Features
 
-- **Visual Device Wizard** — Add EnOcean devices via teach-in or manual entry
-- **EEP Profile Browser** — Browse 96+ EnOcean Equipment Profiles with detailed field information
-- **Custom EEP Profiles** — Create and edit custom profiles for non-standard devices, with built-in HA Entity Mapping
-- **HA Entity Mapping Editor** — Visual editor with advanced MQTT discovery fields (state_class, expire_after, entity_category, force_update, etc.) plus YAML text mode for power users
-- **EEP.xml Upload** — Upload your own EEP.xml profile database or use the bundled one
-- **Home Assistant MQTT Discovery** — Automatic entity creation in Home Assistant
-- **Live Telegram Monitor** — Debug incoming EnOcean telegrams in real-time
-- **Unknown Device Detection** — Automatically detect and list unconfigured devices
-- **Fork Standard Profiles** — Create custom copies of standard EEP profiles to edit fields and mappings
-- **Configuration Export/Import** — Backup and restore your full configuration as YAML ZIP files
-- **Local Backup System** — Create, list, restore, and delete local backups (devices, mappings, custom profiles, overrides)
-- **Device State Caching** — Persist sensor states across restarts (essential for infrequent senders)
-- **Actuator Control** — Control Eltako dimmers, switches, and blinds via F6 rocker telegrams with teach-in support
-- **Dark Mode** — Automatically adapts to Home Assistant theme (dark/light) and OS preference
-- **Multi-Language UI** — Auto-detects browser language, supports 11 languages (EN, DE, ZH, HI, ES, FR, AR, BN, PT, RU, JA)
+- **Visual Device Wizard**: Add EnOcean devices via teach-in or manual entry
+- **EEP Profile Browser**: Browse 96+ EnOcean Equipment Profiles with detailed field information
+- **Custom EEP Profiles**: Create and edit custom profiles for non-standard devices, with built-in HA Entity Mapping
+- **HA Entity Mapping Editor**: Visual editor with advanced MQTT discovery fields (state_class, expire_after, entity_category, force_update, etc.) plus YAML text mode for power users
+- **EEP.xml Upload**: Upload your own EEP.xml profile database or use the bundled one
+- **Home Assistant MQTT Discovery**: Automatic entity creation in Home Assistant
+- **Live Telegram Monitor**: Debug incoming EnOcean telegrams in real-time
+- **Unknown Device Detection**: Automatically detect and list unconfigured devices
+- **Fork Standard Profiles**: Create custom copies of standard EEP profiles to edit fields and mappings
+- **Configuration Export/Import**: Backup and restore your full configuration as YAML ZIP files
+- **Local Backup System**: Create, list, restore, and delete local backups (devices, mappings, custom profiles, overrides)
+- **Device State Caching**: Persist sensor states across restarts (essential for infrequent senders)
+- **Actuator Control**: Control Eltako dimmers, switches, and blinds via F6 rocker telegrams with teach-in support
+- **Dark Mode**: Automatically adapts to Home Assistant theme (dark/light) and OS preference
+- **Multi-Language UI**: Auto-detects browser language, supports 11 languages (EN, DE, ZH, HI, ES, FR, AR, BN, PT, RU, JA)
 
 ## Getting Started
 
@@ -38,9 +38,9 @@ Questions or feedback? Join the discussion in the [Home Assistant Community foru
 
 - Home Assistant OS or a Supervised installation (apps require the Supervisor)
 - An **EnOcean transceiver**: a USB stick (e.g. USB300 / EnOcean Pi) plugged into the HA host, or one reachable over the network via TCP (e.g. through [esp-ha-usb-gateway](https://github.com/ESDN83/esp-ha-usb-gateway) or ser2net)
-- An **MQTT broker** connected to Home Assistant — if you don't have one yet, install the official *Mosquitto broker* app first and set up the MQTT integration (Settings → Devices & Services)
+- An **MQTT broker** connected to Home Assistant, and if you don't have one yet, install the official *Mosquitto broker* app first and set up the MQTT integration (Settings → Devices & Services)
 
-### Step 1 — Add the repository
+### Step 1: Add the repository
 
 Click the blue **"Add to Home Assistant"** button at the top of this page, or add it manually: go to **Settings → Apps → App Store**, open the **⋮ menu** (top right) → **Repositories**, and paste:
 
@@ -50,19 +50,19 @@ https://github.com/ESDN83/HA_enoceanmqtt-addon-ui
 
 *(On Home Assistant versions before 2026.2 the App Store is called "Add-on Store".)*
 
-### Step 2 — Install and configure
+### Step 2: Install and configure
 
 1. Find **EnOcean MQTT UI** in the store (reload the page if it doesn't appear) and click **Install**
 2. Open the app's **Configuration** tab and point it at your transceiver:
-   - **USB stick**: pick your transceiver under **Serial Port** (a device must be selected — a plugged-in stick shows with a recognizable name, e.g. "USB 300")
-   - **Network transceiver**: set **TCP Port** in the form `tcp:HOST:PORT`, e.g. `tcp:192.168.1.100:9637` — TCP takes priority, so just pick any device under Serial Port; it's ignored
-3. MQTT needs no configuration — the app automatically uses Home Assistant's broker. Only if you run an external broker, set host and credentials later in the Web UI under *Settings → MQTT*
+   - **USB stick**: pick your transceiver under **Serial Port** (a device must be selected, a plugged-in stick shows with a recognizable name, e.g. "USB 300")
+   - **Network transceiver**: set **TCP Port** in the form `tcp:HOST:PORT`, e.g. `tcp:192.168.1.100:9637`. TCP takes priority, so just pick any device under Serial Port; it's ignored
+3. MQTT needs no configuration, the app automatically uses Home Assistant's broker. Only if you run an external broker, set host and credentials later in the Web UI under *Settings → MQTT*
 
-### Step 3 — Start and add your first device
+### Step 3: Start and add your first device
 
 1. **Start** the app, then open the **Web UI** from the Home Assistant sidebar
-2. Click **Add Device** and choose **Automatic (Teach-In)**, then press the learn/pairing button on your EnOcean device — or enter the device address and EEP profile manually
-3. That's it — the device's entities appear in Home Assistant automatically via MQTT Discovery
+2. Click **Add Device** and choose **Automatic (Teach-In)**, then press the learn/pairing button on your EnOcean device, or enter the device address and EEP profile manually
+3. That's it, the device's entities appear in Home Assistant automatically via MQTT Discovery
 
 ## Configuration
 
@@ -70,7 +70,7 @@ https://github.com/ESDN83/HA_enoceanmqtt-addon-ui
 
 | Option | Description |
 |--------|-------------|
-| `serial_port` | EnOcean USB transceiver, selected from the list of detected serial devices; a device must be selected — with TCP it takes priority and this is ignored |
+| `serial_port` | EnOcean USB transceiver, selected from the list of detected serial devices; a device must be selected, with TCP it takes priority and this is ignored |
 | `tcp_port` | Remote EnOcean transceiver via TCP, format `tcp:HOST:PORT` (e.g., `tcp:192.168.1.100:9637`); takes priority over serial |
 | `log_level` | Logging level (debug, info, warning, error) |
 | `cache_device_states` | Persist device states across restarts (default: true) |
@@ -82,11 +82,11 @@ https://github.com/ESDN83/HA_enoceanmqtt-addon-ui
 
 This app bundles the EnOcean EEP.xml (sourced from [ChristopheHD's enocean library](https://github.com/ChristopheHD/enocean)) containing 96+ standard profiles including:
 
-- **RPS (F6)** — Rocker switches, window handles
-- **1BS (D5)** — Single input contacts
-- **4BS (A5)** — Temperature, humidity, occupancy, light sensors
-- **VLD (D2)** — Electronic switches, dimmers, blinds
-- **MSC (D1)** — Manufacturer-specific devices
+- **RPS (F6)**: Rocker switches, window handles
+- **1BS (D5)**: Single input contacts
+- **4BS (A5)**: Temperature, humidity, occupancy, light sensors
+- **VLD (D2)**: Electronic switches, dimmers, blinds
+- **MSC (D1)**: Manufacturer-specific devices
 
 You can also upload your own EEP.xml via the Settings page.
 
@@ -231,7 +231,7 @@ A rocker switch sends button press events as enum values.
 ]
 ```
 
-### HA Entity Mapping — Advanced Fields
+### HA Entity Mapping: Advanced Fields
 
 The mapping editor supports all MQTT discovery fields for Home Assistant. In addition to the basic fields (Component, Name, Device Class, Icon, Unit), each mapping row has a collapsible **Advanced** section:
 
@@ -261,11 +261,11 @@ The mapping editor supports all MQTT discovery fields for Home Assistant. In add
 
 **Export (download):**
 1. Go to "Settings" in the web UI
-2. Click "Export All" — downloads a ZIP file containing devices, mappings, and custom profiles
+2. Click "Export All", downloads a ZIP file containing devices, mappings, and custom profiles
 
 **Local Backup:**
 1. Go to "Settings" > "Local Backups"
-2. Click "Create Backup" — saves a ZIP to the app's data directory
+2. Click "Create Backup", saves a ZIP to the app's data directory
 3. The backup list shows all local backups with date, size, and device count
 4. Use the download, restore, or delete buttons per backup
 5. Restore and delete actions require confirmation via popup dialog
@@ -277,12 +277,12 @@ The mapping editor supports all MQTT discovery fields for Home Assistant. In add
 
 ### Controlling Actuators (Eltako Dimmers/Switches/Blinds)
 
-1. **Read Base ID** — Go to Teach-In and click "Read" to get the gateway's base address
-2. **Put actuator in learn mode** — Short press the learn button on the Eltako device (LED blinks). For FD62NPN dimmers: press rotary knob 4x short + 1x long (>2s) — lamp flickers to confirm
-3. **Send teach-in** — Enter actuator address, choose a unique sender offset (1-127), click "Send Teach-In"
-4. **Add the device** — Use "Manual Entry" with the sender ID, set Device Role to light/switch/cover
-5. **Test from UI** — Open device detail and use the Test ON/OFF buttons
-6. **Control from HA** — The device appears as a light/switch/cover entity in Home Assistant
+1. **Read Base ID**: Go to Teach-In and click "Read" to get the gateway's base address
+2. **Put actuator in learn mode**: Short press the learn button on the Eltako device (LED blinks). For FD62NPN dimmers: press rotary knob 4x short + 1x long (>2s), the lamp flickers to confirm
+3. **Send teach-in**: Enter actuator address, choose a unique sender offset (1-127), click "Send Teach-In"
+4. **Add the device**: Use "Manual Entry" with the sender ID, set Device Role to light/switch/cover
+5. **Test from UI**: Open device detail and use the Test ON/OFF buttons
+6. **Control from HA**: The device appears as a light/switch/cover entity in Home Assistant
 
 **Tip:** To clear all learned senders from an Eltako actuator, press the learn button 5 times quickly.
 
@@ -446,7 +446,7 @@ If you are migrating from the ChristopheHD enocean-mqtt app:
 2. **Install this app** and stop the old one
 3. **Import your devices** via the Settings page or manually re-add them
 4. Your existing `enoceanmqtt.devices` file format is supported for import
-5. MQTT topics are compatible — existing HA entities should continue working
+5. MQTT topics are compatible, existing HA entities should continue working
 
 ## Development
 
@@ -486,7 +486,7 @@ docker build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.1
 - Check the app logs for errors
 
 ### Sensors Show Wrong Values
-- The EEP profile may not match your device — try creating a Custom EEP Profile
+- The EEP profile may not match your device, try creating a Custom EEP Profile
 - Check bit offsets and field sizes match your device documentation
 
 ### Teach-In Not Working
@@ -501,7 +501,7 @@ docker build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.1
 
 ## Credits
 
-- [ChristopheHD](https://github.com/ChristopheHD/enocean) — EEP.xml profile database and MQTT compatibility patterns
+- [ChristopheHD](https://github.com/ChristopheHD/enocean): EEP.xml profile database and MQTT compatibility patterns
 - EnOcean Alliance for the EEP specification
 - Home Assistant community
 
@@ -519,8 +519,8 @@ MIT License - see LICENSE file
 
 | Project | Description |
 |---------|-------------|
-| [esp-ha-usb-gateway](https://github.com/ESDN83/esp-ha-usb-gateway) | ESP32-S3 USB-to-TCP bridge for Home Assistant — use Zigbee/EnOcean USB sticks over the network (ESPHome) |
-| [esp-cyberpower-ups](https://github.com/ESDN83/esp-cyberpower-ups) | ESP32-S3 CyberPower UPS monitor via USB HID — native ESPHome component, direct Home Assistant integration |
+| [esp-ha-usb-gateway](https://github.com/ESDN83/esp-ha-usb-gateway) | ESP32-S3 USB-to-TCP bridge for Home Assistant, use Zigbee/EnOcean USB sticks over the network (ESPHome) |
+| [esp-cyberpower-ups](https://github.com/ESDN83/esp-cyberpower-ups) | ESP32-S3 CyberPower UPS monitor via USB HID, native ESPHome component, direct Home Assistant integration |
 | [heizung-vitoconnect](https://github.com/ESDN83/heizung-vitoconnect) | ESPHome Vitoconnect replacement for Viessmann heating (WT32-ETH01 + Optolink) with Home Assistant integration |
 | [Home-Solar-Portable-emergency-charger](https://github.com/ESDN83/Home-Solar-Portable-emergency-charger) | DIY portable emergency charger for PV home battery systems (E3DC / Victron compatible) |
-| [HA-Blueprints](https://github.com/ESDN83/HA-Blueprints) | Home Assistant automation blueprints — EnOcean PTM 215Z dimming & color scenes via Zigbee2MQTT |
+| [HA-Blueprints](https://github.com/ESDN83/HA-Blueprints) | Home Assistant automation blueprints, EnOcean PTM 215Z dimming & color scenes via Zigbee2MQTT |

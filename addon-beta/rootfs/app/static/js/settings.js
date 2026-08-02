@@ -302,9 +302,9 @@ async function saveMqttConfig(restart) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.detail || 'HTTP ' + response.status);
         if (data.restarting) {
-            showToast(t('settings.mqtt_saved_restarting', 'MQTT settings saved — app is restarting...'), 'success');
+            showToast(t('settings.mqtt_saved_restarting', 'MQTT settings saved, the app is restarting...'), 'success');
         } else {
-            showToast(t('settings.mqtt_saved', 'MQTT settings saved — restart the app to apply'), 'success');
+            showToast(t('settings.mqtt_saved', 'MQTT settings saved. Restart the app to apply'), 'success');
         }
         loadMqttConfig();
     } catch (error) {
@@ -326,7 +326,7 @@ function resetMqttConfig() {
                 });
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.detail || 'HTTP ' + response.status);
-                showToast(t('settings.mqtt_reset_done', 'MQTT settings reset to defaults — restart the app to apply'), 'success');
+                showToast(t('settings.mqtt_reset_done', 'MQTT settings reset to defaults. Restart the app to apply'), 'success');
                 loadMqttConfig();
             } catch (error) {
                 showToast(t('settings.mqtt_save_failed', 'Failed to save MQTT settings') + ': ' + error.message, 'danger');

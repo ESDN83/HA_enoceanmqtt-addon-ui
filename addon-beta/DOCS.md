@@ -6,31 +6,31 @@
 
 All-in-One EnOcean to MQTT bridge with a modern web UI for Home Assistant.
 This app replaces the need for separate EnOcean bridges and YAML configuration.
-Add your EnOcean devices visually, browse EEP profiles, and manage MQTT mappings —
+Add your EnOcean devices visually, browse EEP profiles, and manage MQTT mappings,
 all from within Home Assistant.
 
 ### Key Features
 
-- **Visual Device Wizard** — Add, edit and remove EnOcean devices through a web UI
-- **Teach-In Mode** — Automatic device detection when pressing the learn button
-- **96+ EEP Profiles** — Built-in EnOcean Equipment Profile browser
-- **Custom Profiles** — Create profiles for non-standard devices (e.g., Kessel Staufix)
-- **EEP.xml Upload** — Upload your own EEP.xml profile database or use the bundled one
-- **MQTT Discovery** — Devices appear automatically in Home Assistant
-- **Live Telegram Monitor** — Debug incoming EnOcean telegrams in real-time
-- **Unknown Device Detection** — Detect and quick-add unconfigured devices
-- **State Persistence** — Restore device states after restart
-- **Actuator Control** — Control Eltako dimmers, switches, and blinds with teach-in support
-- **HA Entity Mapping Overrides** — Customize HA mappings per EEP profile with inline editor and auto-fill
-- **Advanced Mapping Fields** — state_class, entity_category, expire_after, force_update, display precision, value_template
-- **Visual & Text Mode Editor** — Toggle between visual form and YAML text editor for mapping overrides
-- **Fork Standard Profiles** — Create custom copies of standard EEP profiles to edit fields and mappings
-- **YAML-Based Config** — All configuration files (devices, mappings, overrides) stored as YAML
-- **Export/Import YAML** — Full configuration export/import as YAML files
-- **Local Backups** — Create, list, restore, and delete local backups (devices, mappings, custom profiles, overrides)
-- **Dark Mode** — Automatic light/dark theme based on your Home Assistant settings
-- **Multi-Language UI** — Auto-detects browser language (11 languages supported)
-- **Mobile Friendly** — Responsive UI with sidebar navigation
+- **Visual Device Wizard**: Add, edit and remove EnOcean devices through a web UI
+- **Teach-In Mode**: Automatic device detection when pressing the learn button
+- **96+ EEP Profiles**: Built-in EnOcean Equipment Profile browser
+- **Custom Profiles**: Create profiles for non-standard devices (e.g., Kessel Staufix)
+- **EEP.xml Upload**: Upload your own EEP.xml profile database or use the bundled one
+- **MQTT Discovery**: Devices appear automatically in Home Assistant
+- **Live Telegram Monitor**: Debug incoming EnOcean telegrams in real-time
+- **Unknown Device Detection**: Detect and quick-add unconfigured devices
+- **State Persistence**: Restore device states after restart
+- **Actuator Control**: Control Eltako dimmers, switches, and blinds with teach-in support
+- **HA Entity Mapping Overrides**: Customize HA mappings per EEP profile with inline editor and auto-fill
+- **Advanced Mapping Fields**: state_class, entity_category, expire_after, force_update, display precision, value_template
+- **Visual & Text Mode Editor**: Toggle between visual form and YAML text editor for mapping overrides
+- **Fork Standard Profiles**: Create custom copies of standard EEP profiles to edit fields and mappings
+- **YAML-Based Config**: All configuration files (devices, mappings, overrides) stored as YAML
+- **Export/Import YAML**: Full configuration export/import as YAML files
+- **Local Backups**: Create, list, restore, and delete local backups (devices, mappings, custom profiles, overrides)
+- **Dark Mode**: Automatic light/dark theme based on your Home Assistant settings
+- **Multi-Language UI**: Auto-detects browser language (11 languages supported)
+- **Mobile Friendly**: Responsive UI with sidebar navigation
 
 ## Supported Hardware
 
@@ -53,9 +53,9 @@ all from within Home Assistant.
 1. **Configure** your EnOcean USB serial port in the app settings
 2. **Start** the app and open the Web UI via the sidebar
 3. **Add a device**: Click "Add Device", choose Teach-In, and press the learn button on your EnOcean device
-4. **Done** — The device appears automatically in Home Assistant via MQTT Discovery
+4. **Done**: The device appears automatically in Home Assistant via MQTT Discovery
 
-> **MQTT:** The app automatically connects to Home Assistant's MQTT broker — make sure a broker (e.g. the Mosquitto app) and the MQTT integration are set up. An external broker can be configured in the Web UI under Settings.
+> **MQTT:** The app automatically connects to Home Assistant's MQTT broker, so make sure a broker (e.g. the Mosquitto app) and the MQTT integration are set up. An external broker can be configured in the Web UI under Settings.
 
 ## Web UI
 
@@ -77,7 +77,7 @@ all profiles and view field definitions.
 ### Entity Mappings
 Define how EEP profile fields map to Home Assistant entities (sensor, binary_sensor,
 switch, light, cover, etc.). Each EEP profile detail view includes a "Customize" button
-to override the default mapping — with auto-fill from EEP.xml field definitions and
+to override the default mapping, with auto-fill from EEP.xml field definitions and
 per-profile save/reset. Advanced fields like `state_class`, `entity_category`,
 `expire_after`, `force_update`, and `value_template` are supported.
 
@@ -96,7 +96,7 @@ Wizard for adding new devices via Teach-In (automatic) or manual entry.
 
 ### Settings
 Export/import full configuration as YAML, upload custom EEP.xml, local backups
-(create/list/restore/delete — includes devices, mappings, custom profiles, and overrides),
+(create/list/restore/delete, includes devices, mappings, custom profiles, and overrides),
 view system information, restart services.
 
 ![Settings](https://github.com/user-attachments/assets/370072b1-7219-4566-a733-2c9e58b018fa)
@@ -107,7 +107,7 @@ view system information, restart services.
 
 Select your EnOcean USB transceiver from the list of detected serial devices
 (e.g. `/dev/ttyUSB0` for a USB300, `/dev/ttyAMA0` for a Raspberry Pi GPIO). A
-device must be selected here — Home Assistant can't save this field empty. A
+device must be selected here, Home Assistant can't save this field empty. A
 plugged-in USB gateway usually appears with a recognizable name (e.g. something
 containing "USB 300").
 
@@ -127,7 +127,7 @@ When both serial and TCP are configured, **TCP takes priority**.
 ### MQTT Settings
 
 By default the app automatically connects to the MQTT broker provided by
-Home Assistant (the Mosquitto broker app) — leave **Host** empty for this.
+Home Assistant (the Mosquitto broker app): leave **Host** empty for this.
 
 To use an **external MQTT broker** (e.g. a standalone Mosquitto container on
 UNRAID, Synology, or another server), fill in the **Host** field. When a host is
@@ -146,7 +146,7 @@ app installed in Home Assistant at all.
 | **Client ID** | `enocean_gateway` | Unique MQTT client identifier |
 
 > **Note:** When using an external broker, make sure Home Assistant's own MQTT
-> integration points at the **same** broker — otherwise HA won't see the
+> integration points at the **same** broker, otherwise HA won't see the
 > discovery messages and no entities will appear.
 
 ### Cache Device States
@@ -163,7 +163,7 @@ If you are migrating from the ChristopheHD enocean-mqtt add-on:
 2. Install this app and stop the old one
 3. Import your devices via the Settings page
 4. The old `enoceanmqtt.devices` file format is supported for import
-5. MQTT topics are compatible — existing HA entities should continue working
+5. MQTT topics are compatible, existing HA entities should continue working
 
 ## Troubleshooting
 

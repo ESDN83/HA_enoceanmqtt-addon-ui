@@ -16,7 +16,7 @@ function detectAndApplyTheme() {
             dark = true;
             haDetected = true;
         }
-        // 1b: HA's own background variable — the color the page really
+        // 1b: HA's own background variable, the color the page really
         // paints, and the same source applyHAThemeVars() inherits from.
         // Using it keeps the theme attributes and the inherited colors
         // consistent by construction.
@@ -29,7 +29,7 @@ function detectAndApplyTheme() {
                 haDetected = true;
             }
         }
-        // 1c: computed body background — but transparent means unknown
+        // 1c: computed body background, but transparent means unknown
         if (!haDetected) {
             const lum = colorBrightness(getComputedStyle(parentDoc.body).backgroundColor);
             if (lum !== null) {
@@ -41,10 +41,10 @@ function detectAndApplyTheme() {
         // Try to inherit HA's CSS custom properties for exact theme matching
         applyHAThemeVars(parentDoc);
     } catch (e) {
-        // Cross-origin — not in HA Ingress, fall through
+        // Cross-origin, not in HA Ingress, fall through
     }
 
-    // Method 2: OS preference — ONLY when not embedded in HA
+    // Method 2: OS preference, ONLY when not embedded in HA
     if (!haDetected && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         dark = true;
     }
@@ -75,7 +75,7 @@ function applyHAThemeVars(parentDoc) {
     // Input colours must follow the SAME theme as the text we just
     // inherited. Without this they kept the values from our own
     // stylesheet, so an inherited dark text colour could end up on a
-    // light field (or the reverse) — the unreadable fields in #25.
+    // light field (or the reverse), the unreadable fields in #25.
     const cardBg = style.getPropertyValue('--card-background-color').trim();
     if (cardBg) root.style.setProperty('--input-bg', cardBg);
     const divider = style.getPropertyValue('--divider-color').trim();

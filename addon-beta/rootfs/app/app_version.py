@@ -5,7 +5,7 @@ reads). To stop the UI/API from drifting out of sync with it, we read it back
 at runtime instead of hard-coding it in several places. `config.yaml` is copied
 into the image at `/app/config.yaml` by the Dockerfile.
 
-If the file is missing/unreadable we fall back to a constant — keep that in sync
+If the file is missing/unreadable we fall back to a constant, keep that in sync
 with config.yaml as a safety net, but config.yaml remains the real source.
 """
 import os

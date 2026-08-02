@@ -98,7 +98,7 @@
   "teach_in.detected": "डिवाइस पहचाना गया!",
   "teach_in.connection_failed": "कनेक्शन विफल। EnOcean गेटवे शायद कनेक्ट नहीं है।",
   "teach_in.teach_in_badge": "Teach-In",
-  "teach_in.timeout": "Teach-In का समय समाप्त हो गया — कोई डिवाइस नहीं पहचाना गया",
+  "teach_in.timeout": "Teach-In का समय समाप्त हो गया, कोई डिवाइस नहीं पहचाना गया",
   "teach_in.actuator_teach_in": "एक्चुएटर Teach-In",
   "teach_in.actuator_desc": "Eltako डिमर, स्विच, ब्लाइंड के लिए Teach-in",
   "teach_in.teach_in_actuator_btn": "एक्चुएटर Teach-In",

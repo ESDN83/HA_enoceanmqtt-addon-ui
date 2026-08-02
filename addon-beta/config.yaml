@@ -40,7 +40,7 @@ options:
     client_id: "enocean_gateway"
 
 schema:
-  # Native tty device selector — HA shows a list of the connected serial
+  # Native tty device selector. HA shows a list of the connected serial
   # devices in the Config tab (needs uart+udev), so users can pick their
   # EnOcean gateway. A device MUST be selected: HA rejects an empty device
   # value ("Device '' does not exist") and offers no portable default. TCP-only

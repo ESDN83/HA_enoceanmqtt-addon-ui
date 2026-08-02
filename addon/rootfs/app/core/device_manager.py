@@ -75,7 +75,7 @@ class DeviceManager:
         self.devices_file = os.path.join(config_path, "devices.yaml")
         self.legacy_json_file = os.path.join(config_path, "devices.json")
         self.legacy_devices_file = os.path.join(config_path, "enoceanmqtt.devices")
-        # One address can hold several devices — a 2-channel actuator is
+        # One address can hold several devices, a 2-channel actuator is
         # configured once per output, all sharing the module address (#24).
         self._address_map: Dict[str, List[str]] = {}  # address -> [device_name]
 
@@ -234,7 +234,7 @@ class DeviceManager:
         """Get ALL devices registered for an address.
 
         A 2-channel actuator is configured as one device per output, all with
-        the same module address — every one of them has to receive the state
+        the same module address, every one of them has to receive the state
         of an incoming telegram, otherwise the second channel stays dead (#24).
         """
         norm_addr = address.strip().upper().replace("0X", "")

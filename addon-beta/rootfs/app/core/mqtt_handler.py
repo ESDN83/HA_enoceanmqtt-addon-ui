@@ -190,7 +190,7 @@ class MQTTHandler:
             # so ".../+/set/#" matched ".../<device>/set" as well. Both
             # subscriptions then matched the same topic, the broker delivered
             # one copy per matching subscription, and every command from Home
-            # Assistant was executed twice — two telegrams on air for one
+            # Assistant was executed twice, two telegrams on air for one
             # click. _on_message only ever reads one extra level
             # ({prefix}/{device}/set/{entity}), so "+" covers what exists
             # without overlapping the exact topic above.
@@ -271,7 +271,7 @@ class MQTTHandler:
         return len(pattern_parts) == len(topic_parts)
 
     def _handle_command(self, device_name: str, payload: str, entity: str = None):
-        """Handle command for a device — dispatch to serial handler for actuators"""
+        """Handle command for a device, dispatch to serial handler for actuators"""
         target = f"{device_name}/{entity}" if entity else device_name
         logger.info(f"Command for {target}: {payload}")
 
@@ -447,7 +447,7 @@ class MQTTHandler:
     async def _debounced_save(self):
         """Wait out the debounce window, then flush dirty states to disk.
 
-        Cancelled by disconnect() — if dirty at cancel time we flush
+        Cancelled by disconnect(), if dirty at cancel time we flush
         synchronously so we don't lose data on shutdown.
         """
         try:
