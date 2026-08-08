@@ -6,10 +6,12 @@ Uses a dedicated thread for serial I/O to avoid blocking the asyncio event loop.
 """
 
 import os
+import time
 import logging
 import asyncio
 import serial
 import socket
+from contextlib import asynccontextmanager
 from typing import Optional, Callable, List, Dict, Any
 from dataclasses import dataclass
 
@@ -24,6 +26,27 @@ PACKET_TYPE_COMMON_COMMAND = 0x05
 
 # Common commands
 CO_RD_IDBASE = 0x08
+
+# Response return codes
+RET_OK = 0x00
+
+# Transmit pacing. The transceiver has one radio and a small transmit queue,
+# and its response packets carry no sequence number. Only one ESP3 request may
+# therefore be in flight, and consecutive telegrams need a gap or the module
+# silently drops what does not fit. See ADR-0012.
+TX_GAP_SECONDS = 0.04
+TX_SLOT_TIMEOUT = 1.0
+TX_WRITE_TIMEOUT = 0.5
+TX_RESPONSE_TIMEOUT = 0.3
+COMMAND_RESPONSE_TIMEOUT = 1.0
+
+# An F6 rocker press is terminated by a release, and the interval between the
+# two *is* the command: Eltako actuators read a short press as "run the full
+# way" and a long one as "move only while held". A shutter whose press got
+# stretched travels a few centimetres instead of closing. 100 ms is the short
+# press we simulate, 250 ms the point where the meaning starts to shift.
+RPS_HOLD_SECONDS = 0.1
+RPS_HOLD_WARN_SECONDS = 0.25
 
 
 class TransceiverError(Exception):
@@ -40,6 +63,14 @@ class CommandTimeoutError(TransceiverError):
 
 class TransportLostError(TransceiverError):
     """Raised when the transport died while a command was in flight."""
+
+
+class TransceiverBusyError(TransceiverError):
+    """Raised when the transmit slot could not be acquired in time.
+
+    Means an earlier request is still occupying the transceiver, normally a
+    stalled write on a half-dead transport.
+    """
 
 
 # CRC8 lookup table
@@ -137,9 +168,12 @@ class SerialHandler:
         self._ute_response_offset: int = 1
         self._base_id: Optional[int] = None
         self._response_future: Optional[asyncio.Future] = None
-        # Serializes _send_command() so concurrent callers don't clobber
-        # each other's _response_future slot.
-        self._cmd_lock = asyncio.Lock()
+        # Guards every conversation with the transceiver, radio telegrams and
+        # common commands alike: one request in flight at a time, so nothing
+        # clobbers the _response_future slot and nothing overruns the module's
+        # transmit queue. _last_tx carries the gap across slots.
+        self._tx_lock = asyncio.Lock()
+        self._last_tx: float = 0.0
 
     @property
     def is_connected(self) -> bool:
@@ -860,35 +894,113 @@ class SerialHandler:
 
         return decoded
 
+    @asynccontextmanager
+    async def _tx_slot(self):
+        """Hold the exclusive right to talk to the transceiver.
+
+        Every write goes through here. Acquiring has a timeout so a stalled
+        write on a half-dead transport cannot park the whole send path
+        forever, the caller gets an error instead of hanging.
+        """
+        try:
+            await asyncio.wait_for(self._tx_lock.acquire(), timeout=TX_SLOT_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise TransceiverBusyError(
+                f"Transceiver still busy after {TX_SLOT_TIMEOUT:.0f}s, request dropped"
+            )
+        try:
+            yield
+        finally:
+            self._tx_lock.release()
+
     async def _write_packet(self, packet: bytes):
-        """Write a raw packet to the transport without blocking the event loop.
+        """Write a raw packet to the transport, keeping the inter-telegram gap.
+
+        Only call while holding _tx_slot(): the gap bookkeeping and the
+        one-request-in-flight rule both depend on it.
 
         socket.send() and serial.write() are synchronous, calling them
         directly from an async handler can freeze the whole FastAPI app
-        when the transport is slow or half-dead (full send buffer).
+        when the transport is slow or half-dead (full send buffer). The
+        timeout bounds that: run_in_executor cannot be cancelled, so the
+        worker thread may stay stuck, but we stop waiting on it and drop the
+        transport so the read loop reconnects.
         """
+        gap = TX_GAP_SECONDS - (time.monotonic() - self._last_tx)
+        if gap > 0:
+            await asyncio.sleep(gap)
+
         loop = asyncio.get_event_loop()
         if self._serial:
-            await loop.run_in_executor(None, self._serial.write, packet)
+            write = loop.run_in_executor(None, self._serial.write, packet)
         elif self._socket:
             # sendall() loops internally until all bytes are written or an
             # error is raised, safer than send() for the multi-byte packets
             # we emit here.
-            await loop.run_in_executor(None, self._socket.sendall, packet)
+            write = loop.run_in_executor(None, self._socket.sendall, packet)
         else:
             raise ConnectionError("No transport available")
+
+        try:
+            await asyncio.wait_for(write, timeout=TX_WRITE_TIMEOUT)
+        except asyncio.TimeoutError:
+            self._connected = False
+            # Drop the transport, otherwise the read loop keeps reading from a
+            # port we can no longer write to and nothing triggers a reconnect.
+            asyncio.create_task(self._close_transport())
+            raise TransportLostError(
+                f"Write stalled for {TX_WRITE_TIMEOUT * 1000:.0f} ms, transport dropped"
+            )
+        finally:
+            self._last_tx = time.monotonic()
+
+    async def _send_radio_packet(self, packet: bytes, label: str) -> bool:
+        """Write one radio telegram and check what the transceiver made of it.
+
+        Call while holding _tx_slot(). The module answers every radio packet
+        with a RESPONSE carrying a return code, and a full transmit queue is
+        reported as RET_NOT_OK. Ignoring that response is what used to make
+        dropped commands invisible: the state echo went out regardless and
+        Home Assistant showed a device as switched that never heard anything.
+        """
+        loop = asyncio.get_event_loop()
+        self._response_future = loop.create_future()
+        try:
+            await self._write_packet(packet)
+            ret = await asyncio.wait_for(self._response_future, timeout=TX_RESPONSE_TIMEOUT)
+        except asyncio.TimeoutError:
+            logger.warning(
+                f"No transceiver ack for {label} within {TX_RESPONSE_TIMEOUT * 1000:.0f} ms"
+            )
+            return False
+        except TransportLostError as e:
+            logger.error(f"Transport error sending {label}: {e}")
+            return False
+        except (ConnectionError, serial.SerialException, OSError) as e:
+            logger.error(f"Transport error sending {label}: {e}")
+            self._connected = False
+            return False
+        finally:
+            self._response_future = None
+
+        if ret and ret[0] != RET_OK:
+            logger.warning(f"Transceiver rejected {label}: return code 0x{ret[0]:02X}")
+            return False
+        return True
 
     async def _send_command(self, command_code: int) -> bytes:
         """Send an ESP3 common command and wait for response.
 
-        Serialized via self._cmd_lock so concurrent callers don't overwrite
-        each other's _response_future slot (the read loop only fills the
-        currently-pending slot and would silently mis-route responses).
+        Takes the same transmit slot as radio telegrams. Response packets
+        carry no sequence number, so with two requests in flight the read
+        loop would hand a radio acknowledgement to whoever asked for a
+        version string.
 
         Raises:
             NotConnectedError: transport is not open
-            CommandTimeoutError: no response within 3s
+            CommandTimeoutError: no response in time
             TransportLostError: transport died during the exchange
+            TransceiverBusyError: transmit slot was occupied
         """
         if not self._connected:
             raise NotConnectedError(f"Cannot send 0x{command_code:02X}: transceiver not connected")
@@ -899,15 +1011,20 @@ class SerialHandler:
         data_crc = crc8(packet_data)
         packet = bytes([SYNC_BYTE]) + header + bytes([header_crc]) + packet_data + bytes([data_crc])
 
-        async with self._cmd_lock:
+        async with self._tx_slot():
             loop = asyncio.get_event_loop()
             self._response_future = loop.create_future()
 
             try:
                 await self._write_packet(packet)
-                return await asyncio.wait_for(self._response_future, timeout=3.0)
+                return await asyncio.wait_for(
+                    self._response_future, timeout=COMMAND_RESPONSE_TIMEOUT
+                )
             except asyncio.TimeoutError:
-                raise CommandTimeoutError(f"No response to command 0x{command_code:02X} after 3s")
+                raise CommandTimeoutError(
+                    f"No response to command 0x{command_code:02X} after "
+                    f"{COMMAND_RESPONSE_TIMEOUT:.0f}s"
+                )
             except (ConnectionError, serial.SerialException, OSError) as e:
                 self._connected = False
                 raise TransportLostError(f"Transport lost sending 0x{command_code:02X}: {e}") from e
@@ -1241,13 +1358,9 @@ class SerialHandler:
         """Set callback for teach-in events"""
         self._teach_in_callback = callback
 
-    async def send_telegram(self, sender_id: int, rorg: int, data: bytes, destination: int = 0xFFFFFFFF, status: int = None):
-        """Send an EnOcean telegram"""
-        if not self._connected:
-            logger.error("Cannot send - not connected")
-            return False
-
-        # Build radio telegram
+    def _build_radio_packet(self, sender_id: int, rorg: int, data: bytes,
+                            destination: int = 0xFFFFFFFF, status: int = None) -> bytes:
+        """Assemble an ESP3 RADIO_ERP1 packet."""
         # RORG + data + sender_id (4 bytes) + status (1 byte)
         sender_bytes = sender_id.to_bytes(4, 'big')
         if status is None:
@@ -1260,30 +1373,96 @@ class SerialHandler:
         dest_bytes = destination.to_bytes(4, 'big')
         optional = bytes([0x03]) + dest_bytes + bytes([0xFF, 0x00])
 
-        # Build ESP3 packet
-        data_len = len(packet_data)
-        optional_len = len(optional)
-
         header = bytes([
-            (data_len >> 8) & 0xFF,
-            data_len & 0xFF,
-            optional_len,
+            (len(packet_data) >> 8) & 0xFF,
+            len(packet_data) & 0xFF,
+            len(optional),
             PACKET_TYPE_RADIO
         ])
 
         header_crc = crc8(header)
         data_crc = crc8(packet_data + optional)
 
-        packet = bytes([SYNC_BYTE]) + header + bytes([header_crc]) + packet_data + optional + bytes([data_crc])
+        return (bytes([SYNC_BYTE]) + header + bytes([header_crc])
+                + packet_data + optional + bytes([data_crc]))
+
+    async def send_telegram(self, sender_id: int, rorg: int, data: bytes, destination: int = 0xFFFFFFFF, status: int = None):
+        """Send an EnOcean telegram.
+
+        Returns True only when the transceiver acknowledged it, so callers can
+        skip the optimistic state echo for a command that never went out.
+        """
+        if not self._connected:
+            logger.error("Cannot send - not connected")
+            return False
+
+        packet = self._build_radio_packet(sender_id, rorg, data, destination, status)
+        label = f"RORG={rorg:02X} Data={data.hex()} Dest={destination:08X}"
 
         try:
-            await self._write_packet(packet)
+            async with self._tx_slot():
+                ok = await self._send_radio_packet(packet, label)
+        except TransceiverBusyError as e:
+            logger.error(f"Cannot send {label}: {e}")
+            return False
+
+        if ok:
             logger.debug(f"TX EnOcean: RORG={rorg:02X}, Data={data.hex()}, Dest={destination:08X}")
-            return True
-        except (ConnectionError, serial.SerialException, OSError) as e:
-            logger.error(f"Transport error sending telegram: {e}")
-            self._connected = False
+        return ok
+
+    async def send_rps_press_release(self, sender_id: int, press_data: int,
+                                     destination: int = 0xFFFFFFFF,
+                                     hold: float = RPS_HOLD_SECONDS,
+                                     label: str = "") -> bool:
+        """Simulate one short rocker press: press, hold, release.
+
+        The pair is sent inside a single transmit slot, so no other telegram
+        can slip between press and release and stretch the hold. That matters
+        because the hold *is* the command for Eltako actuators, see
+        RPS_HOLD_SECONDS.
+
+        The release is sent from a finally block and the whole pair is
+        shielded by the public wrapper: an abandoned press leaves a shutter
+        running until its own travel time expires, so it must go out even when
+        the caller is cancelled or the press was not acknowledged.
+        """
+        if not self._connected:
+            logger.error("Cannot send - not connected")
             return False
-        except Exception as e:
-            logger.error(f"Failed to send telegram: {e}")
+
+        return await asyncio.shield(
+            self._send_rps_pair(sender_id, press_data, destination, hold, label)
+        )
+
+    async def _send_rps_pair(self, sender_id: int, press_data: int, destination: int,
+                             hold: float, label: str) -> bool:
+        press = self._build_radio_packet(sender_id, 0xF6, bytes([press_data]),
+                                         destination, 0x30)
+        release = self._build_radio_packet(sender_id, 0xF6, bytes([0x00]),
+                                          destination, 0x20)
+        name = label or f"{sender_id:08X}"
+
+        try:
+            async with self._tx_slot():
+                press_ok = await self._send_radio_packet(press, f"{name} press")
+                # _last_tx is the moment the packet went out. Measure the hold
+                # write to write: that is what the actuator sees. Timing it
+                # around the calls instead would count the module's
+                # acknowledgement latency, which happens after the telegram is
+                # already on the air.
+                pressed_at = self._last_tx
+                try:
+                    await asyncio.sleep(hold)
+                finally:
+                    release_ok = await self._send_radio_packet(release, f"{name} release")
+                    held = self._last_tx - pressed_at
+                    if held > RPS_HOLD_WARN_SECONDS:
+                        logger.warning(
+                            f"RPS press for {name} held {held * 1000:.0f} ms, "
+                            f"actuators may read this as a long press"
+                        )
+        except TransceiverBusyError as e:
+            logger.error(f"Cannot send RPS pair for {name}: {e}")
             return False
+
+        return press_ok and release_ok

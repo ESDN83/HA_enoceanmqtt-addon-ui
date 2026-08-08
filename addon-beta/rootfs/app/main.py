@@ -27,6 +27,7 @@ from core.device_manager import DeviceManager
 from core.eep_manager import EEPManager
 from core.mapping_manager import MappingManager
 from core.telegram_buffer import TelegramBuffer
+from core.command_queue import CommandQueue
 
 # Configure logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "info").upper()
@@ -63,6 +64,7 @@ device_manager: DeviceManager = None
 eep_manager: EEPManager = None
 mapping_manager: MappingManager = None
 telegram_buffer: TelegramBuffer = None
+command_queue: CommandQueue = None
 availability_task: asyncio.Task = None
 # Last availability the watchdog published per device, so the retained topic is
 # only rewritten on a change, plus the moment the add-on came up (#37).
@@ -74,7 +76,7 @@ _availability_started_at: Optional[datetime] = None
 async def lifespan(app: FastAPI):
     """Application lifespan - startup and shutdown"""
     global mqtt_handler, serial_handler, device_manager, eep_manager, mapping_manager, telegram_buffer
-    global availability_task
+    global availability_task, command_queue
 
     logger.info("Starting EnOcean MQTT Add-on...")
 
@@ -159,8 +161,13 @@ async def lifespan(app: FastAPI):
         # or when MQTT broker reconnects
         mqtt_handler.set_ha_birth_callback(_publish_all_discoveries)
 
-        # Set command callback - routes MQTT commands to EnOcean telegrams
-        mqtt_handler.set_device_command_callback(_handle_device_command)
+        # Set command callback - routes MQTT commands to EnOcean telegrams.
+        # Through the queue, never straight to the handler: a burst of MQTT
+        # commands must be sent one at a time or the transceiver drops
+        # telegrams without telling anyone (ADR-0012).
+        command_queue = CommandQueue(_handle_device_command)
+        await command_queue.start()
+        mqtt_handler.set_device_command_callback(command_queue.submit)
 
     # Store instances in app state for access in routes
     app.state.mqtt_handler = mqtt_handler
@@ -198,6 +205,9 @@ async def lifespan(app: FastAPI):
             await availability_task
         except asyncio.CancelledError:
             pass
+
+    if command_queue:
+        await command_queue.stop()
 
     if serial_handler:
         await serial_handler.disconnect()
@@ -525,9 +535,12 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
         channel = int(getattr(device, "channel", 0) or 0)
         # ON/OFF from a switch role, brightness 0-100 from a light role.
         # send_d2_01_command maps all of them to the output value.
-        await serial_handler.send_d2_01_command(
+        sent = await serial_handler.send_d2_01_command(
             sender_id, destination, command, channel=channel
         )
+        if not sent:
+            logger.warning(f"D2-01 {command} for {device_name} not sent, no state echo")
+            return
         logger.info(f"Sent D2-01 {command} (channel {channel}) to {device_name}")
         if device.actuator_type == "switch":
             await _echo_switch_state(device_name, command)
@@ -537,15 +550,22 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
         # Dimmers use A5-38-08 Central Command Dimming
         # With on_command_type=brightness, HA sends brightness (0-100) for ON,
         # "OFF" for off. "ON" text only from manual MQTT publish.
+        # Every branch echoes only when the transceiver acknowledged the
+        # telegram, an echo for a dropped command shows a lamp as on that
+        # never got the message. See ADR-0012.
         if command == "ON":
             # Turn on at stored brightness (dim_mode=0)
-            await serial_handler.send_a5_dimmer_command(sender_id, "ON")
-            logger.info(f"Sent ON (A5-38-08 stored brightness) to {device_name}")
-            await _echo_light_state(device_name, "ON")
+            if await serial_handler.send_a5_dimmer_command(sender_id, "ON"):
+                logger.info(f"Sent ON (A5-38-08 stored brightness) to {device_name}")
+                await _echo_light_state(device_name, "ON")
+            else:
+                logger.warning(f"ON for {device_name} not sent, no state echo")
         elif command == "OFF":
-            await serial_handler.send_a5_dimmer_command(sender_id, "OFF")
-            logger.info(f"Sent OFF (A5-38-08) to {device_name}")
-            await _echo_light_state(device_name, "OFF")
+            if await serial_handler.send_a5_dimmer_command(sender_id, "OFF"):
+                logger.info(f"Sent OFF (A5-38-08) to {device_name}")
+                await _echo_light_state(device_name, "OFF")
+            else:
+                logger.warning(f"OFF for {device_name} not sent, no state echo")
         else:
             # Brightness value from HA (0-100), send as 0-100 directly
             # Eltako dimmers use 0-100 range (not standard 0-255)
@@ -553,51 +573,42 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                 val = int(command)
                 dim = max(0, min(100, val))
                 if dim == 0:
-                    await serial_handler.send_a5_dimmer_command(sender_id, "OFF")
-                    logger.info(f"Sent OFF (A5-38-08 brightness=0) to {device_name}")
-                    await _echo_light_state(device_name, "OFF")
+                    if await serial_handler.send_a5_dimmer_command(sender_id, "OFF"):
+                        logger.info(f"Sent OFF (A5-38-08 brightness=0) to {device_name}")
+                        await _echo_light_state(device_name, "OFF")
+                    else:
+                        logger.warning(f"OFF for {device_name} not sent, no state echo")
                 else:
                     # DIM mode: dim_mode=1 (use DB2 value), actually sets brightness
-                    await serial_handler.send_a5_dimmer_command(sender_id, "DIM", dim_value=dim)
-                    logger.info(f"Sent DIM (A5-38-08 dim={dim}, {val}%) to {device_name}")
-                    await _echo_light_state(device_name, "ON", brightness=dim)
+                    if await serial_handler.send_a5_dimmer_command(sender_id, "DIM", dim_value=dim):
+                        logger.info(f"Sent DIM (A5-38-08 dim={dim}, {val}%) to {device_name}")
+                        await _echo_light_state(device_name, "ON", brightness=dim)
+                    else:
+                        logger.warning(f"DIM for {device_name} not sent, no state echo")
             except ValueError:
                 logger.warning(f"Unknown command '{command}' for dimmer {device_name}")
 
     elif device.actuator_type == "switch":
         # D2-01 switches are handled above (EEP branch). Everything left here
-        # is an Eltako-style actuator driven by simulated F6 rocker presses.
-        if command == "ON":
-            # F6 Rocker BI pressed: data=0x50, status=0x30 (T21+NU)
-            await serial_handler.send_telegram(
-                sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x50]), destination=broadcast, status=0x30
-            )
-            await asyncio.sleep(0.1)
-            # Release: data=0x00, status=0x20 (T21, no NU)
-            await serial_handler.send_telegram(
-                sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x00]), destination=broadcast, status=0x20
-            )
-            logger.info(f"Sent ON (F6 BI press+release) to {device_name}")
-
-        elif command == "OFF":
-            # F6 Rocker BO pressed: data=0x70, status=0x30 (T21+NU)
-            await serial_handler.send_telegram(
-                sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x70]), destination=broadcast, status=0x30
-            )
-            await asyncio.sleep(0.1)
-            # Release: data=0x00, status=0x20 (T21, no NU)
-            await serial_handler.send_telegram(
-                sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x00]), destination=broadcast, status=0x20
-            )
-            logger.info(f"Sent OFF (F6 B0 press+release) to {device_name}")
-
-        else:
+        # is an Eltako-style actuator driven by simulated F6 rocker presses:
+        # BI (0x50) switches on, B0 (0x70) off. send_rps_press_release keeps
+        # press and release in one transmit slot, see ADR-0012.
+        rocker = {"ON": 0x50, "OFF": 0x70}.get(command)
+        if rocker is None:
             logger.warning(f"Unknown command '{command}' for {device_name}")
+            return
 
+        sent = await serial_handler.send_rps_press_release(
+            sender_id=sender_id, press_data=rocker,
+            destination=broadcast, label=device_name
+        )
+        if not sent:
+            # No echo for a command the transceiver did not take. Echoing it
+            # anyway is what made a dropped command look successful in HA.
+            logger.warning(f"{command} for {device_name} not sent, no state echo")
+            return
+
+        logger.info(f"Sent {command} (F6 rocker press+release) to {device_name}")
         await _echo_switch_state(device_name, command)
 
     elif device.actuator_type == "cover":
@@ -630,27 +641,14 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                 logger.warning(f"Unknown cover command '{command}' for {device_name}")
             return
 
-        if command == "OPEN":
-            # BI press+release for open/up
-            await serial_handler.send_telegram(
-                sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x50]), destination=broadcast, status=0x30
-            )
-            await asyncio.sleep(0.1)
-            await serial_handler.send_telegram(
-                sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x00]), destination=broadcast, status=0x20
-            )
-        elif command == "CLOSE":
-            # B0 press+release for close/down
-            await serial_handler.send_telegram(
-                sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x70]), destination=broadcast, status=0x30
-            )
-            await asyncio.sleep(0.1)
-            await serial_handler.send_telegram(
-                sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x00]), destination=broadcast, status=0x20
+        # An Eltako shutter actuator reads the press duration as the command:
+        # a short press runs the full travel, a long one moves only while
+        # held. The pair must therefore stay atomic, see ADR-0012.
+        rocker = {"OPEN": 0x50, "CLOSE": 0x70}.get(command)
+        if rocker is not None:
+            await serial_handler.send_rps_press_release(
+                sender_id=sender_id, press_data=rocker,
+                destination=broadcast, label=device_name
             )
         elif command == "STOP":
             # Any release without prior press = stop
@@ -658,6 +656,8 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                 sender_id=sender_id, rorg=0xF6,
                 data=bytes([0x00]), destination=broadcast, status=0x20
             )
+        else:
+            logger.warning(f"Unknown cover command '{command}' for {device_name}")
 
 
 # Create FastAPI app
@@ -699,7 +699,12 @@ async def health():
         "mqtt_connected": mqtt_handler.is_connected if mqtt_handler else False,
         "enocean_connected": serial_handler.is_connected if serial_handler else False,
         "device_count": device_manager.device_count if device_manager else 0,
-        "profile_count": eep_manager.profile_count if eep_manager else 0
+        "profile_count": eep_manager.profile_count if eep_manager else 0,
+        # Command queue counters, so a burst problem can be diagnosed without
+        # reading a debug log (ADR-0012).
+        "commands_pending": command_queue.pending if command_queue else 0,
+        "commands_dropped": command_queue.dropped if command_queue else 0,
+        "commands_timed_out": command_queue.timed_out if command_queue else 0
     }
 
 

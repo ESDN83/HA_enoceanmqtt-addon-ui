@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.8.0-beta7] - 2026-08-08 (beta channel)
+
+### Bug Fixes
+- **Commands sent in quick succession were silently lost.** Reported from the field on eleven Eltako F4SR14 relays and three dimmers: Home Assistant showed every device in the commanded state, but not all of them had physically switched. Spacing the commands 300 ms apart worked, anything faster did not. Three things went wrong at once.
+
+  The add-on started every incoming command immediately, side by side. A scene therefore wrote a dozen telegrams into the transceiver at the same moment, and the transceiver has one radio and a small queue: what does not fit is dropped. The add-on then never looked at the transceiver's answer, which says exactly that, and reported the command as sent regardless. And because it counted as sent, the state was echoed to Home Assistant, so a relay that had heard nothing still showed as switched.
+
+  Commands now go through a queue and are sent one at a time, with a pause between telegrams that the transceiver can keep up with. The answer is evaluated, and a command the transceiver did not accept no longer produces a state in Home Assistant, it produces a line in the log. A whole scene of 14 devices takes about one and a half seconds; before it was faster only because part of it was thrown away.
+
+  No configuration needed, and no reason to keep delays in your scripts.
+- **Blinds keep their exact button timing.** An Eltako blind actuator reads how long a button was held: briefly means run the full way, longer means move only while held. The simulated press and its release are now inseparable, so no other command can slip between them and turn a close command into a nudge of a few centimetres. If the timing is ever stretched anyway, the log says so.
+- **One stuck command can no longer block all the others.** Every command has a deadline of two seconds, after which it is abandoned and the queue carries on. A transceiver that stops accepting data is recognised within half a second and reconnected instead of quietly holding up everything behind it. The release of a button press is exempt: it is always sent, otherwise a blind would keep running.
+
+### Changes
+- **The log now names lost commands.** A full or backlogged command queue, a telegram the transceiver refused, and a command that ran into its deadline each produce their own message. `/health` additionally reports how many commands are waiting, were dropped or timed out.
+
 ## [1.8.0-beta6] - 2026-08-01 (beta channel)
 
 ### Bug Fixes

@@ -20,3 +20,4 @@ Rules:
 - [0009](0009-device-name-as-key.md) The device name is a key, a topic and a URL segment at once
 - [0010](0010-buildless-asset-loading.md) Loading the split frontend without a build step
 - [0011](0011-availability-watchdog.md) Availability is opt-in per device, measured from last contact
+- [0012](0012-serialized-transmit-and-command-queue.md) Serialized transmit path and an inbound command queue

@@ -23,7 +23,7 @@ A Home Assistant add-on ("app") that bridges EnOcean radio devices to MQTT with 
 
 Inbound (device to HA): `serial_handler` parses ESP3 packets into a `RadioTelegram`, `_process_telegram` decodes it with the device's EEP profile (`eep_manager`), and publishes state via `mqtt_handler` to every device configured on that address. Teach-in is handled separately (UTE for D2, LRN bit for A5/D5).
 
-Outbound (HA to device): an MQTT command on `enoceanmqtt/<device>/set` reaches `_handle_device_command` in `main.py`, which routes **by EEP first** (D2-01, D2-05) and only then by role (light, switch, cover). It calls the matching `serial_handler.send_*`. See ADR-0003.
+Outbound (HA to device): an MQTT command on `enoceanmqtt/<device>/set` is queued by `command_queue` and reaches `_handle_device_command` in `main.py` one at a time, which routes **by EEP first** (D2-01, D2-05) and only then by role (light, switch, cover). It calls the matching `serial_handler.send_*`, and every write is serialized and paced by the transmit slot. See ADR-0003 and ADR-0012.
 
 MQTT: HA discovery configs come from `mapping_manager.get_ha_discovery_configs`. Topics: `enoceanmqtt/<device>/state|set`, discovery `homeassistant/<component>/enocean/<uid>/config`.
 
