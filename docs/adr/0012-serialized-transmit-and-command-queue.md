@@ -2,6 +2,7 @@
 
 Date: 2026-08-08
 Status: Accepted (beta, 1.8.0-beta7)
+Issue: #38
 
 ## Context
 

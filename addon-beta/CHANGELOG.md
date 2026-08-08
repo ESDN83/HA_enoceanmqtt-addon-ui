@@ -3,7 +3,7 @@
 ## [1.8.0-beta7] - 2026-08-08 (beta channel)
 
 ### Bug Fixes
-- **Commands sent in quick succession were silently lost.** Reported from the field on eleven Eltako F4SR14 relays and three dimmers: Home Assistant showed every device in the commanded state, but not all of them had physically switched. Spacing the commands 300 ms apart worked, anything faster did not. Three things went wrong at once.
+- **Commands sent in quick succession were silently lost** (#38). Reported from the field on eleven Eltako F4SR14 relays and three dimmers: Home Assistant showed every device in the commanded state, but not all of them had physically switched. Spacing the commands 300 ms apart worked, anything faster did not. Three things went wrong at once.
 
   The add-on started every incoming command immediately, side by side. A scene therefore wrote a dozen telegrams into the transceiver at the same moment, and the transceiver has one radio and a small queue: what does not fit is dropped. The add-on then never looked at the transceiver's answer, which says exactly that, and reported the command as sent regardless. And because it counted as sent, the state was echoed to Home Assistant, so a relay that had heard nothing still showed as switched.
 
