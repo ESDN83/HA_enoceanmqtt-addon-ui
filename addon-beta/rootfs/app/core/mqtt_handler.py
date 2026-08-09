@@ -96,6 +96,11 @@ class MQTTHandler:
     def gateway_status_topic(self) -> str:
         return f"{self.prefix}/__system/status"
 
+    @property
+    def diagnostics_topic(self) -> str:
+        """Gateway diagnostics: transceiver state plus command queue state."""
+        return f"{self.prefix}/__system/diagnostics"
+
     def set_ha_birth_callback(self, callback: Callable):
         """Set callback for when HA sends birth message or MQTT reconnects.
         The callback should re-publish all discoveries and availability.

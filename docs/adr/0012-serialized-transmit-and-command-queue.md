@@ -1,7 +1,7 @@
 # ADR-0012: Serialized transmit path and an inbound command queue
 
 Date: 2026-08-08
-Status: Accepted (beta, 1.8.0-beta7)
+Status: Accepted (beta, 1.8.0-beta7; queue observability added in 1.8.0-beta8)
 Issue: #38
 
 ## Context
@@ -91,6 +91,53 @@ was taught. On a toggle-taught relay a repeat switches it back off.
 One residual risk remains. The hold is protected against other telegrams but
 not against event-loop starvation: a long synchronous stretch elsewhere in the
 add-on can still delay a release. That is what the 250 ms warning is for.
+
+## Follow-up in 1.8.0-beta8: the queue is observable
+
+Field feedback confirmed beta7: 43 telegrams in a nine-cover plus fourteen-light
+burst, 43 acknowledgements, all RET_OK, nothing lost, no delays needed in the
+reporter's scripts any more. Two things came out of it.
+
+**Nothing tells Home Assistant when the radio has caught up.** A script returns
+once its MQTT commands are published. With the queue behind it, the last
+command of a 23 command burst reached the air 2.8 s later. Chaining two scripts
+therefore still meant guessing a delay, for anyone whose next step depends on
+the physical result. The queue now tracks in-flight commands next to pending
+ones and publishes `{prefix}/__system/queue`, exposed as three diagnostic
+entities on a gateway device: busy, pending, and the duration of the last busy
+period. They are `enabled_by_default: False`, because the majority never needs
+them and beta7 already removed the reason to wait at all. Busy transitions are
+published immediately (that is the edge an automation waits on), the pending
+count in between is throttled to twice a second.
+
+Idle means pending zero **and** nothing in flight. An empty queue with a
+telegram still on the air is not idle, and an automation keying off that would
+act too early.
+
+The gate is an add-on option (`gateway_diagnostics`, off by default), not
+`enabled_by_default: False` on the entities. Two reasons. The option is the one
+place a user reads a description explaining when this is needed, and one
+decision should not have to be made twice: after ticking the box the entities
+arrive switched on rather than needing a second visit to each one. Switching
+the option off **removes** the discovery configs. That is not optional
+politeness: a retained discovery config outlives the add-on that published it,
+so without an active removal the entities would sit in Home Assistant as
+unavailable forever.
+
+The `unique_id` values (`enocean_gateway_*`) are a compatibility contract.
+Home Assistant keys its entity registry on them, which is what makes user
+renames, area assignment, icon overrides and per-entity disabling survive every
+rediscovery. Renaming a `unique_id` in a later version would orphan the old
+entity and silently break any automation referring to it, so they do not
+change. The published documentation names entity ids only as the shipped
+default, and says to substitute your own after a rename.
+
+**beta7 broke the per-telegram log line.** `TX EnOcean` was written in
+`send_telegram` but not in the pair path, so 40 of those 43 telegrams left no
+trace and the field log could only be read by counting response packets. The
+line moved into `_send_radio_packet`, which every telegram goes through. The
+cover path also never said whether a command went out, and covers carry no
+state echo, so that log line is the only evidence there is.
 
 Verified against a fake ESP3 transport: a 14 command burst with zero spacing
 keeps its order, produces 28 telegrams with a minimum gap of 41 ms and holds

@@ -1,5 +1,50 @@
 # Changelog
 
+## [1.8.0-beta8] - 2026-08-09 (beta channel)
+
+### New Features
+- **A new "Gateway Diagnostics" option adds a device for the add-on itself** (#38). Off by default and switched on in the add-on configuration, with a description there explaining when it is worth having. Nobody gets these entities without asking for them, and switching the option back off removes them again.
+
+  Once on, an "EnOcean Gateway" device appears with seven entities. Four describe the gateway:
+
+  - **Transceiver connected**, whether the USB or TCP gateway is actually talking to the add-on.
+  - **Transceiver base ID**.
+  - **Devices configured**.
+  - **Last telegram received**, the time anything was last heard on the radio.
+
+  Three describe the send queue, which is the part an automation can act on:
+
+  - **Command queue busy**, on while anything is queued or on the air. This is the one to wait for, it goes off exactly when the last telegram has left.
+  - **Commands pending**, how many are waiting.
+  - **Last queue busy time**, how long the previous burst took, written once when the queue falls idle.
+
+  They arrive switched on, since ticking the option was already the decision. Individual ones can be disabled in Home Assistant as usual. The busy entity also carries the dropped and timed-out counters as attributes.
+
+  **How to use it.** Home Assistant considers a script finished once it has published its MQTT commands, which says nothing about whether the add-on has actually sent them, so chaining two scripts used to mean guessing a delay. Wait for the queue instead:
+
+  ```yaml
+  actions:
+    - action: script.close_covers
+    - delay: "00:00:01"
+    - wait_template: >
+        {{ is_state('binary_sensor.enocean_gateway_command_queue_busy', 'off') }}
+      timeout: "00:02:00"
+      continue_on_timeout: true
+    - action: script.lights_off
+  ```
+
+  The entity id used above is the one the add-on ships with. **You can rename these entities freely**, in Home Assistant under the entity's settings, and put them wherever you like. Renaming, moving to an area or hiding them changes nothing about how they work, because the add-on identifies its entities internally and never by their id. Just remember to use your own id in the automation if you rename the busy one.
+
+  The one second delay is not the guess it looks like. A script returns the moment its last MQTT message is published, which can be a few milliseconds before the add-on has reported itself busy. Without that pause the wait would look at a queue that is still idle and pass straight through. Everything after it is exact: the wait ends when the last telegram has left, whether that takes two seconds or twenty.
+
+  Always give the wait a `timeout`, so a broken transceiver cannot stall the automation forever.
+
+  Worth knowing: **none of this is needed to keep commands from being lost.** Nothing has been lost since beta7, commands only take their turn. These entities are for automations whose next step depends on the physical result, and for looking at how long a scene actually takes on the radio.
+
+### Bug Fixes
+- **Every telegram is logged again.** beta7 wrote its `TX EnOcean` line only for single telegrams, so the simulated button presses used for Eltako switches and blinds went out unlogged. In a debug log 40 of 43 telegrams were missing and could only be reconstructed by counting acknowledgements. The line is back for both halves of a press, in the same format as before.
+- **Blinds now report whether the command went out.** The blind path was the only one that stayed silent about its outcome. Since blinds have no state feedback, that log line is the only evidence there is. NodOn blind commands were also reported as sent without checking, same as the others before beta7.
+
 ## [1.8.0-beta7] - 2026-08-08 (beta channel)
 
 ### Bug Fixes

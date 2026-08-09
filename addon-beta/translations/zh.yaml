@@ -9,6 +9,10 @@ configuration:
   cache_device_states:
     name: "\u7F13\u5B58\u8BBE\u5907\u72B6\u6001"
     description: "\u5728\u91CD\u542F\u540E\u4FDD\u5B58\u5E76\u6062\u590D\u8BBE\u5907\u72B6\u6001\u3002\u5BF9\u4E8E\u4E0D\u9891\u7E41\u53D1\u9001\u6570\u636E\u7684\u4F20\u611F\u5668\u975E\u5E38\u91CD\u8981\uFF08\u4F8B\u5982 Kessel Staufix \u6BCF 8-10 \u5C0F\u65F6\u53D1\u9001\u4E00\u6B21\uFF09\u3002"
+  gateway_diagnostics:
+    name: 网关诊断
+    description: >-
+      添加一个 "EnOcean Gateway" 设备，显示加载项自身的状态：收发器是否已连接、其 base ID、已配置的设备数量、最后一条电报的时间，以及发送队列（忙碌、待处理命令数、上一批命令的耗时）。默认关闭，因为大多数安装都不需要。如果你想在 Home Assistant 中查看网关状态，或自动化需要等待加载项发送完成，则可开启，例如一个脚本关闭窗帘、下一个脚本关灯。命令丢失不是开启的理由，无论开关与否都不会丢失命令。关闭后这些实体会被移除。
   mqtt:
     name: "MQTT \u8BBE\u7F6E"
     description: "\u7528\u4E8E Home Assistant \u96C6\u6210\u7684 MQTT \u4EE3\u7406\u914D\u7F6E\u3002"

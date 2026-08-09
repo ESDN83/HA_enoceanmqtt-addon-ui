@@ -1337,6 +1337,128 @@ class MappingManager:
             return entity_name, module_name
         return None, None
 
+    def get_gateway_diagnostic_configs(self, mqtt_prefix: str,
+                                      sw_version: str = None) -> List[Dict[str, Any]]:
+        """Discovery configs for the add-on's own gateway device.
+
+        Two groups, both read from one state topic:
+
+        - The transceiver: connected, base ID, how many devices are configured.
+        - The command queue: busy, pending, and how long the last burst took.
+          Home Assistant cannot otherwise tell when the radio has caught up. A
+          script returns once its MQTT commands are published, which says
+          nothing about the queue behind them, so an automation that wants to
+          act on the physical outcome could only guess a delay. Waiting for
+          `off` on the busy sensor is exact (#38).
+
+        The whole device is gated by the `gateway_diagnostics` add-on option,
+        off by default. That is a deliberate split of concerns: the option
+        decides whether these entities exist at all, so an installation that
+        does not want them never sees them, and the ones that do get them
+        switched on without visiting each entity. Individual entities can still
+        be disabled in Home Assistant.
+        """
+        state_topic = f"{mqtt_prefix}/__system/diagnostics"
+        device_info = {
+            "identifiers": ["enocean_gateway"],
+            "name": "EnOcean Gateway",
+            "manufacturer": "EnOcean MQTT UI",
+            "model": "Add-on",
+        }
+        if sw_version:
+            device_info["sw_version"] = sw_version
+
+        availability = [{
+            "topic": f"{mqtt_prefix}/__system/status",
+            "payload_available": "online",
+            "payload_not_available": "offline",
+        }]
+
+        def base(name: str, suffix: str, component: str) -> Dict[str, Any]:
+            uid = f"enocean_gateway_{suffix}"
+            return {
+                "component": component,
+                "unique_id": uid,
+                "config": {
+                    "name": name,
+                    "unique_id": uid,
+                    "object_id": f"enocean_gateway_{suffix}",
+                    "state_topic": state_topic,
+                    "entity_category": "diagnostic",
+                    # Enabled: the add-on option already decided that this
+                    # installation wants them. Making the user switch on three
+                    # entities after ticking the box would be a second gate for
+                    # the same decision.
+                    "enabled_by_default": True,
+                    "device": device_info,
+                    "availability": availability,
+                },
+            }
+
+        connected = base("Transceiver connected", "connected", "binary_sensor")
+        connected["config"].update({
+            "value_template": "{{ 'ON' if value_json.transceiver_connected else 'OFF' }}",
+            "device_class": "connectivity",
+        })
+
+        base_id = base("Transceiver base ID", "base_id", "sensor")
+        base_id["config"].update({
+            # 'unknown' is Home Assistant's own state string for "no value",
+            # so it renders as Unknown. An empty string does not: a sensor
+            # without a device_class accepts it as a literal empty state.
+            "value_template": ("{{ value_json.base_id "
+                               "if value_json.base_id is not none else 'unknown' }}"),
+            "icon": "mdi:identifier",
+        })
+
+        devices = base("Devices configured", "device_count", "sensor")
+        devices["config"].update({
+            "value_template": "{{ value_json.device_count }}",
+            "state_class": "measurement",
+            "icon": "mdi:format-list-bulleted",
+        })
+
+        last_telegram = base("Last telegram received", "last_telegram", "sensor")
+        last_telegram["config"].update({
+            "value_template": ("{{ value_json.last_telegram "
+                               "if value_json.last_telegram is not none else 'unknown' }}"),
+            "device_class": "timestamp",
+            "icon": "mdi:radio-tower",
+        })
+
+        busy = base("Command queue busy", "queue_busy", "binary_sensor")
+        busy["config"].update({
+            "value_template": "{{ 'ON' if value_json.busy else 'OFF' }}",
+            # The counters ride along as attributes rather than as four more
+            # entities nobody asked for.
+            "json_attributes_topic": state_topic,
+            "icon": "mdi:radio-tower",
+        })
+
+        pending = base("Commands pending", "queue_pending", "sensor")
+        pending["config"].update({
+            "value_template": "{{ value_json.pending }}",
+            "state_class": "measurement",
+            "icon": "mdi:tray-full",
+        })
+
+        duration = base("Last queue busy time", "queue_busy_seconds", "sensor")
+        duration["config"].update({
+            # Written once per burst, when the queue falls idle, so it does not
+            # churn the recorder while commands are running. Rendering empty
+            # before the first burst leaves the entity unknown; rendering the
+            # literal "None" would make Home Assistant complain about a
+            # non-numeric state on every restart.
+            "value_template": ("{{ value_json.last_busy_seconds "
+                               "if value_json.last_busy_seconds is not none else 'unknown' }}"),
+            "unit_of_measurement": "s",
+            "device_class": "duration",
+            "state_class": "measurement",
+            "icon": "mdi:timer-outline",
+        })
+
+        return [connected, base_id, devices, last_telegram, busy, pending, duration]
+
     def build_discovery_for_device(self, device, mqtt_prefix: str,
                                    devices_on_address) -> List[Dict[str, Any]]:
         """Build the HA discovery configs for one device, multi-channel aware."""

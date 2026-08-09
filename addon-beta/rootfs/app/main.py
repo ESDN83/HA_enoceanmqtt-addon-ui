@@ -6,6 +6,7 @@ Compatible with ChristopheHD/HA_enoceanmqtt-addon MQTT patterns.
 """
 
 import os
+import time
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -47,6 +48,10 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/data")
 ENOCEAN_PORT = os.getenv("ENOCEAN_PORT", "")
 CACHE_DEVICE_STATES = os.getenv("CACHE_DEVICE_STATES", "true").lower() == "true"
+# Gateway diagnostics entities are opt-in (#38). Off means the discovery
+# configs are never published, so an installation that does not want them never
+# sees the device at all, and the diagnostics topic stays quiet.
+GATEWAY_DIAGNOSTICS = os.getenv("GATEWAY_DIAGNOSTICS", "false").lower() == "true"
 # How often the availability watchdog looks at the clock (#37). The shortest
 # timeout a user can set is a minute, so checking once a minute is enough; the
 # cost of being late is at most one interval of delay on a device coming back.
@@ -70,6 +75,11 @@ availability_task: asyncio.Task = None
 # only rewritten on a change, plus the moment the add-on came up (#37).
 _availability_known: Dict[str, bool] = {}
 _availability_started_at: Optional[datetime] = None
+# Throttle for the command queue state topic. Transitions are always published,
+# this only caps the pending count in between (#38).
+QUEUE_PUBLISH_MIN_INTERVAL = 0.5
+_queue_last_published_at: float = 0.0
+_queue_last_busy: Optional[bool] = None
 
 
 @asynccontextmanager
@@ -165,9 +175,15 @@ async def lifespan(app: FastAPI):
         # Through the queue, never straight to the handler: a burst of MQTT
         # commands must be sent one at a time or the transceiver drops
         # telegrams without telling anyone (ADR-0012).
-        command_queue = CommandQueue(_handle_device_command)
+        command_queue = CommandQueue(
+            _handle_device_command,
+            # No publisher when the entities do not exist: nothing would read
+            # the topic and every command would write to it twice.
+            on_change=_publish_gateway_state if GATEWAY_DIAGNOSTICS else None,
+        )
         await command_queue.start()
         mqtt_handler.set_device_command_callback(command_queue.submit)
+        await _publish_gateway_state(force=True)
 
     # Store instances in app state for access in routes
     app.state.mqtt_handler = mqtt_handler
@@ -263,6 +279,12 @@ async def _availability_watchdog(started_at: datetime):
 
             for gone in set(_availability_known) - set(device_manager.devices):
                 _availability_known.pop(gone, None)
+
+            # Refresh the gateway diagnostics here too. The command queue only
+            # notifies when it has work, so without this pass the transceiver
+            # state and the last-telegram time would stand still on an
+            # installation that never sends anything.
+            await _publish_gateway_state()
 
         except asyncio.CancelledError:
             raise
@@ -425,6 +447,31 @@ async def _publish_all_discoveries():
 
     logger.info(f"Published HA discovery for {device_manager.device_count} devices")
 
+    # The add-on's own gateway device, opt-in via the gateway_diagnostics
+    # option (#38). When it is switched off the configs are actively removed,
+    # otherwise the entities would linger as unavailable forever: a retained
+    # discovery config outlives the add-on that published it.
+    try:
+        configs = mapping_manager.get_gateway_diagnostic_configs(
+            mqtt_handler.prefix, sw_version=VERSION)
+        for item in configs:
+            if GATEWAY_DIAGNOSTICS:
+                await mqtt_handler.publish_discovery_config(
+                    component=item["component"],
+                    unique_id=item["unique_id"],
+                    config=item["config"]
+                )
+            else:
+                await mqtt_handler.remove_discovery_config(
+                    component=item["component"],
+                    unique_id=item["unique_id"]
+                )
+        if GATEWAY_DIAGNOSTICS:
+            logger.info(f"Gateway diagnostics on: published {len(configs)} entities")
+            await _publish_gateway_state(force=True)
+    except Exception as e:
+        logger.error(f"Failed to publish gateway diagnostics discovery: {e}")
+
     # Re-publish cached states AFTER all discoveries are sent
     # Give HA time to process discovery configs before sending states
     if mqtt_handler.cache_states:
@@ -435,6 +482,47 @@ async def _publish_all_discoveries():
         await mqtt_handler.prune_cached_states(device_manager.devices.keys())
         await asyncio.sleep(2)
         await mqtt_handler.republish_cached_states()
+
+
+def _gateway_diagnostics_state() -> Dict:
+    """The gateway's own state: transceiver, device count, command queue."""
+    state = {
+        "transceiver_connected": bool(serial_handler and serial_handler.is_connected),
+        "base_id": serial_handler.base_id if serial_handler else None,
+        "device_count": device_manager.device_count if device_manager else 0,
+        "last_telegram": None,
+        "version": VERSION,
+    }
+    if telegram_buffer:
+        recent = telegram_buffer.get_recent(1)
+        if recent:
+            state["last_telegram"] = recent[0].get("timestamp")
+    if command_queue:
+        state.update(command_queue.stats())
+    return state
+
+
+async def _publish_gateway_state(force: bool = False):
+    """Publish the gateway diagnostics topic, if the option is switched on.
+
+    Every busy/idle transition of the command queue goes out immediately, that
+    is the edge an automation waits for. Anything in between is throttled,
+    since a burst would otherwise write one message per command start and end.
+    """
+    global _queue_last_published_at, _queue_last_busy
+
+    if not GATEWAY_DIAGNOSTICS or not mqtt_handler:
+        return
+
+    state = _gateway_diagnostics_state()
+    now = time.monotonic()
+    changed = state.get("busy") != _queue_last_busy
+    if not (force or changed) and now - _queue_last_published_at < QUEUE_PUBLISH_MIN_INTERVAL:
+        return
+
+    _queue_last_busy = state.get("busy")
+    _queue_last_published_at = now
+    await mqtt_handler.publish(mqtt_handler.diagnostics_topic, state, retain=True)
 
 
 async def _echo_switch_state(device_name: str, command: str):
@@ -625,18 +713,24 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                 except ValueError:
                     logger.warning(f"Invalid position '{command}' for {device_name}")
                     return
-                await serial_handler.send_d2_05_command(
+                sent = await serial_handler.send_d2_05_command(
                     sender_id, destination, "POSITION", ha_position=ha_pos,
                     invert=device.invert
                 )
-                logger.info(f"Sent D2-05 position={ha_pos}% to {device_name}"
-                            f"{' (inverted)' if device.invert else ''}")
+                inv = " (inverted)" if device.invert else ""
+                if sent:
+                    logger.info(f"Sent D2-05 position={ha_pos}% to {device_name}{inv}")
+                else:
+                    logger.warning(f"D2-05 position={ha_pos}% for {device_name} was not sent")
             elif command in ("OPEN", "CLOSE", "STOP"):
-                await serial_handler.send_d2_05_command(
+                sent = await serial_handler.send_d2_05_command(
                     sender_id, destination, command, invert=device.invert
                 )
-                logger.info(f"Sent D2-05 {command} to {device_name}"
-                            f"{' (inverted)' if device.invert else ''}")
+                inv = " (inverted)" if device.invert else ""
+                if sent:
+                    logger.info(f"Sent D2-05 {command} to {device_name}{inv}")
+                else:
+                    logger.warning(f"D2-05 {command} for {device_name} was not sent")
             else:
                 logger.warning(f"Unknown cover command '{command}' for {device_name}")
             return
@@ -646,18 +740,28 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
         # held. The pair must therefore stay atomic, see ADR-0012.
         rocker = {"OPEN": 0x50, "CLOSE": 0x70}.get(command)
         if rocker is not None:
-            await serial_handler.send_rps_press_release(
+            sent = await serial_handler.send_rps_press_release(
                 sender_id=sender_id, press_data=rocker,
                 destination=broadcast, label=device_name
             )
         elif command == "STOP":
             # Any release without prior press = stop
-            await serial_handler.send_telegram(
+            sent = await serial_handler.send_telegram(
                 sender_id=sender_id, rorg=0xF6,
                 data=bytes([0x00]), destination=broadcast, status=0x20
             )
         else:
             logger.warning(f"Unknown cover command '{command}' for {device_name}")
+            return
+
+        # Covers were the one path that said nothing about the outcome, which
+        # left a field log with nine cover commands and no way to tell whether
+        # they went out. Covers carry no state echo, so this line is all there
+        # is to go on.
+        if sent:
+            logger.info(f"Sent {command} (F6 rocker) to {device_name}")
+        else:
+            logger.warning(f"{command} for {device_name} was not sent")
 
 
 # Create FastAPI app

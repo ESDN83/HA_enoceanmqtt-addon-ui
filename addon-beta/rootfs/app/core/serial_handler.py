@@ -94,6 +94,12 @@ CRC8_TABLE = [
 ]
 
 
+def _radio_log_line(rorg: int, data: bytes, destination: int) -> str:
+    """The one debug line per outgoing telegram, unchanged since beta6 so the
+    field logs people paste stay comparable."""
+    return f"TX EnOcean: RORG={rorg:02X}, Data={data.hex()}, Dest={destination:08X}"
+
+
 def crc8(data: bytes) -> int:
     """Calculate CRC8 checksum"""
     crc = 0
@@ -954,7 +960,7 @@ class SerialHandler:
         finally:
             self._last_tx = time.monotonic()
 
-    async def _send_radio_packet(self, packet: bytes, label: str) -> bool:
+    async def _send_radio_packet(self, packet: bytes, label: str, telegram: str = "") -> bool:
         """Write one radio telegram and check what the transceiver made of it.
 
         Call while holding _tx_slot(). The module answers every radio packet
@@ -962,11 +968,19 @@ class SerialHandler:
         reported as RET_NOT_OK. Ignoring that response is what used to make
         dropped commands invisible: the state echo went out regardless and
         Home Assistant showed a device as switched that never heard anything.
+
+        telegram is the debug line for the packet that just went out. Every
+        telegram gets one, including both halves of a press/release pair:
+        beta7 logged it only for single telegrams, which left the RPS paths
+        (switches and covers) silent and made a field log readable only by
+        counting response packets.
         """
         loop = asyncio.get_event_loop()
         self._response_future = loop.create_future()
         try:
             await self._write_packet(packet)
+            if telegram:
+                logger.debug(telegram)
             ret = await asyncio.wait_for(self._response_future, timeout=TX_RESPONSE_TIMEOUT)
         except asyncio.TimeoutError:
             logger.warning(
@@ -1398,17 +1412,14 @@ class SerialHandler:
 
         packet = self._build_radio_packet(sender_id, rorg, data, destination, status)
         label = f"RORG={rorg:02X} Data={data.hex()} Dest={destination:08X}"
+        telegram = _radio_log_line(rorg, data, destination)
 
         try:
             async with self._tx_slot():
-                ok = await self._send_radio_packet(packet, label)
+                return await self._send_radio_packet(packet, label, telegram)
         except TransceiverBusyError as e:
             logger.error(f"Cannot send {label}: {e}")
             return False
-
-        if ok:
-            logger.debug(f"TX EnOcean: RORG={rorg:02X}, Data={data.hex()}, Dest={destination:08X}")
-        return ok
 
     async def send_rps_press_release(self, sender_id: int, press_data: int,
                                      destination: int = 0xFFFFFFFF,
@@ -1440,11 +1451,13 @@ class SerialHandler:
                                          destination, 0x30)
         release = self._build_radio_packet(sender_id, 0xF6, bytes([0x00]),
                                           destination, 0x20)
+        press_line = _radio_log_line(0xF6, bytes([press_data]), destination)
+        release_line = _radio_log_line(0xF6, bytes([0x00]), destination)
         name = label or f"{sender_id:08X}"
 
         try:
             async with self._tx_slot():
-                press_ok = await self._send_radio_packet(press, f"{name} press")
+                press_ok = await self._send_radio_packet(press, f"{name} press", press_line)
                 # _last_tx is the moment the packet went out. Measure the hold
                 # write to write: that is what the actuator sees. Timing it
                 # around the calls instead would count the module's
@@ -1454,7 +1467,9 @@ class SerialHandler:
                 try:
                     await asyncio.sleep(hold)
                 finally:
-                    release_ok = await self._send_radio_packet(release, f"{name} release")
+                    release_ok = await self._send_radio_packet(
+                        release, f"{name} release", release_line
+                    )
                     held = self._last_tx - pressed_at
                     if held > RPS_HOLD_WARN_SECONDS:
                         logger.warning(

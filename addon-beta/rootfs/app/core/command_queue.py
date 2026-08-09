@@ -25,7 +25,8 @@ import time
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +67,17 @@ class CommandQueue:
                  handler: Callable[[str, str, Optional[str]], Awaitable[None]],
                  workers: int = WORKERS,
                  maxsize: int = MAX_PENDING,
-                 timeout: float = COMMAND_TIMEOUT):
+                 timeout: float = COMMAND_TIMEOUT,
+                 on_change: Callable[[], Awaitable[None]] = None):
         self._handler = handler
         self._worker_count = workers
         self._timeout = timeout
+        # Called whenever busy/pending changes. Home Assistant has no way of
+        # knowing when the radio has caught up: a script returns once its MQTT
+        # commands are published, which says nothing about the queue behind
+        # them. Publishing this lets an automation wait for idle instead of
+        # guessing a delay.
+        self._on_change = on_change
         self._queue: asyncio.Queue = asyncio.Queue(maxsize=maxsize)
         # One lock per device keeps ON from overtaking OFF. asyncio.Queue.get()
         # and Lock.acquire() are both FIFO, so the order Home Assistant sent
@@ -79,10 +87,25 @@ class CommandQueue:
         self._dropped = 0
         self._timed_out = 0
         self._last_backlog_warn = 0.0
+        # Commands taken off the queue and not finished yet. Needed for a
+        # truthful idle signal: an empty queue with a command still on the air
+        # is not idle.
+        self._in_flight = 0
+        self._busy_since: Optional[float] = None
+        self._busy_since_utc: Optional[datetime] = None
+        self._last_busy_seconds: Optional[float] = None
 
     @property
     def pending(self) -> int:
         return self._queue.qsize()
+
+    @property
+    def in_flight(self) -> int:
+        return self._in_flight
+
+    @property
+    def busy(self) -> bool:
+        return self._in_flight > 0 or not self._queue.empty()
 
     @property
     def dropped(self) -> int:
@@ -91,6 +114,39 @@ class CommandQueue:
     @property
     def timed_out(self) -> int:
         return self._timed_out
+
+    def stats(self) -> Dict[str, Any]:
+        """The snapshot published for Home Assistant to look at."""
+        return {
+            "busy": self.busy,
+            "pending": self.pending,
+            "in_flight": self._in_flight,
+            "busy_since": self._busy_since_utc.isoformat() if self._busy_since_utc else None,
+            "last_busy_seconds": (round(self._last_busy_seconds, 2)
+                                  if self._last_busy_seconds is not None else None),
+            "dropped": self._dropped,
+            "timed_out": self._timed_out,
+        }
+
+    def _mark_busy(self):
+        if self._busy_since is None:
+            self._busy_since = time.monotonic()
+            self._busy_since_utc = datetime.now(timezone.utc)
+
+    def _mark_idle_if_done(self):
+        if self._busy_since is not None and not self.busy:
+            self._last_busy_seconds = time.monotonic() - self._busy_since
+            self._busy_since = None
+            self._busy_since_utc = None
+
+    async def _notify(self):
+        if self._on_change is None:
+            return
+        try:
+            await self._on_change()
+        except Exception as e:
+            # A failing publish must never take a command down with it.
+            logger.debug(f"Command queue change notification failed: {e}")
 
     async def start(self):
         if self._workers:
@@ -111,6 +167,9 @@ class CommandQueue:
                 pass
         self._workers = []
         self._locks.clear()
+        self._in_flight = 0
+        self._busy_since = None
+        self._busy_since_utc = None
 
     async def submit(self, device_name: str, payload: str, entity: str = None):
         """Queue one command.
@@ -122,6 +181,7 @@ class CommandQueue:
         command = _Command(device_name, payload, entity, time.monotonic())
         try:
             self._queue.put_nowait(command)
+            self._mark_busy()
         except asyncio.QueueFull:
             self._dropped += 1
             logger.error(
@@ -138,10 +198,13 @@ class CommandQueue:
                 f"Command queue backlog: {depth} pending, commands are arriving "
                 f"faster than the transceiver can send them"
             )
+        await self._notify()
 
     async def _worker(self, index: int):
         while True:
             command = await self._queue.get()
+            self._in_flight += 1
+            await self._notify()
             try:
                 lock = self._locks.setdefault(command.device, asyncio.Lock())
                 async with lock:
@@ -159,8 +222,13 @@ class CommandQueue:
                     f"giving up on it and continuing with the queue"
                 )
             except asyncio.CancelledError:
+                self._in_flight -= 1
                 raise
             except Exception as e:
                 logger.error(f"Command {command} failed: {e}", exc_info=True)
             finally:
                 self._queue.task_done()
+
+            self._in_flight -= 1
+            self._mark_idle_if_done()
+            await self._notify()

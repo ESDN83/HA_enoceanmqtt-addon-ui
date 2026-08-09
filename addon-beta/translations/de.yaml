@@ -12,6 +12,10 @@ configuration:
   cache_device_states:
     name: Gerätezustände zwischenspeichern
     description: Letzte Gerätezustände speichern und nach Neustart wiederherstellen. Wichtig für Sensoren mit seltenen Updates (z.B. Kessel Staufix sendet nur alle 8-10 Stunden).
+  gateway_diagnostics:
+    name: Gateway-Diagnose
+    description: >-
+      Fügt ein Gerät "EnOcean Gateway" mit dem Zustand des Add-ons hinzu: ob der Transceiver verbunden ist, seine Base ID, wie viele Geräte konfiguriert sind, wann das letzte Telegramm kam, und die Sendewarteschlange (beschäftigt, wartende Kommandos, Dauer des letzten Schwungs). Standardmäßig aus, weil die meisten Installationen das nicht brauchen. Einschalten, wenn du den Gateway-Zustand in Home Assistant sehen willst, oder wenn eine Automation warten muss, bis das Add-on fertig gesendet hat, etwa wenn ein Skript Rolladen schließt und das nächste Lichter ausschaltet. Verlorene Kommandos sind kein Grund dafür, es geht so oder so nichts verloren. Beim Ausschalten werden die Entitäten wieder entfernt.
   mqtt:
     name: MQTT-Einstellungen
     description: MQTT-Broker-Konfiguration für die Home Assistant Integration.
