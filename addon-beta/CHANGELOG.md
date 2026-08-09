@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.0-beta9] - 2026-08-09 (beta channel)
+
+### Bug Fixes
+- **"Last telegram received" stayed on Unknown** (#38). Reported straight from a production install. The add-on stamped its telegram buffer with a local time and no time zone, and Home Assistant silently discards a timestamp without one: the value never even arrived, the entity was never updated. Every timestamp the add-on emits now carries its time zone. The telegram monitor in the web UI was not affected, it reads the same value through the browser's own date parser, which accepts either form.
+- **"Last telegram received" was up to a minute behind.** It was only refreshed by the once-a-minute availability pass. It now updates on every received telegram, throttled, so a busy installation cannot turn it into MQTT traffic.
+
 ## [1.8.0-beta8] - 2026-08-09 (beta channel)
 
 ### New Features

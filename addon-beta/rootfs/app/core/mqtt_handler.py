@@ -17,7 +17,7 @@ import json
 import yaml
 import logging
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Callable
 import paho.mqtt.client as mqtt
 import aiofiles
@@ -386,7 +386,7 @@ class MQTTHandler:
         topic = f"{self.prefix}/{device_name}/state"
 
         # Add timestamp
-        state["_last_update"] = datetime.now().isoformat()
+        state["_last_update"] = datetime.now(timezone.utc).isoformat()
 
         # Merge cached other-channel values for multi-channel devices
         state = self._merge_multichannel_state(device_name, state)

@@ -154,6 +154,13 @@ async def lifespan(app: FastAPI):
             eep_manager=eep_manager,
             telegram_buffer=telegram_buffer
         )
+        # Refresh the gateway diagnostics on every telegram, so "Last telegram
+        # received" is current instead of up to a minute stale (the watchdog
+        # pass would otherwise be its only source). The publish is throttled,
+        # so a chatty installation cannot turn this into MQTT traffic.
+        if GATEWAY_DIAGNOSTICS:
+            serial_handler.register_telegram_callback(_on_telegram_for_diagnostics)
+
         try:
             await serial_handler.connect()
             logger.info(f"Connected to EnOcean transceiver at {ENOCEAN_PORT}")
@@ -500,6 +507,11 @@ def _gateway_diagnostics_state() -> Dict:
     if command_queue:
         state.update(command_queue.stats())
     return state
+
+
+async def _on_telegram_for_diagnostics(telegram):
+    """Telegram callback: only there to refresh the diagnostics topic."""
+    await _publish_gateway_state()
 
 
 async def _publish_gateway_state(force: bool = False):
