@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0-beta12] - 2026-08-19 (beta channel)
+
+### Changes
+- **Installing or updating the add-on no longer fails when Home Assistant's wheel mirror is slow.** An update aborted mid-build while downloading a 133 kB file from `wheels.home-assistant.io` at 1.5 kB/s. Nothing was wrong with the add-on, and retrying sometimes helped, but the mirror stalls for minutes at a time and no amount of patience got the build through: it failed at a two minute limit and again at five.
+
+  The add-on now installs its dependencies from PyPI, where the identical files arrive in a fraction of a second, and falls back to the Home Assistant mirror only for the rare architecture where PyPI has no ready-made package. A build that could not finish at all now takes under a minute.
+
 ## [1.8.0-beta10] - 2026-08-19 (beta channel)
 
 ### Bug Fixes
