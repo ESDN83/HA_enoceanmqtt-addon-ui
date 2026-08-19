@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0-beta10] - 2026-08-19 (beta channel)
+
+### Bug Fixes
+- **The gateway's "Last queue busy time" flooded the Home Assistant log** (#38). Reported from a production install: 1336 messages in 22 hours, one warning plus one error per minute. Until the first command had been sent the value was empty, and Home Assistant rejects that for a sensor declared as a duration with statistics. It now starts at 0 instead, which is the same statement in a form the sensor accepts: no burst yet, so the last burst took no measurable time. The messages stopped once a command had run and started again after every restart, which is why it looked harmless at first.
+
+  Only that one entity was affected. The others carry no numeric declaration and were never a problem.
+
 ## [1.8.0-beta9] - 2026-08-09 (beta channel)
 
 ### Bug Fixes

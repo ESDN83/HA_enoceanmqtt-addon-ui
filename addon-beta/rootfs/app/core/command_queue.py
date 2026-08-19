@@ -93,7 +93,13 @@ class CommandQueue:
         self._in_flight = 0
         self._busy_since: Optional[float] = None
         self._busy_since_utc: Optional[datetime] = None
-        self._last_busy_seconds: Optional[float] = None
+        # Starts at 0.0, never None. This value feeds a Home Assistant sensor
+        # with device_class duration and state_class measurement, and such a
+        # sensor rejects every non-numeric state: a null rendered as "unknown"
+        # produced one warning plus one error per publish, so once a minute
+        # forever until the first command ran (#38). "no burst yet" and "the
+        # last burst took no measurable time" are the same statement anyway.
+        self._last_busy_seconds: float = 0.0
 
     @property
     def pending(self) -> int:
@@ -122,8 +128,7 @@ class CommandQueue:
             "pending": self.pending,
             "in_flight": self._in_flight,
             "busy_since": self._busy_since_utc.isoformat() if self._busy_since_utc else None,
-            "last_busy_seconds": (round(self._last_busy_seconds, 2)
-                                  if self._last_busy_seconds is not None else None),
+            "last_busy_seconds": round(self._last_busy_seconds, 2),
             "dropped": self._dropped,
             "timed_out": self._timed_out,
         }

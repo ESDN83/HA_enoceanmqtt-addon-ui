@@ -1445,12 +1445,10 @@ class MappingManager:
         duration = base("Last queue busy time", "queue_busy_seconds", "sensor")
         duration["config"].update({
             # Written once per burst, when the queue falls idle, so it does not
-            # churn the recorder while commands are running. Rendering empty
-            # before the first burst leaves the entity unknown; rendering the
-            # literal "None" would make Home Assistant complain about a
-            # non-numeric state on every restart.
-            "value_template": ("{{ value_json.last_busy_seconds "
-                               "if value_json.last_busy_seconds is not none else 'unknown' }}"),
+            # churn the recorder while commands are running. Always a number,
+            # 0 before the first burst: this sensor is numeric by declaration
+            # and rejects "unknown" with a warning and an error per publish.
+            "value_template": "{{ value_json.last_busy_seconds }}",
             "unit_of_measurement": "s",
             "device_class": "duration",
             "state_class": "measurement",
