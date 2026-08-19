@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.4] - 2026-08-19
+
+### Changes
+- **Installing or updating the add-on no longer fails when Home Assistant's wheel mirror is slow.** The build downloaded its Python dependencies from `wheels.home-assistant.io`, which periodically slows to a crawl: measured at 1.5 kB/s for a file that PyPI delivers in a fraction of a second. When that happens the build times out and the install fails, which looks like a broken add-on but is not one. Dependencies now come from PyPI, with the Home Assistant mirror kept as a fallback for the rare architecture that needs it.
+
+  Nothing about the running add-on changes. This only affects how the image is built.
+
 ## [1.7.3] - 2026-08-01
 
 ### Bug Fixes
