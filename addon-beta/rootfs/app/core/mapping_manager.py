@@ -1403,11 +1403,15 @@ class MappingManager:
 
         base_id = base("Transceiver base ID", "base_id", "sensor")
         base_id["config"].update({
-            # 'unknown' is Home Assistant's own state string for "no value",
-            # so it renders as Unknown. An empty string does not: a sensor
-            # without a device_class accepts it as a literal empty state.
+            # 'None' is the MQTT integration's own payload for "no value": it
+            # clears the state instead of writing one, so the entity goes to
+            # Unknown without the value ever being validated. The literal
+            # string 'unknown' does not do that. It survives here, where the
+            # sensor has no device_class, but the same trick on a typed sensor
+            # is rejected once per publish, see "Last telegram received" below
+            # and the duration sensor in #38.
             "value_template": ("{{ value_json.base_id "
-                               "if value_json.base_id is not none else 'unknown' }}"),
+                               "if value_json.base_id is not none else 'None' }}"),
             "icon": "mdi:identifier",
         })
 
@@ -1420,8 +1424,12 @@ class MappingManager:
 
         last_telegram = base("Last telegram received", "last_telegram", "sensor")
         last_telegram["config"].update({
+            # See base_id: 'None' clears the state, 'unknown' would be parsed
+            # as a datetime and rejected, one warning per publish forever
+            # until the first telegram. Null itself is rare now, the state is
+            # seeded from the cached device timestamps after a restart.
             "value_template": ("{{ value_json.last_telegram "
-                               "if value_json.last_telegram is not none else 'unknown' }}"),
+                               "if value_json.last_telegram is not none else 'None' }}"),
             "device_class": "timestamp",
             "icon": "mdi:radio-tower",
         })

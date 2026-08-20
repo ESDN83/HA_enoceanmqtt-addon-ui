@@ -491,6 +491,26 @@ async def _publish_all_discoveries():
         await mqtt_handler.republish_cached_states()
 
 
+def _last_telegram_from_cache() -> Optional[str]:
+    """Newest `last_seen` across the cached device states, or None.
+
+    The telegram buffer lives in memory only, so right after a restart it is
+    empty and the gateway would report "no telegram yet" even when the radio
+    has been working for weeks. The per-device state cache survives the
+    restart and carries the timestamp, so the newest one stands in until a
+    real telegram arrives. It is not a placeholder: a telegram did arrive,
+    just before this process started.
+    """
+    if not (mqtt_handler and device_manager):
+        return None
+    newest = None
+    for name in device_manager.devices:
+        seen = _parse_last_seen((mqtt_handler.get_last_state(name) or {}).get("last_seen"))
+        if seen and (newest is None or seen > newest):
+            newest = seen
+    return newest.isoformat() if newest else None
+
+
 def _gateway_diagnostics_state() -> Dict:
     """The gateway's own state: transceiver, device count, command queue."""
     state = {
@@ -504,6 +524,8 @@ def _gateway_diagnostics_state() -> Dict:
         recent = telegram_buffer.get_recent(1)
         if recent:
             state["last_telegram"] = recent[0].get("timestamp")
+    if state["last_telegram"] is None:
+        state["last_telegram"] = _last_telegram_from_cache()
     if command_queue:
         state.update(command_queue.stats())
     return state

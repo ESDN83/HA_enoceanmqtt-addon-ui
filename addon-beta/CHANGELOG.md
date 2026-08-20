@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.8.0-beta13] - 2026-08-20 (beta channel)
+
+### Bug Fixes
+- **"Last telegram received" flooded the Home Assistant log too** (#38). The same defect as the duration sensor in beta10, at the entity next to it, and it survived that fix because it is quieter: one warning per publish instead of a warning and an error. Measured on a production install, 722 of them.
+
+  While no telegram had been received the entity was fed the word `unknown`, and a sensor declared as a timestamp cannot parse that. Home Assistant rejected every one of those messages, so the entity stayed on Unknown by way of a rejection rather than by intent. It now sends the value the MQTT integration itself uses for "no value", which clears the state without validating it: the same Unknown in the interface, no log line behind it. "Transceiver base ID" used the same shortcut and was changed with it, although nothing rejected it there.
+
+- **"Last telegram received" is no longer empty after every restart.** The telegram buffer only lives in memory, so a restart wiped it and the entity claimed nothing had ever been received, on an installation where the radio had been working for weeks. It now falls back to the newest timestamp in the device state cache, which does survive the restart. After a restart the entity shows when a telegram last actually arrived instead of nothing, and the Unknown state is left for the case it describes: an installation that has genuinely never received one.
+
 ## [1.8.0-beta12] - 2026-08-19 (beta channel)
 
 ### Changes

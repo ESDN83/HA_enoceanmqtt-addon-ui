@@ -145,3 +145,21 @@ of 101 to 152 ms, emits no warnings, survives cancellation mid-hold with the
 release still sent, fails fast on a stalled write while draining the queue,
 and reports RET_NOT_OK as a failure. Field verification on the reporter's
 installation is still open.
+
+## Follow-up in 1.8.0-beta13: how a diagnostic entity says "no value"
+
+The diagnostics payload carries nulls (no telegram yet, no base ID yet), and
+the discovery templates first rendered those as the word `unknown`. That is a
+trap: Home Assistant's own state string is not a valid state *message*. A
+sensor with a `device_class` parses the payload before it becomes a state, so
+`unknown` is rejected once per publish, and the entity ends up on Unknown by
+way of a rejected message rather than by intent. It cost two log floods on a
+production install, the duration sensor in beta10 (a warning and an error per
+publish) and the timestamp sensor in beta13 (722 warnings, one per publish).
+
+The rule for this payload: **a template that has no value renders `None`.**
+That is `PAYLOAD_NONE` in the MQTT integration (`mqtt/sensor.py`), which
+clears the state without validating it. Where a real value exists it is better
+still: `last_telegram` is seeded from the newest `last_seen` in the device
+state cache, so a restart no longer claims nothing was ever received. Verified
+on a real Home Assistant, both the silent null path and the rejected one.
