@@ -668,7 +668,35 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             await _echo_switch_state(device_name, command)
         return
 
-    if device.actuator_type == "light":
+    # An RPS light actuator (Eltako FL62, FSR61 wired to a lamp) is taught in
+    # as a rocker and cannot be dimmed: it ignores A5-38-08 entirely. Users
+    # pick the "Light / Dimmer" role for those modules because that is what
+    # they are, so route by EEP first here too (ADR-0003) and drive them with
+    # the same rocker press+release the switch role uses.
+    if device.actuator_type == "light" and device.rorg.upper() == "F6":
+        rocker = {"ON": 0x50, "OFF": 0x70}.get(command)
+        if rocker is None:
+            # HA can still send a brightness number if the entity was
+            # discovered before this version. Anything above 0 means "on".
+            try:
+                rocker = 0x70 if int(command) == 0 else 0x50
+                command = "OFF" if int(command) == 0 else "ON"
+            except ValueError:
+                logger.warning(f"Unknown command '{command}' for RPS light {device_name}")
+                return
+
+        sent = await serial_handler.send_rps_press_release(
+            sender_id=sender_id, press_data=rocker,
+            destination=broadcast, label=device_name
+        )
+        if not sent:
+            logger.warning(f"{command} for {device_name} not sent, no state echo")
+            return
+
+        logger.info(f"Sent {command} (F6 rocker press+release) to RPS light {device_name}")
+        await _echo_light_state(device_name, command, brightness=100 if command == "ON" else None)
+
+    elif device.actuator_type == "light":
         # Dimmers use A5-38-08 Central Command Dimming
         # With on_command_type=brightness, HA sends brightness (0-100) for ON,
         # "OFF" for off. "ON" text only from manual MQTT publish.

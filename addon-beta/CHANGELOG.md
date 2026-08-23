@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.0-beta14] - 2026-08-23 (beta channel)
+
+### Bug Fixes
+- **A switching light actuator now reports its state to Home Assistant.** Reported on the community forum for an Eltako FL62NP: teach-in worked, switching worked, the add-on showed the switching status under the device, and the Home Assistant entity stayed on Unknown.
+
+  The status confirmation these actuators send is a plain rocker telegram, and the add-on only recognised it in one exact configuration: device role "Actuator: Switch", with an F6 profile, confirmed on rocker B. Anyone who picked "Actuator: Light / Dimmer" for a light actuator, or taught the module in under A5-38-08 as several Eltako tables suggest, or has a module that confirms on rocker A, got no state at all. The confirmation is now read from the telegram itself, whatever the configured profile and whichever of the two roles is set.
+
+- **A light actuator on an F6 profile can be switched from the "Light" role.** It used to be sent A5-38-08 dimmer commands, which a relay ignores, so the entity did nothing. It now sends the same rocker press the switch role sends. The brightness slider is gone from those entities, since a relay cannot dim.
+
+- **The device page showed the wrong MQTT topics.** They were written as `enocean/<device>/state`, while the default prefix is `enoceanmqtt` and it is configurable on top of that. Anyone who went looking for their state topic was sent to one that does not exist. The page now shows the configured prefix.
+
+- **An actuator entity is no longer Unknown after a Home Assistant restart.** The rocker release that follows every press carries no state, and publishing it deleted the state from the retained topic. The last known state is repeated instead.
+
 ## [1.8.0-beta13] - 2026-08-20 (beta channel)
 
 ### Bug Fixes

@@ -242,7 +242,10 @@ async def test_actuator(req: TestActuatorRequest, request: Request) -> Dict[str,
     # Dimmers use A5-38-08 Central Command Dimming
     # Use DIM mode (dim_mode=1) with explicit brightness, not ON (dim_mode=0/stored).
     # Eltako FD62NPN and similar dimmers respond more reliably to explicit DIM values.
-    if device.actuator_type == "light":
+    # A light actuator taught in as a rocker (F6) is not a dimmer and ignores
+    # A5-38-08, so it takes the rocker path below, same as the MQTT command
+    # route does.
+    if device.actuator_type == "light" and device.rorg.upper() != "F6":
         if command == "ON":
             await serial_handler.send_a5_dimmer_command(sender_id, "DIM", dim_value=100)
             await _echo_light(request, req.device_name, "ON", 100)
@@ -295,6 +298,9 @@ async def test_actuator(req: TestActuatorRequest, request: Request) -> Dict[str,
         )
     else:
         raise HTTPException(status_code=400, detail=f"Unknown command: {command}. Use ON, OFF, OPEN, CLOSE, or STOP.")
+
+    if device.actuator_type == "light" and command in ("ON", "OFF"):
+        await _echo_light(request, req.device_name, command, 100 if command == "ON" else None)
 
     logger.info(f"Test actuator (F6): {req.device_name} ({device.actuator_type}) = {command}")
     return {

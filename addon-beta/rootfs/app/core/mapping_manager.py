@@ -1137,6 +1137,16 @@ class MappingManager:
                     "device": device_info,
                     "availability": avail_config
                 }
+                if eep_id.upper().startswith("F6"):
+                    # A light actuator taught in as a rocker switches, it
+                    # cannot dim. Advertising brightness gives Home Assistant
+                    # a slider that does nothing, and on_command_type
+                    # "brightness" makes it send numbers instead of ON/OFF.
+                    for key in ("brightness_command_topic", "brightness_state_topic",
+                                "brightness_value_template", "brightness_scale",
+                                "on_command_type"):
+                        config.pop(key, None)
+
             elif actuator_type == "switch":
                 config = {
                     "name": entity_name,

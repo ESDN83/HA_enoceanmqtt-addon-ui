@@ -434,6 +434,23 @@ async function editDevice(name) {
         showToast(t('device.load_failed', 'Failed to load device'), 'danger');
     }
 }
+// The configured MQTT topic prefix, read once and kept. Falls back to the
+// add-on default if the call fails, which is still closer than a wrong guess.
+let _mqttPrefix = null;
+async function getMqttPrefix() {
+    if (_mqttPrefix) return _mqttPrefix;
+    try {
+        const response = await fetch(getApiUrl('/api/system/mqtt-config'));
+        if (response.ok) {
+            const data = await response.json();
+            _mqttPrefix = (data.mqtt && data.mqtt.prefix) || null;
+        }
+    } catch (error) {
+        console.error('getMqttPrefix failed', error);
+    }
+    return _mqttPrefix || 'enoceanmqtt';
+}
+
 async function showDeviceDetail(name) {
     try {
         const response = await fetch(getApiUrl(`/api/devices/${encodeURIComponent(name)}`));
@@ -449,6 +466,12 @@ async function showDeviceDetail(name) {
                 t.device_name === name || t.sender_id === device.address
             ).slice(0, 20);
         } catch (e) { /* ignore */ }
+
+        // The topics shown here used to be hardcoded to "enocean/", while the
+        // default prefix is "enoceanmqtt" and it is configurable on top of
+        // that. Anyone looking for their state topic was sent to one that does
+        // not exist.
+        const prefix = await getMqttPrefix();
 
         // Build detail view in the devices page
         const container = document.getElementById('device-list');
@@ -483,8 +506,8 @@ async function showDeviceDetail(name) {
                             <div class="col-md-6">
                                 <h6>${t('device.mqtt_topics', 'MQTT Topics')}</h6>
                                 <small class="text-muted">
-                                    <code>enocean/${escapeHtml(device.name)}/state</code><br>
-                                    ${device.sender_id ? `<code>enocean/${escapeHtml(device.name)}/set</code>` : ''}
+                                    <code>${escapeHtml(prefix)}/${escapeHtml(device.name)}/state</code><br>
+                                    ${device.sender_id ? `<code>${escapeHtml(prefix)}/${escapeHtml(device.name)}/set</code>` : ''}
                                 </small>
                             </div>
                         </div>

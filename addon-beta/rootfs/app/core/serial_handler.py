@@ -741,25 +741,54 @@ class SerialHandler:
             logger.warning(f"Unknown EEP profile: {device.eep_id}")
             return device.name, device.eep_id, None
 
+        # An RPS actuator confirms its own output with a plain rocker telegram
+        # sent from its own address (Eltako FL62, FSR61 and friends). For those
+        # modules the confirmation is the only state feedback there is, so it
+        # is derived first, before either of the two paths that used to swallow
+        # it can run:
+        #   * the module may be taught in under a non-F6 EEP (Eltako's own
+        #     tables point at A5-38-08), and the RORG guard below drops such a
+        #     telegram undecoded,
+        #   * the module may be configured as "light" instead of "switch", and
+        #     the light branch only ever looked at A5-38-08 dimmer frames.
+        # Either way the telegram still appeared in the device's telegram list
+        # while the HA entity stayed "unknown" forever. Forum report on an
+        # Eltako FL62NP.
+        rps_state = self._rps_actuator_state(telegram, device)
+
         # Check RORG matches the EEP profile, FD62NPN sends F6+A5+D1 but
         # only A5 matches A5-38-08. Decoding F6/D1 with A5 profile = garbage.
         try:
             expected_rorg = int(profile.rorg, 16)
-            if telegram.rorg != expected_rorg:
-                logger.debug(f"RX [{telegram.sender_hex}] RORG mismatch: got 0x{telegram.rorg:02X}, expected 0x{expected_rorg:02X} for {device.eep_id}, skipping decode")
-                return device.name, device.eep_id, None
-        except (ValueError, AttributeError):
-            pass  # If RORG can't be parsed, proceed with decode anyway
+        except (ValueError, AttributeError, TypeError):
+            expected_rorg = telegram.rorg  # unparsable profile RORG: decode anyway
 
-        # Decode telegram using EEP profile
-        decoded = self._decode_telegram(telegram, profile)
+        if telegram.rorg == expected_rorg:
+            # Decode telegram using EEP profile
+            decoded = self._decode_telegram(telegram, profile)
+        elif rps_state is not None:
+            # Rocker confirmation for an actuator taught in under another EEP.
+            # No field decode is possible here, but the switching state is.
+            decoded = self._telegram_meta(telegram)
+            logger.debug(f"RX [{telegram.sender_hex}] RORG 0x{telegram.rorg:02X} does not match {device.eep_id}, taken as RPS actuator status only")
+        else:
+            logger.debug(f"RX [{telegram.sender_hex}] RORG mismatch: got 0x{telegram.rorg:02X}, expected 0x{expected_rorg:02X} for {device.eep_id}, skipping decode")
+            return device.name, device.eep_id, None
+
+        if rps_state is not None:
+            decoded["state"] = rps_state
+            if device.actuator_type == "light":
+                # An RPS light actuator switches, it does not dim. Report the
+                # only two brightness values it can ever be in.
+                decoded["brightness"] = 100 if rps_state == "ON" else 0
+            logger.debug(f"RPS actuator status: {device.name} -> {rps_state}")
 
         # For light actuators, add HA-compatible state and brightness fields.
         # SW and EDIM come from A5-38-08, so this must not run for a D2-01
         # module configured as a light: SW would be missing and the light
         # would be reported permanently OFF. D2-01 is handled per target
         # below, because there the channel decides who the value belongs to.
-        if device.actuator_type == "light" and telegram.rorg == 0xA5:
+        elif device.actuator_type == "light" and telegram.rorg == 0xA5:
             sw = decoded.get("SW", 0)
             edim = decoded.get("EDIM", 0)
             decoded["state"] = "ON" if sw else "OFF"
@@ -768,27 +797,6 @@ class SerialHandler:
             # Treat EDIM as 0-100 directly (matches brightness_scale: 100).
             decoded["brightness"] = round(min(float(edim), 100)) if edim else 0
             logger.debug(f"Light state: SW={sw}, EDIM={edim}, brightness={decoded['brightness']}%")
-
-        # F6-driven switch actuators (e.g. Eltako FSR61 with status reporting
-        # enabled) confirm their state with plain rocker telegrams. Derive the
-        # HA switch state from the rocker code so the entity stays in sync
-        # without MQTT YAML workarounds (community forum report).
-        #
-        # An actuator's confirmation telegram uses the OPPOSITE convention to
-        # the rocker press we send as a command: Eltako confirms ON with 0x70
-        # (R1 = 3, BO) and OFF with 0x50 (R1 = 2, BI), while a command press
-        # for ON is 0x50. Reported by salzrat on the community forum and
-        # confirmed against Eltako's telegram documentation, so BO = ON is the
-        # default here. Actuators taught in the other way round are handled by
-        # the device's "invert" option.
-        elif device.actuator_type == "switch" and telegram.rorg == 0xF6:
-            r1 = decoded.get("R1")
-            if r1 in (2, 3):
-                on = (r1 == 3)
-                if getattr(device, "invert", False):
-                    on = not on
-                decoded["state"] = "ON" if on else "OFF"
-                logger.debug(f"Switch state report: R1={r1} -> {decoded['state']}")
 
         logger.debug(f"RX [{telegram.sender_hex}] Device={device.name} EEP={device.eep_id} Decoded={decoded}")
 
@@ -827,20 +835,67 @@ class SerialHandler:
                         # alone instead of overwriting it with a foreign one.
                         payload.pop("state", None)
                         payload.pop("brightness", None)
+                if (target.actuator_type in ("light", "switch", "cover")
+                        and payload.get("state") is None):
+                    # A rocker release (and a foreign channel's report) carries
+                    # no state. Publishing it as it is drops "state" from the
+                    # retained topic, so the entity came back "unknown" after
+                    # every Home Assistant restart. Repeat the last known value
+                    # instead of erasing it.
+                    prev = self.mqtt_handler.get_last_state(target.name) or {}
+                    if prev.get("state") is not None:
+                        payload["state"] = prev["state"]
+                        if target.actuator_type == "light" and "brightness" in prev:
+                            payload["brightness"] = prev["brightness"]
+
                 await self.mqtt_handler.publish_state(target.name, payload)
                 logger.debug(f"TX MQTT [{target.name}] Published state to {self.mqtt_handler.prefix}/{target.name}/state")
 
         return device.name, device.eep_id, decoded
 
-    def _decode_telegram(self, telegram: RadioTelegram, profile) -> Dict[str, Any]:
-        """Decode telegram data using EEP profile"""
+    # R1, the first rocker action of an RPS telegram: 0 = AI, 1 = AO,
+    # 2 = BI, 3 = BO. An actuator's status confirmation uses the OPPOSITE
+    # convention to the rocker press we send as a command: Eltako confirms ON
+    # with 0x70 (BO) and OFF with 0x50 (BI), while the command press for ON is
+    # 0x50. Reported by salzrat on the community forum and confirmed against
+    # Eltako's telegram documentation. Rocker A is read the same way, because
+    # a module taught in on the A channel confirms with 0x30 (AO) / 0x10 (AI).
+    # Actuators taught in the other way round are handled by the device's
+    # "invert" option.
+    _RPS_ON_BY_R1 = {0: False, 1: True, 2: False, 3: True}
+
+    def _rps_actuator_state(self, telegram: RadioTelegram, device) -> Optional[str]:
+        """"ON"/"OFF" if this telegram is an actuator's own status report."""
+        if telegram.rorg != 0xF6 or not telegram.data:
+            return None
+        if getattr(device, "actuator_type", "") not in ("light", "switch"):
+            return None
+
+        db0 = telegram.data[0]
+        if not db0 & 0x10:
+            return None  # energy bow released: end of a press, not a status
+
+        on = self._RPS_ON_BY_R1.get((db0 >> 5) & 0x07)
+        if on is None:
+            return None
+        if getattr(device, "invert", False):
+            on = not on
+        return "ON" if on else "OFF"
+
+    @staticmethod
+    def _telegram_meta(telegram: RadioTelegram) -> Dict[str, Any]:
+        """The fields every published state carries, whatever the EEP is."""
         from datetime import datetime, timezone
 
-        decoded = {
+        return {
             "sender_id": telegram.sender_hex,
             "rssi": telegram.dbm,
             "last_seen": datetime.now(timezone.utc).isoformat()
         }
+
+    def _decode_telegram(self, telegram: RadioTelegram, profile) -> Dict[str, Any]:
+        """Decode telegram data using EEP profile"""
+        decoded = self._telegram_meta(telegram)
 
         if not profile.fields:
             # No field definitions - return raw data
