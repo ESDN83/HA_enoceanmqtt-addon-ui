@@ -12,6 +12,10 @@ configuration:
   cache_device_states:
     name: Cache Device States
     description: Persist and restore device states after restart. Essential for sensors that send infrequently (e.g., Kessel Staufix sends every 8-10 hours).
+  gateway_diagnostics:
+    name: Gateway Diagnostics
+    description: >-
+      Adds an "EnOcean Gateway" device with the add-on's own state: whether the transceiver is connected, its base ID, how many devices are configured, when the last telegram arrived, and the send queue (busy, commands pending, duration of the last burst). Off by default, because most installations never need it. Switch it on if you want to see the gateway state in Home Assistant, or if an automation has to wait until the add-on has finished sending, for example when one script closes covers and the next one turns off lights. Lost commands are not a reason to enable it, nothing is lost either way. Switching it off removes the entities again.
   mqtt:
     name: MQTT Settings
     description: MQTT broker configuration for Home Assistant integration.

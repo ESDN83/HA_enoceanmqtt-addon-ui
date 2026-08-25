@@ -66,6 +66,23 @@ async def get_gateway_info(request: Request) -> Dict[str, Any]:
     }
 
 
+async def _echo_light(request, device_name: str, command: str, brightness: int = None):
+    """Publish the commanded state after a UI test, like the MQTT path does.
+
+    This endpoint drives the actuator directly and used to publish nothing, so
+    switching a lamp from the add-on's own interface left the Home Assistant
+    entity showing the old value until the actuator reported back. Imported
+    late because main imports this router, not the other way round.
+    """
+    echo = getattr(request.app.state, "echo_light_state", None)
+    if not echo:
+        return
+    try:
+        await echo(device_name, command, brightness)
+    except Exception as e:   # never fail the command because the echo failed
+        logger.debug(f"State echo after UI test failed for {device_name}: {e}")
+
+
 @router.post("/read-base-id")
 async def read_base_id(request: Request) -> Dict[str, Any]:
     """Read the base ID from the EnOcean USB transceiver"""
@@ -225,11 +242,16 @@ async def test_actuator(req: TestActuatorRequest, request: Request) -> Dict[str,
     # Dimmers use A5-38-08 Central Command Dimming
     # Use DIM mode (dim_mode=1) with explicit brightness, not ON (dim_mode=0/stored).
     # Eltako FD62NPN and similar dimmers respond more reliably to explicit DIM values.
-    if device.actuator_type == "light":
+    # A light actuator taught in as a rocker (F6) is not a dimmer and ignores
+    # A5-38-08, so it takes the rocker path below, same as the MQTT command
+    # route does.
+    if device.actuator_type == "light" and device.rorg.upper() != "F6":
         if command == "ON":
             await serial_handler.send_a5_dimmer_command(sender_id, "DIM", dim_value=100)
+            await _echo_light(request, req.device_name, "ON", 100)
         elif command == "OFF":
             await serial_handler.send_a5_dimmer_command(sender_id, "OFF")
+            await _echo_light(request, req.device_name, "OFF")
         else:
             raise HTTPException(status_code=400, detail=f"Unknown command for dimmer: {command}. Use ON or OFF.")
 
@@ -276,6 +298,9 @@ async def test_actuator(req: TestActuatorRequest, request: Request) -> Dict[str,
         )
     else:
         raise HTTPException(status_code=400, detail=f"Unknown command: {command}. Use ON, OFF, OPEN, CLOSE, or STOP.")
+
+    if device.actuator_type == "light" and command in ("ON", "OFF"):
+        await _echo_light(request, req.device_name, command, 100 if command == "ON" else None)
 
     logger.info(f"Test actuator (F6): {req.device_name} ({device.actuator_type}) = {command}")
     return {

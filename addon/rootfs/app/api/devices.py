@@ -23,6 +23,7 @@ class DeviceCreate(BaseModel):
     actuator_type: Optional[str] = ""  # "light", "switch", "cover", or ""
     invert: Optional[bool] = False  # cover: reverse Open/Close + position
     channel: Optional[int] = 0  # multi-channel actuators (D2-01-11/12): 0 or 1
+    availability_timeout: Optional[int] = 0  # minutes of silence before unavailable; 0 = never (#37)
 
 
 class DeviceUpdate(BaseModel):
@@ -39,6 +40,7 @@ class DeviceUpdate(BaseModel):
     actuator_type: Optional[str] = None
     invert: Optional[bool] = None
     channel: Optional[int] = None
+    availability_timeout: Optional[int] = None
 
 
 # A device name is three things at once: the primary key, the base of its MQTT
@@ -161,7 +163,8 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
         manufacturer=device.manufacturer or "",
         actuator_type=device.actuator_type or "",
         invert=bool(device.invert),
-        channel=int(device.channel or 0)
+        channel=int(device.channel or 0),
+        availability_timeout=max(0, int(device.availability_timeout or 0))
     )
 
     success = await device_manager.add_device(new_device)
@@ -217,6 +220,8 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
         update_data["actuator_type"] = update.actuator_type
     if update.invert is not None:
         update_data["invert"] = bool(update.invert)
+    if update.availability_timeout is not None:
+        update_data["availability_timeout"] = max(0, int(update.availability_timeout))
     if update.channel is not None:
         update_data["channel"] = int(update.channel)
 
@@ -296,6 +301,18 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Failed to re-publish discovery for {name}: {e}")
+
+    # The republish above wrote availability=online for this device. If the
+    # availability watchdog had already declared it silent, that verdict has to
+    # be re-applied, or an unrelated edit leaves a dead device reading online
+    # for good (#37). Taken from app.state, never by importing main (ADR-0010).
+    after_edit = getattr(request.app.state, "availability_after_edit", None)
+    if after_edit:
+        try:
+            await after_edit(name)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Availability re-check failed for {name}: {e}")
 
     return {"status": "updated", "device": updated_device.to_dict()}
 

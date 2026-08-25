@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0] - 2026-08-25 (beta channel)
+
+Same build as stable 1.8.0, which promotes beta14. See the stable changelog for
+the full list and the three behaviour changes worth reading before you update.
+
+**Tip: export your configuration first.** Settings > Import / Export > "Export All" writes a zip with your devices, profiles and mappings. Home Assistant's own backup before an update covers the same data, because the add-on keeps everything in `/data`, and it can be restored for this add-on alone without a full restore. The export is simply independent of all that, and it imports into any installation.
+
 ## [1.8.0-beta14] - 2026-08-23 (beta channel)
 
 ### Bug Fixes

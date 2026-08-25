@@ -5,7 +5,7 @@ Telegram Buffer - Stores recent EnOcean telegrams for debugging
 import logging
 from typing import List, Dict, Any, Optional
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass, asdict
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,12 @@ class TelegramBuffer:
     ):
         """Add a telegram to the buffer"""
         entry = TelegramEntry(
-            timestamp=datetime.now().isoformat(),
+            # Timezone aware, like every other timestamp the add-on emits.
+            # A naive one is silently discarded by Home Assistant wherever it
+            # reaches a device_class: timestamp entity, which left the gateway's
+            # "Last telegram received" sensor on Unknown forever. The web UI
+            # renders this through new Date(), which handles either form.
+            timestamp=datetime.now(timezone.utc).isoformat(),
             sender_id=sender_id,
             rorg=rorg,
             data=data,
@@ -73,7 +78,7 @@ class TelegramBuffer:
         # Check if already in list
         for item in self._unknown_devices:
             if item["sender_id"] == sender_id:
-                item["last_seen"] = datetime.now().isoformat()
+                item["last_seen"] = datetime.now(timezone.utc).isoformat()
                 item["count"] = item.get("count", 0) + 1
                 item["dbm"] = dbm
                 return
@@ -81,8 +86,8 @@ class TelegramBuffer:
         self._unknown_devices.append({
             "sender_id": sender_id,
             "rorg": rorg,
-            "first_seen": datetime.now().isoformat(),
-            "last_seen": datetime.now().isoformat(),
+            "first_seen": datetime.now(timezone.utc).isoformat(),
+            "last_seen": datetime.now(timezone.utc).isoformat(),
             "count": 1,
             "dbm": dbm
         })

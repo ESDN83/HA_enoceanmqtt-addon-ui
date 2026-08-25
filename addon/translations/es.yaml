@@ -9,6 +9,10 @@ configuration:
   cache_device_states:
     name: Almacenar estados de dispositivos
     description: "Guardar y restaurar los estados de los dispositivos tras reiniciar. Esencial para sensores con actualizaciones poco frecuentes (p. ej., Kessel Staufix env\u00EDa cada 8-10 horas)."
+  gateway_diagnostics:
+    name: Diagnóstico de la pasarela
+    description: >-
+      Añade un dispositivo "EnOcean Gateway" con el estado del add-on: si el transceptor está conectado, su base ID, cuántos dispositivos hay configurados, cuándo llegó el último telegrama, y la cola de envío (ocupado, comandos pendientes, duración del último lote). Desactivado por defecto, porque la mayoría de las instalaciones no lo necesitan. Actívalo si quieres ver el estado de la pasarela en Home Assistant, o si una automatización debe esperar a que el add-on termine de enviar, por ejemplo cuando un script cierra las persianas y el siguiente apaga las luces. Los comandos perdidos no son motivo, no se pierde nada en ningún caso. Al desactivarlo se eliminan las entidades.
   mqtt:
     name: Configuraci\u00F3n MQTT
     description: "Configuraci\u00F3n del broker MQTT para la integraci\u00F3n con Home Assistant."

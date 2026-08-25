@@ -5,6 +5,7 @@ SERIAL_PORT=$(bashio::config 'serial_port')
 TCP_PORT=$(bashio::config 'tcp_port')
 LOG_LEVEL=$(bashio::config 'log_level')
 CACHE_DEVICE_STATES=$(bashio::config 'cache_device_states')
+GATEWAY_DIAGNOSTICS=$(bashio::config 'gateway_diagnostics')
 MQTT_DISCOVERY_PREFIX=$(bashio::config 'mqtt.discovery_prefix')
 MQTT_PREFIX=$(bashio::config 'mqtt.prefix')
 MQTT_CLIENT_ID=$(bashio::config 'mqtt.client_id')
@@ -69,6 +70,7 @@ fi
 export ENOCEAN_PORT="${ENOCEAN_PORT}"
 export LOG_LEVEL="${LOG_LEVEL}"
 export CACHE_DEVICE_STATES="${CACHE_DEVICE_STATES}"
+export GATEWAY_DIAGNOSTICS="${GATEWAY_DIAGNOSTICS}"
 export MQTT_HOST="${MQTT_HOST}"
 export MQTT_PORT="${MQTT_PORT}"
 export MQTT_USER="${MQTT_USER}"

@@ -9,6 +9,10 @@ configuration:
   cache_device_states:
     name: "Mettre en cache les \u00E9tats des appareils"
     description: "Sauvegarder et restaurer les \u00E9tats des appareils apr\u00E8s red\u00E9marrage. Essentiel pour les capteurs avec des mises \u00E0 jour peu fr\u00E9quentes (ex. Kessel Staufix envoie toutes les 8-10 heures)."
+  gateway_diagnostics:
+    name: Diagnostic de la passerelle
+    description: >-
+      Ajoute un appareil "EnOcean Gateway" avec l'état de l'add-on : si l'émetteur est connecté, son base ID, le nombre d'appareils configurés, la date du dernier télégramme, et la file d'envoi (occupé, commandes en attente, durée du dernier lot). Désactivé par défaut, car la plupart des installations n'en ont pas besoin. Activez-le si vous voulez voir l'état de la passerelle dans Home Assistant, ou si une automatisation doit attendre que l'add-on ait fini d'émettre, par exemple lorsqu'un script ferme les volets et que le suivant éteint les lumières. Les commandes perdues ne sont pas une raison, rien n'est perdu dans les deux cas. La désactivation supprime les entités.
   mqtt:
     name: "Param\u00E8tres MQTT"
     description: "Configuration du broker MQTT pour l'int\u00E9gration Home Assistant."

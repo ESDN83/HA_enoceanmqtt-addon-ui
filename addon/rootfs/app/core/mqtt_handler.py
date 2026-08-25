@@ -17,7 +17,7 @@ import json
 import yaml
 import logging
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Callable
 import paho.mqtt.client as mqtt
 import aiofiles
@@ -95,6 +95,11 @@ class MQTTHandler:
     @property
     def gateway_status_topic(self) -> str:
         return f"{self.prefix}/__system/status"
+
+    @property
+    def diagnostics_topic(self) -> str:
+        """Gateway diagnostics: transceiver state plus command queue state."""
+        return f"{self.prefix}/__system/diagnostics"
 
     def set_ha_birth_callback(self, callback: Callable):
         """Set callback for when HA sends birth message or MQTT reconnects.
@@ -381,7 +386,7 @@ class MQTTHandler:
         topic = f"{self.prefix}/{device_name}/state"
 
         # Add timestamp
-        state["_last_update"] = datetime.now().isoformat()
+        state["_last_update"] = datetime.now(timezone.utc).isoformat()
 
         # Merge cached other-channel values for multi-channel devices
         state = self._merge_multichannel_state(device_name, state)

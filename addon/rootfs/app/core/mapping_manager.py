@@ -1137,6 +1137,16 @@ class MappingManager:
                     "device": device_info,
                     "availability": avail_config
                 }
+                if eep_id.upper().startswith("F6"):
+                    # A light actuator taught in as a rocker switches, it
+                    # cannot dim. Advertising brightness gives Home Assistant
+                    # a slider that does nothing, and on_command_type
+                    # "brightness" makes it send numbers instead of ON/OFF.
+                    for key in ("brightness_command_topic", "brightness_state_topic",
+                                "brightness_value_template", "brightness_scale",
+                                "on_command_type"):
+                        config.pop(key, None)
+
             elif actuator_type == "switch":
                 config = {
                     "name": entity_name,
@@ -1295,6 +1305,23 @@ class MappingManager:
             }
         })
 
+        # Every entity depends on two things being alive: the device itself and
+        # the add-on relaying for it. Until now only the per-device topic was
+        # referenced, so a hard kill of the add-on left every entity reading
+        # "online" while nothing was listening to the radio. The graceful
+        # shutdown path writes offline per device, but a crash never gets there,
+        # and that is exactly when the LWT matters. Applied here, in one place,
+        # rather than at each of the eight config sites, so none can be missed.
+        # availability_mode "all" means both have to be up (#37).
+        gateway_avail = {
+            "topic": f"{mqtt_prefix}/__system/status",
+            "payload_available": "online",
+            "payload_not_available": "offline",
+        }
+        for item in configs:
+            item["config"]["availability"] = [avail_config, gateway_avail]
+            item["config"]["availability_mode"] = "all"
+
         return configs
 
     def discovery_naming(self, device, devices_on_address) -> tuple:
@@ -1319,6 +1346,134 @@ class MappingManager:
                            or f"EnOcean {device.eep_id}")
             return entity_name, module_name
         return None, None
+
+    def get_gateway_diagnostic_configs(self, mqtt_prefix: str,
+                                      sw_version: str = None) -> List[Dict[str, Any]]:
+        """Discovery configs for the add-on's own gateway device.
+
+        Two groups, both read from one state topic:
+
+        - The transceiver: connected, base ID, how many devices are configured.
+        - The command queue: busy, pending, and how long the last burst took.
+          Home Assistant cannot otherwise tell when the radio has caught up. A
+          script returns once its MQTT commands are published, which says
+          nothing about the queue behind them, so an automation that wants to
+          act on the physical outcome could only guess a delay. Waiting for
+          `off` on the busy sensor is exact (#38).
+
+        The whole device is gated by the `gateway_diagnostics` add-on option,
+        off by default. That is a deliberate split of concerns: the option
+        decides whether these entities exist at all, so an installation that
+        does not want them never sees them, and the ones that do get them
+        switched on without visiting each entity. Individual entities can still
+        be disabled in Home Assistant.
+        """
+        state_topic = f"{mqtt_prefix}/__system/diagnostics"
+        device_info = {
+            "identifiers": ["enocean_gateway"],
+            "name": "EnOcean Gateway",
+            "manufacturer": "EnOcean MQTT UI",
+            "model": "Add-on",
+        }
+        if sw_version:
+            device_info["sw_version"] = sw_version
+
+        availability = [{
+            "topic": f"{mqtt_prefix}/__system/status",
+            "payload_available": "online",
+            "payload_not_available": "offline",
+        }]
+
+        def base(name: str, suffix: str, component: str) -> Dict[str, Any]:
+            uid = f"enocean_gateway_{suffix}"
+            return {
+                "component": component,
+                "unique_id": uid,
+                "config": {
+                    "name": name,
+                    "unique_id": uid,
+                    "object_id": f"enocean_gateway_{suffix}",
+                    "state_topic": state_topic,
+                    "entity_category": "diagnostic",
+                    # Enabled: the add-on option already decided that this
+                    # installation wants them. Making the user switch on three
+                    # entities after ticking the box would be a second gate for
+                    # the same decision.
+                    "enabled_by_default": True,
+                    "device": device_info,
+                    "availability": availability,
+                },
+            }
+
+        connected = base("Transceiver connected", "connected", "binary_sensor")
+        connected["config"].update({
+            "value_template": "{{ 'ON' if value_json.transceiver_connected else 'OFF' }}",
+            "device_class": "connectivity",
+        })
+
+        base_id = base("Transceiver base ID", "base_id", "sensor")
+        base_id["config"].update({
+            # 'None' is the MQTT integration's own payload for "no value": it
+            # clears the state instead of writing one, so the entity goes to
+            # Unknown without the value ever being validated. The literal
+            # string 'unknown' does not do that. It survives here, where the
+            # sensor has no device_class, but the same trick on a typed sensor
+            # is rejected once per publish, see "Last telegram received" below
+            # and the duration sensor in #38.
+            "value_template": ("{{ value_json.base_id "
+                               "if value_json.base_id is not none else 'None' }}"),
+            "icon": "mdi:identifier",
+        })
+
+        devices = base("Devices configured", "device_count", "sensor")
+        devices["config"].update({
+            "value_template": "{{ value_json.device_count }}",
+            "state_class": "measurement",
+            "icon": "mdi:format-list-bulleted",
+        })
+
+        last_telegram = base("Last telegram received", "last_telegram", "sensor")
+        last_telegram["config"].update({
+            # See base_id: 'None' clears the state, 'unknown' would be parsed
+            # as a datetime and rejected, one warning per publish forever
+            # until the first telegram. Null itself is rare now, the state is
+            # seeded from the cached device timestamps after a restart.
+            "value_template": ("{{ value_json.last_telegram "
+                               "if value_json.last_telegram is not none else 'None' }}"),
+            "device_class": "timestamp",
+            "icon": "mdi:radio-tower",
+        })
+
+        busy = base("Command queue busy", "queue_busy", "binary_sensor")
+        busy["config"].update({
+            "value_template": "{{ 'ON' if value_json.busy else 'OFF' }}",
+            # The counters ride along as attributes rather than as four more
+            # entities nobody asked for.
+            "json_attributes_topic": state_topic,
+            "icon": "mdi:radio-tower",
+        })
+
+        pending = base("Commands pending", "queue_pending", "sensor")
+        pending["config"].update({
+            "value_template": "{{ value_json.pending }}",
+            "state_class": "measurement",
+            "icon": "mdi:tray-full",
+        })
+
+        duration = base("Last queue busy time", "queue_busy_seconds", "sensor")
+        duration["config"].update({
+            # Written once per burst, when the queue falls idle, so it does not
+            # churn the recorder while commands are running. Always a number,
+            # 0 before the first burst: this sensor is numeric by declaration
+            # and rejects "unknown" with a warning and an error per publish.
+            "value_template": "{{ value_json.last_busy_seconds }}",
+            "unit_of_measurement": "s",
+            "device_class": "duration",
+            "state_class": "measurement",
+            "icon": "mdi:timer-outline",
+        })
+
+        return [connected, base_id, devices, last_telegram, busy, pending, duration]
 
     def build_discovery_for_device(self, device, mqtt_prefix: str,
                                    devices_on_address) -> List[Dict[str, Any]]:

@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.8.0] - 2026-08-25
+
+Fourteen beta builds of field testing since 1.7.4. Closes #35, #37, #38.
+
+### Before you update
+
+No entity changes its id, no option or topic was removed or renamed. Three things behave differently:
+
+- **A light actuator taught in on an F6 profile loses its brightness slider.** A relay cannot dim, so the slider never did anything, and Home Assistant was sending numbers where the actuator expected ON/OFF. An automation that sets `brightness` on such an entity has to send ON/OFF instead.
+- **Entities can now become unavailable.** They depend on the gateway as well as on their device, so an add-on that dies is visible in Home Assistant instead of leaving every device looking alive.
+- **Device names containing `/`, `+` or `#` are rejected when saved.** Existing ones keep working, but they never receive commands, because Home Assistant's command topic for such a name does not match what the add-on listens to. Rename them.
+
+**Tip: export your configuration first.** Settings > Import / Export > "Export All" writes a zip with your devices, profiles and mappings. Home Assistant's own backup before an update covers the same data, because the add-on keeps everything in `/data`, and it can be restored for this add-on alone without a full restore. The export is simply independent of all that, and it imports into any installation.
+
+### New Features
+
+- **Commands are sent one at a time** (#38). A scene wrote a dozen telegrams into the transceiver at once, and what did not fit was dropped while Home Assistant showed every device as switched. Commands now go through a queue with a pause the transceiver can keep up with, the transceiver's answer is evaluated, and a command it did not accept produces a log line instead of a state. A scene of 14 devices takes about one and a half seconds. Delays in your scripts are no longer needed.
+- **A device can be reported unavailable when it goes silent** (#37). Off by default and switched on per device, with the expected interval. The clock runs from the device's own last telegram, so a restart does not reset it.
+- **An opt-in "EnOcean Gateway" device.** Off by default. Adds seven entities: transceiver connected, base ID, devices configured, last telegram received, command queue busy, commands pending, last queue busy time. The busy one is what an automation waits on before starting the next scene.
+- **A warning before changing a device's identity** (#35). Address, RORG, FUNC, TYPE and Sender ID say which physical module an entry describes, and editing one reconfigures nothing over the air. Saving such an edit now asks first and lists old value next to new.
+
+### Bug Fixes
+
+- **A switching light actuator reports its state again.** The rocker confirmation was only recognised in one exact configuration. It is now read from the telegram itself, whatever profile and role are set.
+- **A light actuator on an F6 profile can be switched from the "Light" role.** It used to be sent dimmer commands, which a relay ignores.
+- **An actuator entity is no longer Unknown after a Home Assistant restart.** The release that follows every press carries no state and used to delete the retained one.
+- **A dimmer's entity no longer keeps the old brightness** after a command that the actuator never confirmed.
+- **Devices stayed invisible after restoring a backup** until each one was opened and saved. Import and restore re-announce everything now.
+- **A device whose name contains an apostrophe or a slash could not be opened, renamed or deleted** (#36).
+- **Deleted and renamed devices left ghost states behind**, which a new device with that name later inherited.
+- **Entities stayed online when the add-on died.** The gateway's Last Will sat on a topic nothing referenced.
+- **Timestamps carry their time zone**, so "Last telegram received" arrives at all, updates on every telegram, and survives a restart.
+- **Two gateway sensors flooded the Home Assistant log**, measured at 1336 messages in 22 hours on a production install.
+- **The browser could keep the previous version's web UI** after an update. Every asset carries the version now.
+- **The layout became unusable in a window of medium width**, and the icons in the device list touched each other and slid out of the card.
+- **Installing or updating no longer fails when Home Assistant's wheel mirror is slow.** Dependencies come from PyPI, with the mirror as fallback.
+
+### Changes
+
+- **The web interface is no longer one file.** `templates/index.html` went from 4128 lines to 808, the stylesheet and ten topic files sit in `static/`. Nothing was rewritten, the code was moved, and there is still no build step. If anything in the interface behaves differently than it did in 1.7.4, that is a bug in this build, please report it.
+- **Device names are checked when saved.** `/`, `+` and `#` are rejected with an explanation. Apostrophes, quotes and accented characters are fine.
+- **The log names lost commands.** A full queue, a refused telegram and a command that ran into its deadline each produce their own message, and `/health` reports the counters.
+
 ## [1.7.4] - 2026-08-19
 
 ### Changes

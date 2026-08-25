@@ -9,6 +9,10 @@ configuration:
   cache_device_states:
     name: "\u30C7\u30D0\u30A4\u30B9\u72B6\u614B\u306E\u30AD\u30E3\u30C3\u30B7\u30E5"
     description: "\u518D\u8D77\u52D5\u5F8C\u306B\u30C7\u30D0\u30A4\u30B9\u306E\u72B6\u614B\u3092\u4FDD\u5B58\u30FB\u5FA9\u5143\u3057\u307E\u3059\u3002\u66F4\u65B0\u983B\u5EA6\u306E\u4F4E\u3044\u30BB\u30F3\u30B5\u30FC\u306B\u4E0D\u53EF\u6B20\u3067\u3059\uFF08\u4F8B: Kessel Staufix\u306F8-10\u6642\u9593\u3054\u3068\u306B\u9001\u4FE1\uFF09\u3002"
+  gateway_diagnostics:
+    name: ゲートウェイ診断
+    description: >-
+      アドオン自身の状態を持つ "EnOcean Gateway" デバイスを追加します。トランシーバーの接続状態、ベースID、登録デバイス数、最後のテレグラム受信時刻、送信キュー (送信中、待機中のコマンド数、直前の一連の送信にかかった時間) です。ほとんどの環境では不要なため既定ではオフです。ゲートウェイの状態を Home Assistant で見たい場合、またはオートメーションがアドオンの送信完了を待つ必要がある場合に有効にしてください。たとえば、あるスクリプトがシャッターを閉じ、次のスクリプトが照明を消す場合です。コマンドの喪失は理由になりません。どちらの設定でも失われません。オフに戻すとエンティティは削除されます。
   mqtt:
     name: "MQTT\u8A2D\u5B9A"
     description: "Home Assistant\u7D71\u5408\u306E\u305F\u3081\u306EMQTT\u30D6\u30ED\u30FC\u30AB\u30FC\u8A2D\u5B9A\u3002"
