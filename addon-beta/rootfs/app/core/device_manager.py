@@ -29,6 +29,12 @@ class Device:
     actuator_type: str = ""  # "light", "switch", "cover", or "" for sensor-only
     channel: int = 0  # I/O channel for multi-channel actuators (D2-01-11/12)
     invert: bool = False  # Cover only: reverse Open/Close + position direction
+    # Cover only: full travel time in seconds. Eltako shutter actuators report
+    # the time they actually ran, which only becomes a position when it is
+    # measured against the full travel. 0 = not configured: the cover still
+    # reports open/closed from the end-position confirmations, just no
+    # percentage. See ADR-0014.
+    travel_time: int = 0
     # Minutes of silence after which the device is reported unavailable to Home
     # Assistant. 0 means never, which is the old behaviour and the default: a
     # switch actuator only transmits when it is switched, so a watchdog would
@@ -66,6 +72,7 @@ class Device:
             manufacturer=data.get("manufacturer", ""),
             actuator_type=data.get("actuator_type", ""),
             invert=bool(data.get("invert", False)),
+            travel_time=int(data.get("travel_time", 0) or 0),
             channel=int(data.get("channel", 0) or 0),
             availability_timeout=int(data.get("availability_timeout", 0) or 0)
         )

@@ -756,6 +756,14 @@ class SerialHandler:
         # Eltako FL62NP.
         rps_state = self._rps_actuator_state(telegram, device)
 
+        # The same holds for an Eltako shutter actuator, which confirms with a
+        # rocker telegram (end position, travel started) and reports the time
+        # it ran in a 4BS telegram. Both come from the actuator's own address
+        # whatever EEP it is configured under, so they are read before the
+        # RORG guard can drop them (issue #39, ADR-0014).
+        cover_state = self._eltako_cover_state(telegram, device)
+        cover_travel = self._eltako_cover_travel(telegram, device)
+
         # Check RORG matches the EEP profile, FD62NPN sends F6+A5+D1 but
         # only A5 matches A5-38-08. Decoding F6/D1 with A5 profile = garbage.
         try:
@@ -766,14 +774,26 @@ class SerialHandler:
         if telegram.rorg == expected_rorg:
             # Decode telegram using EEP profile
             decoded = self._decode_telegram(telegram, profile)
-        elif rps_state is not None:
-            # Rocker confirmation for an actuator taught in under another EEP.
-            # No field decode is possible here, but the switching state is.
+        elif rps_state is not None or cover_state is not None or cover_travel is not None:
+            # Confirmation of an actuator taught in under another EEP. No field
+            # decode is possible here, but the state it reports is.
             decoded = self._telegram_meta(telegram)
             logger.debug(f"RX [{telegram.sender_hex}] RORG 0x{telegram.rorg:02X} does not match {device.eep_id}, taken as RPS actuator status only")
         else:
             logger.debug(f"RX [{telegram.sender_hex}] RORG mismatch: got 0x{telegram.rorg:02X}, expected 0x{expected_rorg:02X} for {device.eep_id}, skipping decode")
             return device.name, device.eep_id, None
+
+        if cover_state is not None:
+            decoded["state"] = cover_state
+            logger.debug(f"Eltako cover status: {device.name} -> {cover_state}")
+        elif cover_travel is not None:
+            direction, seconds = cover_travel
+            # The travel report is also the message that the motor has stopped.
+            # Leaving "opening"/"closing" standing would show a shutter moving
+            # forever, so a settled state is published even when the position
+            # cannot be computed.
+            decoded["state"] = "open"
+            logger.debug(f"Eltako cover travel: {device.name} ran {seconds:.1f}s {direction}")
 
         if rps_state is not None:
             decoded["state"] = rps_state
@@ -835,6 +855,23 @@ class SerialHandler:
                         # alone instead of overwriting it with a foreign one.
                         payload.pop("state", None)
                         payload.pop("brightness", None)
+                if target.actuator_type == "cover" and (cover_state is not None
+                                                        or cover_travel is not None):
+                    # travel_time is per device, and so is the previous
+                    # position the travel is measured against, so the position
+                    # is resolved per target rather than once for the address.
+                    pos = self._eltako_cover_position(target, cover_state, cover_travel)
+                    if pos is None:
+                        # Keep the last known position in the retained payload,
+                        # dropping it would leave the slider empty after a
+                        # restart.
+                        prev = self.mqtt_handler.get_last_state(target.name) or {}
+                        pos = prev.get("POS")
+                    elif cover_travel is not None:
+                        payload["state"] = "open" if pos > 0 else "closed"
+                    if pos is not None:
+                        payload["POS"] = pos
+
                 if (target.actuator_type in ("light", "switch", "cover")
                         and payload.get("state") is None):
                     # A rocker release (and a foreign channel's report) carries
@@ -863,6 +900,87 @@ class SerialHandler:
     # Actuators taught in the other way round are handled by the device's
     # "invert" option.
     _RPS_ON_BY_R1 = {0: False, 1: True, 2: False, 3: True}
+
+    # An Eltako shutter actuator reports on its own, in two telegrams that have
+    # nothing to do with the EEP it was taught in under. From Eltako's
+    # "Inhalte der Eltako-Funktelegramme", section FJ62/12-36V DC, FJ62NP-230V:
+    #   RPS (F6): DB3 0x01 = travel up started, 0x02 = travel down started,
+    #             0x70 = upper end position, 0x50 = lower end position.
+    #   4BS (A5): DB3+DB2 = the time it actually ran in 100 ms, DB1 = 0x01 ran
+    #             up / 0x02 ran down, DB0 = 0x0A, or 0x0E while the actuator is
+    #             blocked for pushbuttons.
+    # The 4BS report is sent only when the run ended before the actuator's own
+    # runtime expired, so the end positions are the only points where the
+    # position is certain. They are the synchronisation points, which is how
+    # Eltako's own GFVS software tracks the position. See ADR-0014.
+    _ELTAKO_COVER_RPS = {0x70: "open", 0x50: "closed", 0x01: "opening", 0x02: "closing"}
+    _ELTAKO_COVER_INVERTED = {"open": "closed", "closed": "open",
+                              "opening": "closing", "closing": "opening"}
+
+    def _eltako_cover_state(self, telegram: RadioTelegram, device) -> Optional[str]:
+        """HA cover state if this RPS telegram is a shutter's own report."""
+        if telegram.rorg != 0xF6 or not telegram.data:
+            return None
+        if getattr(device, "actuator_type", "") != "cover":
+            return None
+
+        state = self._ELTAKO_COVER_RPS.get(telegram.data[0])
+        if state is None:
+            return None
+        if getattr(device, "invert", False):
+            state = self._ELTAKO_COVER_INVERTED[state]
+        return state
+
+    def _eltako_cover_travel(self, telegram: RadioTelegram, device) -> Optional[tuple]:
+        """(direction, seconds) if this 4BS telegram is a shutter's travel report."""
+        if telegram.rorg != 0xA5 or len(telegram.data) != 4:
+            return None
+        if getattr(device, "actuator_type", "") != "cover":
+            return None
+
+        db0 = telegram.data[3]
+        # bit3 = data telegram, bit1 = time given in 100 ms over DB3+DB2. A
+        # travel *command* uses the seconds base instead, so this also keeps
+        # the add-on from reading someone else's command as a report.
+        if db0 & 0x0A != 0x0A:
+            return None
+
+        direction = {0x01: "opening", 0x02: "closing"}.get(telegram.data[2])
+        if direction is None:
+            return None
+        if getattr(device, "invert", False):
+            direction = self._ELTAKO_COVER_INVERTED[direction]
+
+        seconds = ((telegram.data[0] << 8) | telegram.data[1]) / 10
+        return direction, seconds
+
+    def _eltako_cover_position(self, device, cover_state: Optional[str],
+                               cover_travel: Optional[tuple]) -> Optional[int]:
+        """Position in HA terms (100 = open) from an Eltako shutter's report.
+
+        An end position is absolute and needs nothing else. A travel report is
+        relative: it only becomes a position when it is measured against the
+        configured full travel time, and only from a known previous position.
+        Without either, None leaves the last position untouched rather than
+        inventing one.
+        """
+        if cover_state in ("open", "closed"):
+            return 100 if cover_state == "open" else 0
+        if cover_travel is None:
+            return None
+
+        travel_time = int(getattr(device, "travel_time", 0) or 0)
+        if travel_time <= 0 or not self.mqtt_handler:
+            return None
+
+        previous = (self.mqtt_handler.get_last_state(device.name) or {}).get("POS")
+        if previous is None:
+            return None
+
+        direction, seconds = cover_travel
+        step = seconds / travel_time * 100
+        moved = float(previous) + (step if direction == "opening" else -step)
+        return int(round(max(0.0, min(100.0, moved))))
 
     def _rps_actuator_state(self, telegram: RadioTelegram, device) -> Optional[str]:
         """"ON"/"OFF" if this telegram is an actuator's own status report."""

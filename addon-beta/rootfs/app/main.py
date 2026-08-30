@@ -60,6 +60,11 @@ AVAILABILITY_CHECK_SECONDS = 60
 # Long enough for MQTT to connect and the cached states to be republished, short
 # enough that a dead device is not covered up for another interval (#37).
 AVAILABILITY_STARTUP_GRACE_SECONDS = 120
+# Last rocker direction sent to each F6 cover. An Eltako shutter is stopped by
+# repeating that direction as a short tap, so the command handler has to
+# remember it (issue #39). In memory on purpose: after a restart nothing is
+# moving that we started, and the fallback direction is harmless.
+_last_cover_rocker: dict = {}
 from app_version import VERSION  # single source of truth (reads config.yaml)
 
 # Global instances
@@ -802,15 +807,24 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
         # held. The pair must therefore stay atomic, see ADR-0012.
         rocker = {"OPEN": 0x50, "CLOSE": 0x70}.get(command)
         if rocker is not None:
+            _last_cover_rocker[device_name] = rocker
             sent = await serial_handler.send_rps_press_release(
                 sender_id=sender_id, press_data=rocker,
                 destination=broadcast, label=device_name
             )
         elif command == "STOP":
-            # Any release without prior press = stop
-            sent = await serial_handler.send_telegram(
-                sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x00]), destination=broadcast, status=0x20
+            # A short tap stops a running shutter: "Kurzes Tippen unterbricht
+            # die Bewegung sofort" (FJ62 manual), "Mit eingelernten Tastern
+            # kann jederzeit unterbrochen werden!" (Eltako telegram
+            # documentation). What used to be sent here was a bare release,
+            # which no real rocker ever sends without a press, and the actuator
+            # ignored it (issue #39). The last direction is repeated on
+            # purpose: the opposite one is a reversal command on Eltako
+            # actuators, not a stop.
+            rocker = _last_cover_rocker.get(device_name, 0x50)
+            sent = await serial_handler.send_rps_press_release(
+                sender_id=sender_id, press_data=rocker,
+                destination=broadcast, label=device_name
             )
         else:
             logger.warning(f"Unknown cover command '{command}' for {device_name}")

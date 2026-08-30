@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.8.1-beta1] - 2026-08-30 (beta channel)
+
+### Bug Fixes
+
+- **Stop works on an Eltako shutter.** The stop command sent a bare rocker
+  release, which no real rocker ever sends and the actuator ignored. It is now
+  a short tap of the last direction, which is what Eltako documents as
+  "interrupts the movement immediately". A stop while nothing is moving starts
+  a run, exactly as the same tap on a wall switch does (#39).
+
+### New
+
+- **An Eltako shutter now reports its state by itself.** End position, start of
+  a run and the time it actually ran are read from the actuator's own
+  telegrams, whatever EEP the device is configured with, so a cover shows
+  open, closed, opening and closing instead of nothing (#39).
+- **Position for Eltako shutters.** Set **Travel time (s)** on a cover and the
+  reported run times become a position, synchronised every time the shutter
+  reaches an end position. Read-only for now. 0 keeps the old behaviour.
+- **A5-3F-7F decodes as an Eltako shutter profile**, shipped as a bundled
+  custom profile: travel time, direction and the pushbutton block flag, with
+  the raw data bytes kept alongside.
+- The teach-in dialog and the docs now explain the Eltako 62 series, where the
+  number of teach-in telegrams picks the sender type: 3 for a universal
+  pushbutton, 4 for a directional pushbutton, 5 and 6 for central up and down.
+
+See ADR-0014 for the reasoning and the Eltako sources.
+
 ## [1.8.0] - 2026-08-25 (beta channel)
 
 Same build as stable 1.8.0, which promotes beta14. See the stable changelog for

@@ -21,3 +21,5 @@ Rules:
 - [0010](0010-buildless-asset-loading.md) Loading the split frontend without a build step
 - [0011](0011-availability-watchdog.md) Availability is opt-in per device, measured from last contact
 - [0012](0012-serialized-transmit-and-command-queue.md) Serialized transmit path and an inbound command queue
+- [0013](0013-rps-actuator-status-independent-of-eep-and-role.md) RPS actuator status is read independently of the configured EEP and role
+- [0014](0014-eltako-shutter-feedback-and-stop.md) An Eltako shutter reports itself, and it is stopped by a tap
