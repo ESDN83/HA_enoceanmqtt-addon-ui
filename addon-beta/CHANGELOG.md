@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.8.1-beta2] - 2026-08-31 (beta channel)
+
+Field feedback on beta1 from the reporter of #39. Stop works on his FJ62, the
+rest of this is what he found next.
+
+### Bug Fixes
+
+- **Open and close were swapped on F6 covers.** Up is the top half of the
+  rocker and down the bottom one, the way Eltako wires a directional
+  pushbutton. It was the other way round, so close opened the shutter (#39).
+
+  **Your covers keep running exactly as they do today.** The update ticks
+  **Reverse direction** for every cover that already exists, which reproduces
+  the old telegrams, and it says so in the log. Nothing moves differently after
+  the update. If your shutter has been running the wrong way round, untick that
+  box once and it is correct from then on. Covers added after the update need
+  no box ticked at all.
+- **"Reverse direction" now works on an F6 cover.** It only ever reached
+  D2-05 covers, so ticking it on an Eltako changed nothing (#39).
+- **The stop button in the add-on's own interface works.** The test buttons
+  had their own copy of the rocker semantics and still sent a bare release.
+  They now send through the same path as a command from Home Assistant, which
+  also gives them the transmit pacing and the queue (#39).
+
+See ADR-0014.
+
 ## [1.8.1-beta1] - 2026-08-30 (beta channel)
 
 ### Bug Fixes

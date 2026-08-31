@@ -211,6 +211,12 @@ async def lifespan(app: FastAPI):
     # globals are all None. Such a call then fails silently.
     app.state.publish_all_discoveries = _publish_all_discoveries
     app.state.echo_light_state = _echo_light_state
+    # The UI's test buttons send through the same queue as an MQTT command, so
+    # there is one command path and not two that drift apart (#39). The direct
+    # handler is the fallback for a setup without a broker, where no queue
+    # exists to submit to.
+    app.state.submit_command = command_queue.submit if command_queue else None
+    app.state.handle_device_command = _handle_device_command
     app.state.availability_after_edit = _availability_after_edit
 
     # Started here, after the initial discovery and availability publish, so its
@@ -805,7 +811,17 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
         # An Eltako shutter actuator reads the press duration as the command:
         # a short press runs the full travel, a long one moves only while
         # held. The pair must therefore stay atomic, see ADR-0012.
-        rocker = {"OPEN": 0x50, "CLOSE": 0x70}.get(command)
+        # Up is the top half of the rocker (BO, 0x70) and down the bottom one
+        # (BI, 0x50), which is how a directional pushbutton is wired and how
+        # Eltako describes it: "Richtungstaster oben 'Auf' und unten 'Ab'".
+        # This was the other way round until 1.8.1-beta2, so close opened the
+        # shutter and open closed it (#39). "invert" flips it back for a
+        # shutter that is mounted or wired the other way, and it now reaches
+        # this path at all: it used to apply to D2-05 covers only, which is
+        # why ticking it changed nothing here.
+        rocker = {"OPEN": 0x70, "CLOSE": 0x50}.get(command)
+        if rocker is not None and device.invert:
+            rocker = 0x50 if rocker == 0x70 else 0x70
         if rocker is not None:
             _last_cover_rocker[device_name] = rocker
             sent = await serial_handler.send_rps_press_release(
@@ -821,7 +837,10 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             # ignored it (issue #39). The last direction is repeated on
             # purpose: the opposite one is a reversal command on Eltako
             # actuators, not a stop.
-            rocker = _last_cover_rocker.get(device_name, 0x50)
+            # Nothing to repeat before the first command of a session. Up is
+            # the safer guess for a tap that starts a run instead of ending
+            # one, a shutter going down can trap something.
+            rocker = _last_cover_rocker.get(device_name, 0x70)
             sent = await serial_handler.send_rps_press_release(
                 sender_id=sender_id, press_data=rocker,
                 destination=broadcast, label=device_name

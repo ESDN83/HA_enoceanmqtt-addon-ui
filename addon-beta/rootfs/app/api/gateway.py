@@ -66,23 +66,6 @@ async def get_gateway_info(request: Request) -> Dict[str, Any]:
     }
 
 
-async def _echo_light(request, device_name: str, command: str, brightness: int = None):
-    """Publish the commanded state after a UI test, like the MQTT path does.
-
-    This endpoint drives the actuator directly and used to publish nothing, so
-    switching a lamp from the add-on's own interface left the Home Assistant
-    entity showing the old value until the actuator reported back. Imported
-    late because main imports this router, not the other way round.
-    """
-    echo = getattr(request.app.state, "echo_light_state", None)
-    if not echo:
-        return
-    try:
-        await echo(device_name, command, brightness)
-    except Exception as e:   # never fail the command because the echo failed
-        logger.debug(f"State echo after UI test failed for {device_name}: {e}")
-
-
 @router.post("/read-base-id")
 async def read_base_id(request: Request) -> Dict[str, Any]:
     """Read the base ID from the EnOcean USB transceiver"""
@@ -206,11 +189,14 @@ async def teach_in_repeat(req: RepeatTeachInRequest, request: Request) -> Dict[s
 
 @router.post("/test-actuator")
 async def test_actuator(req: TestActuatorRequest, request: Request) -> Dict[str, Any]:
-    """Send command to test an actuator (light/switch/cover).
+    """Send a command to an actuator from the UI, without going through HA.
 
-    - Dimmers (actuator_type="light"): uses A5-38-08 Central Command Dimming
-    - Switches/covers: uses F6 (RPS) rocker press+release sequence
-    This endpoint allows testing directly from the UI without MQTT.
+    The command takes exactly the same route as one arriving over MQTT: the
+    queue, then `_handle_device_command`. This endpoint used to carry its own
+    copy of the rocker and dimmer semantics, which is how its stop button kept
+    sending a bare release long after the MQTT path had stopped doing that,
+    and how it stayed blind to the direction a shutter last ran in (#39). One
+    behaviour, one place, as ADR-0003 and ADR-0012 intend.
     """
     serial_handler = request.app.state.serial_handler
     device_manager = request.app.state.device_manager
@@ -231,83 +217,36 @@ async def test_actuator(req: TestActuatorRequest, request: Request) -> Dict[str,
     if not device.sender_id:
         raise HTTPException(status_code=400, detail="Device has no sender_id configured")
 
-    try:
-        sender_id = int(device.sender_id.replace("0x", "").replace("0X", ""), 16)
-        destination = int(device.address.replace("0x", "").replace("0X", ""), 16)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid address: {e}")
-
     command = req.command.strip().upper()
-
-    # Dimmers use A5-38-08 Central Command Dimming
-    # Use DIM mode (dim_mode=1) with explicit brightness, not ON (dim_mode=0/stored).
-    # Eltako FD62NPN and similar dimmers respond more reliably to explicit DIM values.
-    # A light actuator taught in as a rocker (F6) is not a dimmer and ignores
-    # A5-38-08, so it takes the rocker path below, same as the MQTT command
-    # route does.
-    if device.actuator_type == "light" and device.rorg.upper() != "F6":
-        if command == "ON":
-            await serial_handler.send_a5_dimmer_command(sender_id, "DIM", dim_value=100)
-            await _echo_light(request, req.device_name, "ON", 100)
-        elif command == "OFF":
-            await serial_handler.send_a5_dimmer_command(sender_id, "OFF")
-            await _echo_light(request, req.device_name, "OFF")
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown command for dimmer: {command}. Use ON or OFF.")
-
-        logger.info(f"Test actuator (A5-38-08): {req.device_name} = {command}")
-        return {
-            "status": "sent",
-            "device": req.device_name,
-            "command": command,
-            "protocol": "A5-38-08",
-            "sender_id": device.sender_id,
-            "destination": device.address
-        }
-
-    # Switches and covers use F6 rocker commands (broadcast)
-    broadcast = 0xFFFFFFFF
-
-    if command in ("ON", "OPEN"):
-        # Rocker B top (BI) pressed + release
-        await serial_handler.send_telegram(
-            sender_id=sender_id, rorg=0xF6,
-            data=bytes([0x50]), destination=broadcast, status=0x30
+    allowed = {"light": ("ON", "OFF"), "switch": ("ON", "OFF"),
+               "cover": ("OPEN", "CLOSE", "STOP")}.get(device.actuator_type, ())
+    if command not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown command '{command}' for a {device.actuator_type}. Use {', '.join(allowed)}."
         )
-        await asyncio.sleep(0.1)
-        await serial_handler.send_telegram(
-            sender_id=sender_id, rorg=0xF6,
-            data=bytes([0x00]), destination=broadcast, status=0x20
-        )
-    elif command in ("OFF", "CLOSE"):
-        # Rocker B bottom (B0) pressed + release
-        await serial_handler.send_telegram(
-            sender_id=sender_id, rorg=0xF6,
-            data=bytes([0x70]), destination=broadcast, status=0x30
-        )
-        await asyncio.sleep(0.1)
-        await serial_handler.send_telegram(
-            sender_id=sender_id, rorg=0xF6,
-            data=bytes([0x00]), destination=broadcast, status=0x20
-        )
-    elif command == "STOP":
-        # Release without prior press = stop
-        await serial_handler.send_telegram(
-            sender_id=sender_id, rorg=0xF6,
-            data=bytes([0x00]), destination=broadcast, status=0x20
-        )
-    else:
-        raise HTTPException(status_code=400, detail=f"Unknown command: {command}. Use ON, OFF, OPEN, CLOSE, or STOP.")
 
-    if device.actuator_type == "light" and command in ("ON", "OFF"):
-        await _echo_light(request, req.device_name, command, 100 if command == "ON" else None)
+    # A test of a dimmer should be visible, so ON asks for full brightness
+    # rather than the value the actuator happens to have stored. The command
+    # handler reads a bare number as a brightness percentage.
+    payload = "100" if (command == "ON" and device.actuator_type == "light"
+                        and device.rorg.upper() != "F6") else command
 
-    logger.info(f"Test actuator (F6): {req.device_name} ({device.actuator_type}) = {command}")
+    submit = getattr(request.app.state, "submit_command", None)
+    if submit is None:
+        # No MQTT broker means no queue. Fall back to the handler itself, so
+        # the test button still works on a gateway-only setup.
+        submit = getattr(request.app.state, "handle_device_command", None)
+    if submit is None:
+        raise HTTPException(status_code=503, detail="Command handling not initialised")
+
+    logger.info(f"Test actuator: {req.device_name} ({device.actuator_type}) = {command}")
+    await submit(req.device_name, payload)
+
     return {
-        "status": "sent",
+        "status": "queued",
         "device": req.device_name,
         "command": command,
-        "protocol": "F6",
         "sender_id": device.sender_id,
         "destination": device.address
     }

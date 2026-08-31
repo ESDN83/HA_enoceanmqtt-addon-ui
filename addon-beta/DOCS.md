@@ -198,6 +198,11 @@ Teach-In" has to be clicked several times in a row:
 - Open and close are short rocker taps, and so is stop: a tap while the shutter
   runs interrupts it. A stop sent while nothing is moving starts a run instead,
   exactly as it would on a wall switch.
+- Up is the top half of the rocker, down the bottom one, the way Eltako wires a
+  directional pushbutton. If your shutter runs the wrong way, tick **Reverse
+  direction** on the device. Covers that existed before 1.8.1 have that box
+  ticked automatically, so the update leaves them running exactly as they were;
+  untick it if the shutter has been running the wrong way round.
 - These actuators report themselves: an end position, the start of a run, and
   the time they actually ran. The add-on turns that into open/closed without
   any further configuration.

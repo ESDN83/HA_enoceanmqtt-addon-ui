@@ -58,6 +58,39 @@ supplied a debug log of both sides. Three separate defects sat behind that.
 - Bundling A5-3F-7F replaces the standard profile for every device using it.
   The raw DB fields are kept in the bundled profile for exactly that reason.
 
+## Amended in 1.8.1-beta2
+
+Field feedback on the beta from the reporter of #39 corrected two things.
+
+- **Up is the top half of the rocker.** The cover path sent `0x50` (BI,
+  bottom) for open and `0x70` (BO, top) for close, so an Eltako taught in as a
+  directional pushbutton opened on close and closed on open. Eltako wires it
+  the other way: "Richtungstaster oben 'Auf' und unten 'Ab'". The mapping is
+  now `OPEN = 0x70`, `CLOSE = 0x50`, which also makes the commands agree with
+  the confirmations this ADR reads (`0x70` = upper end position = open).
+  `invert` reaches this path now as well: it was applied to D2-05 covers only,
+  so ticking "Reverse direction" on an F6 cover changed nothing at all.
+
+  **The swap does not reach existing installations.** An update that reverses
+  a shutter someone has been using for months is worse than the wrong default
+  it fixes, and there is no way to tell an installation that compensated for
+  the old direction from one that simply lived with it. A one-time migration
+  therefore ticks "Reverse direction" on every cover present at the moment of
+  the update, which reproduces the old telegrams byte for byte; the flag was
+  ignored on this path before, so no information is lost by overwriting it.
+  Devices created afterwards get the correct direction with the box unticked.
+  The migration id is recorded in `migrations.yaml` beside `devices.yaml`,
+  because the keys of `devices.yaml` are device names and a marker has no
+  business among them. It also makes the flag honest: whoever ends up running
+  the wrong way now has one box that fixes it.
+- **The UI's test buttons go through the same command path as MQTT.**
+  `/api/gateway/test-actuator` carried its own copy of the rocker and dimmer
+  semantics, which is why its stop button still sent a bare release after the
+  MQTT path had been fixed, and why it could not know which direction to
+  repeat. It now submits to the command queue like any MQTT command, so the
+  routing rule of ADR-0003 and the serialised transmit path of ADR-0012 apply
+  to it as well.
+
 ## Sources
 
 - Eltako, "Inhalte der Eltako-Funktelegramme", sections *FJ62/12-36V DC,

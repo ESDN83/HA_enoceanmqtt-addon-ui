@@ -91,6 +91,9 @@ class DeviceManager:
         # One address can hold several devices, a 2-channel actuator is
         # configured once per output, all sharing the module address (#24).
         self._address_map: Dict[str, List[str]] = {}  # address -> [device_name]
+        # Applied one-time data migrations, by id. Kept beside the devices
+        # rather than inside devices.yaml, whose keys are device names.
+        self.migrations_file = os.path.join(config_path, "migrations.yaml")
 
     @property
     def device_count(self) -> int:
@@ -121,6 +124,65 @@ class DeviceManager:
         else:
             logger.info("No device configuration found - starting fresh")
         self._rebuild_address_map()
+        await self._apply_migrations()
+
+    # Up used to be the bottom half of the rocker on an F6 cover and down the
+    # top one, the wrong way round for an Eltako directional pushbutton. 1.8.1
+    # swapped them. An update must not reverse a shutter that someone has been
+    # using for months, so every cover that exists at the moment of the update
+    # is pinned to the behaviour it had, by ticking "Reverse direction" for it:
+    # the flag was ignored on this path before, so its old value says nothing,
+    # and setting it reproduces the old telegrams exactly. Devices added after
+    # the update get the correct direction without the flag. See ADR-0014.
+    COVER_DIRECTION_MIGRATION = "cover-rocker-direction-1.8.1"
+
+    async def _applied_migrations(self) -> List[str]:
+        if not os.path.exists(self.migrations_file):
+            return []
+        try:
+            async with aiofiles.open(self.migrations_file, 'r') as f:
+                data = yaml.safe_load(await f.read()) or {}
+            return list(data.get("applied", []))
+        except Exception as e:
+            logger.error(f"Failed to read {self.migrations_file}: {e}")
+            # Unreadable is not "never applied": re-running a migration on a
+            # live installation is worse than skipping it.
+            return [self.COVER_DIRECTION_MIGRATION]
+
+    async def _mark_migration(self, applied: List[str], migration: str):
+        applied = list(applied) + [migration]
+        try:
+            async with aiofiles.open(self.migrations_file, 'w') as f:
+                await f.write(yaml.dump({"applied": applied}, default_flow_style=False))
+        except Exception as e:
+            logger.error(f"Failed to record migration {migration}: {e}")
+
+    async def _apply_migrations(self):
+        """Run one-time data migrations, at most once per installation."""
+        applied = await self._applied_migrations()
+        if self.COVER_DIRECTION_MIGRATION in applied:
+            return
+
+        pinned = []
+        for device in self.devices.values():
+            # D2-05 blinds speak structured commands and were never affected.
+            if device.actuator_type != "cover":
+                continue
+            if device.rorg.upper() == "D2" and str(device.func).zfill(2) == "05":
+                continue
+            if not device.invert:
+                device.invert = True
+                pinned.append(device.name)
+
+        if pinned:
+            await self.save_devices()
+            logger.info(
+                "Direction migration: 'Reverse direction' was set on "
+                f"{', '.join(pinned)} so the update does not swap open and "
+                "close on covers that already worked. Untick it if the shutter "
+                "runs the wrong way."
+            )
+        await self._mark_migration(applied, self.COVER_DIRECTION_MIGRATION)
 
     async def _load_yaml_devices(self):
         """Load devices from YAML file"""
