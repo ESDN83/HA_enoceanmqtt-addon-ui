@@ -361,6 +361,8 @@
   "teach_in.detected_field": "Detected from the teach-in telegram",
   "teach_in.multichannel_note": "This module has 2 channels. One teach-in covers the whole module: pick the channel below, save, then add a second device with the same address for the other channel.",
   "teach_in.invert_label_switch": "Invert reported state (ON/OFF swapped)",
+  "teach_in.travel_time": "Travel time (s)",
+  "teach_in.travel_time_hint": "Seconds for a full run. Eltako shutter actuators report how long they ran, which becomes a position once this is known. 0 = no position, only open/closed.",
   "teach_in.second_channel_title": "Add channel 2 now?",
   "teach_in.second_channel_body": "This module has two outputs. Add a second device for channel 2 with the same address and sender ID? Everything will be pre-filled, you only confirm the name.",
   "teach_in.second_channel_btn": "Add channel 2",

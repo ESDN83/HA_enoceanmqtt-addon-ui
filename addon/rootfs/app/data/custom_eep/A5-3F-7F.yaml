@@ -1,0 +1,79 @@
+# Eltako shutter actuators (FSB14/61/71, FJ62) use the universal profile
+# A5-3F-7F for their confirmation telegrams. The official EEP.xml describes it
+# as four raw data bytes, which is all the standard says. The Eltako meaning of
+# those bytes is documented in "Inhalte der Eltako-Funktelegramme", section
+# FJ62/12-36V DC, FJ62NP-230V, and is what this profile adds. The raw DB fields
+# are kept so a device that uses A5-3F-7F for something else still decodes.
+# Issue #39, ADR-0014.
+profile:
+  rorg: A5
+  func: 3F
+  type: 7F
+  description: Eltako shutter actuator (FSB, FJ62) confirmation telegram
+  fields:
+    - shortcut: TRAVEL
+      description: Travel time
+      type: value
+      offset: 0
+      size: 16
+      unit: s
+      min: 0
+      max: 65535
+      scale_min: 0
+      scale_max: 6553.5
+    - shortcut: DIR
+      description: Direction
+      type: enum
+      offset: 16
+      size: 8
+      values:
+        - {value: '0', description: stop}
+        - {value: '1', description: up}
+        - {value: '2', description: down}
+    - shortcut: LRN
+      description: Teach-in bit
+      type: enum
+      offset: 28
+      size: 1
+      values:
+        - {value: '0', description: teach-in telegram}
+        - {value: '1', description: data telegram}
+    - shortcut: BLOCK
+      description: Actuator blocked for pushbuttons
+      type: enum
+      offset: 29
+      size: 1
+      values:
+        - {value: '0', description: released}
+        - {value: '1', description: blocked}
+    - shortcut: TB
+      description: Time base
+      type: enum
+      offset: 30
+      size: 1
+      values:
+        - {value: '0', description: seconds (DB2)}
+        - {value: '1', description: 100 ms (DB3+DB2)}
+    - {shortcut: DB3, description: Data Byte 3, type: value, offset: 0, size: 8}
+    - {shortcut: DB2, description: Data Byte 2, type: value, offset: 8, size: 8}
+    - {shortcut: DB1, description: Data Byte 1, type: value, offset: 16, size: 8}
+    - {shortcut: DB0, description: Data Byte 0, type: value, offset: 24, size: 8}
+ha_mapping:
+  TRAVEL:
+    component: sensor
+    name: Last travel time
+    unit_of_measurement: s
+    icon: mdi:timer-outline
+    suggested_display_precision: 1
+  DIR:
+    component: sensor
+    name: Direction
+    icon: mdi:arrow-up-down
+    value_template: "{{ value_json.DIR_text }}"
+  BLOCK:
+    component: binary_sensor
+    name: Blocked for pushbuttons
+    entity_category: diagnostic
+    payload_on: '1'
+    payload_off: '0'
+    value_template: "{{ value_json.BLOCK }}"

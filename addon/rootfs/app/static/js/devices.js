@@ -185,6 +185,17 @@ function toggleSenderIdField(select) {
                 : t('teach_in.invert_label', 'Reverse direction (Open/Close inverted)');
         }
     }
+    // The travel time only means something for a cover: it is what turns an
+    // Eltako shutter's "ran 3.0 s up" report into a position (#39).
+    const travelGroup = document.getElementById('travel-time-group');
+    if (travelGroup) {
+        const showTravel = select.value === 'cover';
+        travelGroup.style.display = showTravel ? '' : 'none';
+        if (!showTravel) {
+            const input = travelGroup.querySelector('input[name="travel_time"]');
+            if (input) input.value = '';
+        }
+    }
 }
 // The fields that say WHICH physical module this entry is. Changing one does
 // not reconfigure anything over the air: the module keeps whatever it was
@@ -231,6 +242,9 @@ async function saveDevice(e) {
     // explicit boolean so unchecking "invert" is persisted too.
     const invertCb = form.querySelector('input[name="invert"]');
     device.invert = !!(invertCb && invertCb.checked);
+    // An empty travel time field means "no position", which the backend
+    // stores as 0. Sending "" instead would fail validation.
+    device.travel_time = Math.max(0, parseInt(device.travel_time, 10) || 0);
     // The watchdog is one number on the wire: minutes, 0 meaning never. The
     // checkbox only decides whether the number is sent at all, so unticking it
     // has to reach the backend as 0 rather than as a missing field (#37).
@@ -391,6 +405,8 @@ async function editDevice(name) {
         document.querySelector('[name="sender_id"]').value = device.sender_id || '';
         const invertCb = document.querySelector('[name="invert"]');
         if (invertCb) invertCb.checked = !!device.invert;
+        const travelField = document.querySelector('[name="travel_time"]');
+        if (travelField) travelField.value = device.travel_time || '';
 
         // Availability watchdog: a stored 0 means off, anything else is the
         // number of minutes (#37).

@@ -372,6 +372,7 @@
                                                 <li><strong>Eltako FD62NPN (Dimmer):</strong> Press the rotary knob <strong>4× short + 1× long (&gt;2s)</strong>, the lamp flickers briefly to confirm learn mode</li>
                                                 <li><strong>Eltako FSR61 (Switch):</strong> Short press the learn button, the LED blinks</li>
                                                 <li><strong>Eltako FSB61 (Blind):</strong> Turn the rotary dial to desired run time, then press learn button</li>
+                                                <li><strong>Eltako 62 series (FJ62, FSB62):</strong> no learn positions, only learn mode on/off. The <strong>number of telegrams</strong> picks the sender type, so click "Send Teach-In" <strong>3×</strong> for a universal pushbutton, <strong>4×</strong> for a directional pushbutton (what a cover wants), 5× or 6× for central up / down</li>
                                                 <li><strong>Other Eltako:</strong> Check the manual, typically a short press of the learn/prog button</li>
                                             </ul>
                                         </li>
@@ -423,7 +424,7 @@
                                             <select class="form-select" id="actuator-type-teach-in">
                                                 <option value="light">Dimmer (FD62NPN, FUD61) → A5-38-08</option>
                                                 <option value="switch">Switch (FSR61, FSR14) → F6 Rocker</option>
-                                                <option value="cover">Blind (FSB61, FSB14) → F6 Rocker</option>
+                                                <option value="cover">Blind (FSB61, FSB14, FJ62) → F6 Rocker</option>
                                             </select>
                                         </div>
                                     </div>
@@ -525,6 +526,11 @@
                                         <input class="form-check-input" type="checkbox" name="invert" id="invert-checkbox">
                                         <label class="form-check-label" for="invert-checkbox" data-i18n="teach_in.invert_label">Reverse direction (Open/Close inverted)</label>
                                     </div>
+                                </div>
+                                <div class="col-md-6 mb-3" id="travel-time-group" style="display: none;">
+                                    <label class="form-label" data-i18n="teach_in.travel_time">Travel time (s)</label>
+                                    <input type="number" class="form-control" name="travel_time" min="0" max="65535" placeholder="0">
+                                    <small class="text-muted" data-i18n="teach_in.travel_time_hint">Seconds for a full run. Eltako shutter actuators report how long they ran, which becomes a position once this is known. 0 = no position, only open/closed.</small>
                                 </div>
                             </div>
                             <div class="mb-3">

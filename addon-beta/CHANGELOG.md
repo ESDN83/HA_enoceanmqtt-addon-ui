@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.1] - 2026-09-03 (beta channel)
+
+Same build as stable 1.8.1, which promotes beta1 and beta2. See the stable
+changelog for the full list, including the note on covers keeping their current
+direction across the update.
+
+Since beta2, two fixes for warnings Home Assistant 2026.10 logs: a cover state
+without a position rendered as `None` instead of nothing, and the gateway
+diagnostics payload could go out without the command queue's counters.
+
+**Tip: export your configuration first.** Settings > Import / Export > "Export
+All" writes a zip with your devices, profiles and mappings.
+
 ## [1.8.1-beta2] - 2026-08-31 (beta channel)
 
 Field feedback on beta1 from the reporter of #39. Stop works on his FJ62, the

@@ -60,6 +60,11 @@ AVAILABILITY_CHECK_SECONDS = 60
 # Long enough for MQTT to connect and the cached states to be republished, short
 # enough that a dead device is not covered up for another interval (#37).
 AVAILABILITY_STARTUP_GRACE_SECONDS = 120
+# Last rocker direction sent to each F6 cover. An Eltako shutter is stopped by
+# repeating that direction as a short tap, so the command handler has to
+# remember it (issue #39). In memory on purpose: after a restart nothing is
+# moving that we started, and the fallback direction is harmless.
+_last_cover_rocker: dict = {}
 from app_version import VERSION  # single source of truth (reads config.yaml)
 
 # Global instances
@@ -206,6 +211,12 @@ async def lifespan(app: FastAPI):
     # globals are all None. Such a call then fails silently.
     app.state.publish_all_discoveries = _publish_all_discoveries
     app.state.echo_light_state = _echo_light_state
+    # The UI's test buttons send through the same queue as an MQTT command, so
+    # there is one command path and not two that drift apart (#39). The direct
+    # handler is the fallback for a setup without a broker, where no queue
+    # exists to submit to.
+    app.state.submit_command = command_queue.submit if command_queue else None
+    app.state.handle_device_command = _handle_device_command
     app.state.availability_after_edit = _availability_after_edit
 
     # Started here, after the initial discovery and availability publish, so its
@@ -526,6 +537,14 @@ def _gateway_diagnostics_state() -> Dict:
             state["last_telegram"] = recent[0].get("timestamp")
     if state["last_telegram"] is None:
         state["last_telegram"] = _last_telegram_from_cache()
+    # The queue's counters belong to this payload whether or not the queue
+    # exists yet. It is created only once MQTT is up, and a telegram or the
+    # watchdog can publish before that: the templates then render against a
+    # missing key, which Home Assistant 2026.10 reports as a template variable
+    # warning on every publish. Zeroes are also simply true at that point.
+    state.update({"busy": False, "pending": 0, "in_flight": 0,
+                  "busy_since": None, "last_busy_seconds": 0.0,
+                  "dropped": 0, "timed_out": 0})
     if command_queue:
         state.update(command_queue.stats())
     return state
@@ -800,17 +819,39 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
         # An Eltako shutter actuator reads the press duration as the command:
         # a short press runs the full travel, a long one moves only while
         # held. The pair must therefore stay atomic, see ADR-0012.
-        rocker = {"OPEN": 0x50, "CLOSE": 0x70}.get(command)
+        # Up is the top half of the rocker (BO, 0x70) and down the bottom one
+        # (BI, 0x50), which is how a directional pushbutton is wired and how
+        # Eltako describes it: "Richtungstaster oben 'Auf' und unten 'Ab'".
+        # This was the other way round until 1.8.1-beta2, so close opened the
+        # shutter and open closed it (#39). "invert" flips it back for a
+        # shutter that is mounted or wired the other way, and it now reaches
+        # this path at all: it used to apply to D2-05 covers only, which is
+        # why ticking it changed nothing here.
+        rocker = {"OPEN": 0x70, "CLOSE": 0x50}.get(command)
+        if rocker is not None and device.invert:
+            rocker = 0x50 if rocker == 0x70 else 0x70
         if rocker is not None:
+            _last_cover_rocker[device_name] = rocker
             sent = await serial_handler.send_rps_press_release(
                 sender_id=sender_id, press_data=rocker,
                 destination=broadcast, label=device_name
             )
         elif command == "STOP":
-            # Any release without prior press = stop
-            sent = await serial_handler.send_telegram(
-                sender_id=sender_id, rorg=0xF6,
-                data=bytes([0x00]), destination=broadcast, status=0x20
+            # A short tap stops a running shutter: "Kurzes Tippen unterbricht
+            # die Bewegung sofort" (FJ62 manual), "Mit eingelernten Tastern
+            # kann jederzeit unterbrochen werden!" (Eltako telegram
+            # documentation). What used to be sent here was a bare release,
+            # which no real rocker ever sends without a press, and the actuator
+            # ignored it (issue #39). The last direction is repeated on
+            # purpose: the opposite one is a reversal command on Eltako
+            # actuators, not a stop.
+            # Nothing to repeat before the first command of a session. Up is
+            # the safer guess for a tap that starts a run instead of ending
+            # one, a shutter going down can trap something.
+            rocker = _last_cover_rocker.get(device_name, 0x70)
+            sent = await serial_handler.send_rps_press_release(
+                sender_id=sender_id, press_data=rocker,
+                destination=broadcast, label=device_name
             )
         else:
             logger.warning(f"Unknown cover command '{command}' for {device_name}")

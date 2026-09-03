@@ -537,6 +537,14 @@ def _gateway_diagnostics_state() -> Dict:
             state["last_telegram"] = recent[0].get("timestamp")
     if state["last_telegram"] is None:
         state["last_telegram"] = _last_telegram_from_cache()
+    # The queue's counters belong to this payload whether or not the queue
+    # exists yet. It is created only once MQTT is up, and a telegram or the
+    # watchdog can publish before that: the templates then render against a
+    # missing key, which Home Assistant 2026.10 reports as a template variable
+    # warning on every publish. Zeroes are also simply true at that point.
+    state.update({"busy": False, "pending": 0, "in_flight": 0,
+                  "busy_since": None, "last_busy_seconds": 0.0,
+                  "dropped": 0, "timed_out": 0})
     if command_queue:
         state.update(command_queue.stats())
     return state

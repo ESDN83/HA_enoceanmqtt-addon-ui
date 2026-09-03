@@ -182,6 +182,34 @@ If you are migrating from the ChristopheHD enocean-mqtt add-on:
 - Press the teach-in button firmly on your device
 - Some devices require multiple presses or holding the button
 
+### Eltako 62 Series (FJ62, FSB62, FL62)
+These actuators have no learn positions, only learn mode on and off. The number
+of telegrams they receive decides which kind of sender is learned, so "Send
+Teach-In" has to be clicked several times in a row:
+
+| Sender type | Clicks |
+|---|---|
+| Universal pushbutton | 3 |
+| Directional pushbutton (use this for a cover) | 4 |
+| Central control up | 5 |
+| Central control down | 6 |
+
+### Eltako Shutter Actuators (FJ62, FSB)
+- Open and close are short rocker taps, and so is stop: a tap while the shutter
+  runs interrupts it. A stop sent while nothing is moving starts a run instead,
+  exactly as it would on a wall switch.
+- Up is the top half of the rocker, down the bottom one, the way Eltako wires a
+  directional pushbutton. If your shutter runs the wrong way, tick **Reverse
+  direction** on the device. Covers that existed before 1.8.1 have that box
+  ticked automatically, so the update leaves them running exactly as they were;
+  untick it if the shutter has been running the wrong way round.
+- These actuators report themselves: an end position, the start of a run, and
+  the time they actually ran. The add-on turns that into open/closed without
+  any further configuration.
+- Set **Travel time (s)** on the device to get a position as well. It is the
+  number of seconds for a full run, and the position is synchronised whenever
+  the shutter reaches an end position. The position is read-only for now.
+
 ## Support
 
 - Report issues on [GitHub](https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/issues)

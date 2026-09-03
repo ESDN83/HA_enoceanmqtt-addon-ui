@@ -1091,7 +1091,8 @@ class MappingManager:
         actuator_type: str = "",
         invert: bool = False,
         channel: int = 0,
-        entity_name: str = None
+        entity_name: str = None,
+        travel_time: int = 0
     ) -> List[Dict[str, Any]]:
         """Generate Home Assistant MQTT discovery configurations.
 
@@ -1194,8 +1195,25 @@ class MappingManager:
                     config["set_position_topic"] = f"{mqtt_prefix}/{device_name}/set/position"
                     config["position_topic"] = f"{mqtt_prefix}/{device_name}/state"
                     pos_expr = "value_json.POS" if invert else "(100 - value_json.POS)"
+                    # Empty, not none: Jinja renders none as the string "None",
+                    # which Home Assistant answers with "Payload 'None' is not
+                    # numeric" on every state that carries no position. An
+                    # empty render is the documented way to say "no update".
                     config["position_template"] = (
-                        f"{{{{ {pos_expr} if value_json.POS is defined else none }}}}"
+                        f"{{{{ {pos_expr} if value_json.POS is defined else '' }}}}"
+                    )
+                    config["position_open"] = 100
+                    config["position_closed"] = 0
+                elif int(travel_time or 0) > 0:
+                    # Eltako shutter actuators report how long they actually
+                    # ran, which becomes a position once the full travel time
+                    # is known (ADR-0014). POS is published in HA terms
+                    # already, so unlike D2-05 it needs no inversion here.
+                    # Read-only: driving to a position needs the A5-3F-7F
+                    # command path, which this actuator does not have yet.
+                    config["position_topic"] = f"{mqtt_prefix}/{device_name}/state"
+                    config["position_template"] = (
+                        "{{ value_json.POS if value_json.POS is defined else '' }}"
                     )
                     config["position_open"] = 100
                     config["position_closed"] = 0
@@ -1490,6 +1508,7 @@ class MappingManager:
             invert=device.invert,
             channel=int(getattr(device, "channel", 0) or 0),
             entity_name=entity_name,
+            travel_time=int(getattr(device, "travel_time", 0) or 0),
         )
 
     def build_device_info(self, device, module_name: str = None) -> Dict[str, Any]:

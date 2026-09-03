@@ -361,6 +361,8 @@
   "teach_in.detected_field": "Aus dem Teach-In-Telegramm erkannt",
   "teach_in.multichannel_note": "Dieses Modul hat 2 Kanäle. Ein Teach-In gilt für das ganze Modul: wähle unten den Kanal, speichere, und lege dann für den anderen Kanal ein zweites Gerät mit derselben Adresse an.",
   "teach_in.invert_label_switch": "Gemeldeten Zustand umkehren (EIN/AUS vertauscht)",
+  "teach_in.travel_time": "Fahrzeit (s)",
+  "teach_in.travel_time_hint": "Sekunden für eine komplette Fahrt. Eltako-Jalousieaktoren melden ihre tatsächliche Fahrzeit, daraus wird mit diesem Wert eine Position. 0 = keine Position, nur offen/geschlossen.",
   "teach_in.second_channel_title": "Kanal 2 jetzt anlegen?",
   "teach_in.second_channel_body": "Dieses Modul hat zwei Ausgänge. Zweites Gerät für Kanal 2 mit derselben Adresse und Sender-ID anlegen? Alles wird vorbefüllt, du bestätigst nur den Namen.",
   "teach_in.second_channel_btn": "Kanal 2 anlegen",

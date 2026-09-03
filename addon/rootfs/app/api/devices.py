@@ -22,6 +22,7 @@ class DeviceCreate(BaseModel):
     manufacturer: Optional[str] = ""
     actuator_type: Optional[str] = ""  # "light", "switch", "cover", or ""
     invert: Optional[bool] = False  # cover: reverse Open/Close + position
+    travel_time: Optional[int] = 0  # cover: full travel time in seconds, 0 = unknown
     channel: Optional[int] = 0  # multi-channel actuators (D2-01-11/12): 0 or 1
     availability_timeout: Optional[int] = 0  # minutes of silence before unavailable; 0 = never (#37)
 
@@ -39,6 +40,7 @@ class DeviceUpdate(BaseModel):
     manufacturer: Optional[str] = None
     actuator_type: Optional[str] = None
     invert: Optional[bool] = None
+    travel_time: Optional[int] = None
     channel: Optional[int] = None
     availability_timeout: Optional[int] = None
 
@@ -163,6 +165,7 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
         manufacturer=device.manufacturer or "",
         actuator_type=device.actuator_type or "",
         invert=bool(device.invert),
+        travel_time=max(0, int(device.travel_time or 0)),
         channel=int(device.channel or 0),
         availability_timeout=max(0, int(device.availability_timeout or 0))
     )
@@ -220,6 +223,8 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
         update_data["actuator_type"] = update.actuator_type
     if update.invert is not None:
         update_data["invert"] = bool(update.invert)
+    if update.travel_time is not None:
+        update_data["travel_time"] = max(0, int(update.travel_time))
     if update.availability_timeout is not None:
         update_data["availability_timeout"] = max(0, int(update.availability_timeout))
     if update.channel is not None:

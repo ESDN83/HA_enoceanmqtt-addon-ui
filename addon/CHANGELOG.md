@@ -1,5 +1,72 @@
 # Changelog
 
+## [1.8.1] - 2026-09-03
+
+Eltako shutter actuators. Two beta builds, field tested on an Eltako
+FJ62/12-36V DC by the reporter of #39, who confirmed every point below on real
+hardware. Closes #39.
+
+### Before you update
+
+**Tip: export your configuration first.** Settings > Import / Export > "Export
+All" writes a zip with your devices, profiles and mappings. Home Assistant's own
+backup before an update covers the same data, because the add-on keeps
+everything in `/data`, and it can be restored for this add-on alone without a
+full restore. The export is simply independent of all that, and it imports into
+any installation.
+
+**Your covers keep running exactly as they do today.** Open and close were
+swapped on F6 covers: up is the top half of the rocker and down the bottom one,
+the way Eltako wires a directional pushbutton, and it was the other way round.
+Correcting that would reverse every shutter already in use, so the update ticks
+**Reverse direction** on the covers you have, which reproduces the old
+telegrams, and it says so in the log. Nothing moves differently after the
+update. If your shutter has been running the wrong way round, untick that box
+once. Covers added later need no box ticked at all.
+
+Nothing else changes: no entity changes its id, no option or topic was removed
+or renamed.
+
+### New Features
+
+- **An Eltako shutter reports its own state** (#39). End position, start of a
+  run and the time it actually ran are read from the actuator's own telegrams,
+  whatever EEP the device is configured with. A cover shows open, closed,
+  opening and closing without any further configuration, whether it was moved
+  from Home Assistant or at a wall switch.
+- **Position for Eltako shutters.** Set **Travel time (s)** on a cover, the
+  seconds for a full run, and the reported run times become a position that is
+  resynchronised at every end position. Read-only for now. 0, the default,
+  keeps open and closed without a percentage.
+- **A5-3F-7F decodes as an Eltako shutter profile**, shipped with the add-on:
+  travel time, direction and the pushbutton block flag, with the raw data bytes
+  kept alongside for devices that use the universal profile for something else.
+- **The Eltako 62 series is documented**, in the teach-in dialog and in the
+  docs: these actuators have no learn positions, the number of teach-in
+  telegrams picks the sender type. Three taps for a universal pushbutton, four
+  for a directional one, five and six for central up and down.
+
+### Bug Fixes
+
+- **Stop works on an Eltako shutter** (#39). The stop command sent a bare
+  rocker release, which no real rocker ever sends without a press, and the
+  actuator ignored it. A stop is a short tap of the last direction, which is
+  what Eltako documents as interrupting the movement immediately. A stop sent
+  while nothing is moving starts a run, exactly as the same tap on a wall
+  switch does.
+- **Open and close were swapped on F6 covers.** See "Before you update".
+- **"Reverse direction" now works on an F6 cover.** It only ever reached D2-05
+  blinds, so ticking it on an Eltako changed nothing.
+- **The stop button in the add-on's own interface works.** The test buttons had
+  their own copy of the rocker semantics. They now send through the same path
+  as a command from Home Assistant, which also gives them the transmit pacing
+  and the queue.
+- **No more "Payload 'None' is not numeric" in the Home Assistant log.** Every
+  cover state without a position produced one, D2-05 blinds included.
+- **No more template warnings from the gateway diagnostics entities.** The
+  queue counters are always part of the payload now, even before the queue
+  exists.
+
 ## [1.8.0] - 2026-08-25
 
 Fourteen beta builds of field testing since 1.7.4. Closes #35, #37, #38.
