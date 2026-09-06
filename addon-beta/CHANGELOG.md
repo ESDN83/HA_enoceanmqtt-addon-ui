@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.8.2-beta1] - 2026-09-06 (beta channel)
+
+Eltako shutters can be driven to a position (#40, and a forum report of four
+FJ62NP with no percentage entity). This needs a **second teach-in** in the
+actuator and one checkbox on the device, so nothing changes until you set it up.
+
+### Features
+
+- **Drive an Eltako shutter to a position.** Teach-In has a new option,
+  *Blind position (FSB, FJ62) - A5-3F-7F GFVS*, which sends Eltako's GFVS
+  teach-in four times by default. Then open the device, set the **travel time**
+  and tick **Position control**. Home Assistant gets a position slider, and the
+  add-on turns a percentage into a travel time the actuator runs.
+- With position control on, open, close and stop travel by time as well, so all
+  four commands take the same route. With it off, a cover behaves exactly as in
+  1.8.1.
+
+### Notes
+
+- GFVS is a separate teach-in from the directional pushbutton. The actuator
+  **locks its learn mode** after it: to teach it anything else, unlock it again
+  with 4 short taps and one long one on an already learned pushbutton.
+- Without a travel time a percentage has no runtime to become, so the slider
+  stays away until one is set.
+- The position still comes from the actuator's own reports, not from what was
+  commanded, and the end positions remain the points where it resynchronises.
+
+See ADR-0015.
+
 ## [1.8.1] - 2026-09-03 (beta channel)
 
 Same build as stable 1.8.1, which promotes beta1 and beta2. See the stable

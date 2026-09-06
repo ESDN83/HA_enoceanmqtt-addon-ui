@@ -28,7 +28,10 @@ class ActorTeachInRequest(BaseModel):
     """Request to send teach-in to an actuator"""
     destination: str  # Target actuator address (hex, e.g. "0x05834FA4")
     sender_offset: int = 1  # Offset from base ID (1-127)
-    actuator_type: str = "switch"  # "switch"→F6, "light"→A5-38-08, "cover"→F6
+    # "switch"/"cover" -> F6 rocker, "light" -> A5-38-08,
+    # "cover_gfvs" -> A5-3F-7F, the Eltako shutter command path (#40)
+    actuator_type: str = "switch"
+    repeats: int = 4  # cover_gfvs only: how often the sequence is repeated
 
 
 class RepeatTeachInRequest(BaseModel):
@@ -87,6 +90,8 @@ async def teach_in_actuator(req: ActorTeachInRequest, request: Request) -> Dict[
 
     The actuator must be in learn mode before calling this endpoint.
     - Dimmers (actuator_type="light"): sends A5-38-08 (4BS Central Command) teach-in
+    - Shutters (actuator_type="cover_gfvs"): sends the Eltako GFVS teach-in,
+      A5-3F-7F, which is what lets the shutter be driven to a position (#40)
     - Switches/covers: sends F6 (RPS) rocker press+release teach-in
     """
     serial_handler = request.app.state.serial_handler
@@ -112,6 +117,16 @@ async def teach_in_actuator(req: ActorTeachInRequest, request: Request) -> Dict[
     if req.actuator_type == "light":
         success = await serial_handler.send_a5_teach_in(dest, req.sender_offset)
         teach_type = "A5-38-08 (Central Command Dimming)"
+    elif req.actuator_type == "cover_gfvs":
+        # Teaching GFVS locks the actuator's learn mode afterwards. That is
+        # the actuator's own behaviour, not something this endpoint can
+        # undo, so the dialog warns about it.
+        rounds = max(1, min(int(req.repeats or 1), 10))
+        success = await serial_handler.send_a5_3f_teach_in(
+            dest, req.sender_offset, repeats=rounds
+        )
+        plural = "round" if rounds == 1 else "rounds"
+        teach_type = f"A5-3F-7F (Eltako GFVS, {rounds} {plural})"
     else:
         success = await serial_handler.send_f6_teach_in(dest, req.sender_offset)
         teach_type = "F6 (RPS Rocker)"
@@ -165,6 +180,9 @@ async def teach_in_repeat(req: RepeatTeachInRequest, request: Request) -> Dict[s
     for i in range(rounds):
         if req.actuator_type == "light":
             await serial_handler.send_a5_teach_in(dest, req.sender_offset)
+        elif req.actuator_type == "cover_gfvs":
+            # One sequence per round here, the rounds are the repetition.
+            await serial_handler.send_a5_3f_teach_in(dest, req.sender_offset, repeats=1)
         else:
             await serial_handler.send_f6_teach_in(dest, req.sender_offset)
         sent_count += 1
@@ -173,7 +191,9 @@ async def teach_in_repeat(req: RepeatTeachInRequest, request: Request) -> Dict[s
         if i < rounds - 1:
             await asyncio.sleep(interval)
 
-    teach_type = "A5-38-08 (Dimmer)" if req.actuator_type == "light" else "F6 (Switch/Cover)"
+    teach_type = {"light": "A5-38-08 (Dimmer)",
+                  "cover_gfvs": "A5-3F-7F (Eltako GFVS)"}.get(
+                      req.actuator_type, "F6 (Switch/Cover)")
     logger.info(f"=== REPEAT TEACH-IN COMPLETE === {sent_count} rounds sent")
 
     return {

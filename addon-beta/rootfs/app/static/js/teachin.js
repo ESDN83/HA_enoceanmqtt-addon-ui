@@ -70,6 +70,25 @@ async function suggestNextSenderOffset() {
         }
     }
 }
+// The GFVS teach-in is the only one with a repeat count, and the only one
+// that locks the actuator's learn mode, so both the input and the warning
+// belong to that option alone (#40).
+function toggleGfvsOptions(select) {
+    const gfvs = select.value === 'cover_gfvs';
+    const rounds = document.getElementById('gfvs-rounds-group');
+    if (rounds) rounds.style.display = gfvs ? '' : 'none';
+    const hint = document.getElementById('gfvs-hint');
+    if (hint) hint.style.display = gfvs ? '' : 'none';
+}
+function teachInProtocol(actuatorType) {
+    if (actuatorType === 'light') return 'A5-38-08 (Central Command)';
+    if (actuatorType === 'cover_gfvs') return 'A5-3F-7F (Eltako GFVS)';
+    return 'F6 (Rocker)';
+}
+function teachInRounds() {
+    const field = document.getElementById('gfvs-rounds');
+    return Math.max(1, Math.min(10, parseInt(field && field.value, 10) || 4));
+}
 async function sendActuatorTeachIn() {
     const address = document.getElementById('actuator-address').value.trim();
     const offset = parseInt(document.getElementById('sender-offset').value) || 1;
@@ -82,7 +101,7 @@ async function sendActuatorTeachIn() {
         return;
     }
 
-    const proto = actuatorType === 'light' ? 'A5-38-08 (Central Command)' : 'F6 (Rocker)';
+    const proto = teachInProtocol(actuatorType);
     resultDiv.innerHTML = `<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> ${t('teach_in.sending', 'Sending')} ${proto} teach-in...</div>`;
     resultDiv.style.display = 'block';
 
@@ -90,7 +109,10 @@ async function sendActuatorTeachIn() {
         const resp = await fetch(getApiUrl('/api/gateway/teach-in-actuator'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ destination: address, sender_offset: offset, actuator_type: actuatorType })
+            body: JSON.stringify({
+                destination: address, sender_offset: offset,
+                actuator_type: actuatorType, repeats: teachInRounds()
+            })
         });
         const data = await resp.json();
 
@@ -100,7 +122,7 @@ async function sendActuatorTeachIn() {
                 ${t('teach_in.sender_id', 'Sender ID')}: <code>${data.sender_id}</code> → ${t('teach_in.destination', 'Destination')}: <code>${data.destination}</code><br>
                 <small class="text-muted">${data.message}</small><br><br>
                 <strong>${t('teach_in.next_step', 'Next')}:</strong> ${t('teach_in.next_step_desc', 'Use "Manual Entry" to add this device with sender ID')} <code>${data.sender_id}</code>
-                ${t('teach_in.and_actuator_type', 'and actuator type')} <code>${actuatorType}</code>
+                ${t('teach_in.and_actuator_type', 'and actuator type')} <code>${actuatorType === 'cover_gfvs' ? 'cover' : actuatorType}</code>
             </div>`;
         } else {
             resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${data.detail || t('common.unknown_error', 'Unknown error')}</div>`;
@@ -124,7 +146,7 @@ async function sendRepeatTeachIn() {
 
     btn.disabled = true;
     btn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Sending... (30s)';
-    const proto = actuatorType === 'light' ? 'A5-38-08' : 'F6 Rocker';
+    const proto = teachInProtocol(actuatorType);
     resultDiv.innerHTML = `<div class="alert alert-warning">
         <i class="bi bi-broadcast"></i> <strong>Sending ${proto} teach-in repeatedly for 30 seconds...</strong><br>
         Put the actuator in learn mode NOW! (Place it next to the USB300)

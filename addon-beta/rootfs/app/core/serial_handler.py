@@ -1370,6 +1370,120 @@ class SerialHandler:
         logger.info("=== DIMMER TEACH-IN COMPLETE === (3 steps, 4 telegrams)")
         return True
 
+    # --- Eltako shutter command path, EEP A5-3F-7F ------------------------
+    # Eltako, "Inhalte der Eltako-Funktelegramme", sections FJ62/12-36V DC,
+    # FJ62NP-230V:
+    #   teach-in  00 00 00 28 unlocks the learn mode, FF F8 0D 80 teaches the
+    #             gateway in as GFVS (A5-3F-7F, manufacturer 0x00D). The
+    #             actuator then switches its confirmation telegrams on by
+    #             itself and locks the learn mode again.
+    #   command   DB3+DB2 runtime, DB1 0x00 stop / 0x01 up / 0x02 down,
+    #             DB0 bit3 data telegram, bit2 block for pushbuttons (kept at
+    #             0), bit1 time base (0 = seconds in DB2, 1 = 100 ms over
+    #             DB3+DB2). The actuator's own runtime is ignored whenever a
+    #             time is sent, so every command carries one.
+    # Cross-checked against openHAB's A5_3F_7F_EltakoFSB, which encodes a
+    # percentage move the same way. See ADR-0015 and issue #40.
+    ELTAKO_GFVS_UNLOCK = bytes([0x00, 0x00, 0x00, 0x28])
+    ELTAKO_GFVS_TEACH_IN = bytes([0xFF, 0xF8, 0x0D, 0x80])
+
+    _ELTAKO_COVER_DIR = {"STOP": 0x00, "OPEN": 0x01, "CLOSE": 0x02}
+    _ELTAKO_COVER_100MS = 0x0A    # data telegram, runtime in 100 ms
+    _ELTAKO_COVER_SECONDS = 0x08  # data telegram, runtime in seconds
+
+    async def send_a5_3f_teach_in(self, destination: int, sender_offset: int = 1,
+                                  repeats: int = 4) -> bool:
+        """Teach the gateway into an Eltako shutter actuator as GFVS.
+
+        This is a different teach-in from the directional pushbutton one: it is
+        what makes the actuator accept the A5-3F-7F travel commands that drive
+        it to a position.
+
+        Eltako names no repeat count for GFVS, and a single telegram is easy to
+        miss: the reporter of #40 needed four rounds of the pushbutton teach-in
+        before an FJ62 took it. The sequence is repeated for that reason, which
+        costs nothing once the actuator has learned it and locked its learn
+        mode.
+
+        Returns True when every telegram was acknowledged by the transceiver.
+        """
+        sender_id = self.get_sender_id(sender_offset)
+        if sender_id is None:
+            logger.error("Cannot send teach-in: base ID not read yet")
+            return False
+
+        # Broadcast, like every other teach-in here: an Eltako actuator in
+        # learn mode stores the sender ID out of the telegram, it does not
+        # match on the destination.
+        broadcast = 0xFFFFFFFF
+        rounds = max(1, min(int(repeats or 1), 10))
+        logger.info(
+            f"=== GFVS TEACH-IN (A5-3F-7F) === sender=0x{sender_id:08X}, "
+            f"dest=0x{destination:08X}, {rounds} rounds"
+        )
+
+        ok = True
+        for i in range(rounds):
+            logger.info(f"  [{i + 1}/{rounds}] unlock 00000028, then teach-in FFF80D80")
+            ok &= await self.send_telegram(
+                sender_id=sender_id, rorg=0xA5,
+                data=self.ELTAKO_GFVS_UNLOCK, destination=broadcast
+            )
+            await asyncio.sleep(1.0)
+            ok &= await self.send_telegram(
+                sender_id=sender_id, rorg=0xA5,
+                data=self.ELTAKO_GFVS_TEACH_IN, destination=broadcast
+            )
+            if i < rounds - 1:
+                await asyncio.sleep(1.0)
+
+        logger.info(f"=== GFVS TEACH-IN COMPLETE === {rounds * 2} telegrams")
+        return bool(ok)
+
+    async def send_a5_eltako_cover_command(self, sender_id: int, command: str,
+                                           seconds: float = 0.0,
+                                           invert: bool = False,
+                                           label: str = "") -> bool:
+        """Send one A5-3F-7F travel command to an Eltako shutter actuator.
+
+        command is OPEN, CLOSE or STOP, seconds the runtime of a travel. The
+        runtime goes out in 100 ms steps: in whole seconds, a 30 s shutter
+        could only be driven in steps of 3 %.
+
+        invert swaps up and down for a reverse-mounted shutter, the same flag
+        and the same meaning as on the rocker path.
+        """
+        direction = self._ELTAKO_COVER_DIR.get(command)
+        if direction is None:
+            logger.warning(f"Unknown Eltako cover command '{command}'")
+            return False
+
+        name = label or f"{sender_id:08X}"
+
+        if command == "STOP":
+            # A stop carries no runtime. DB2 = 0xFF on the seconds base is what
+            # openHAB sends, and the actuator stops on DB1 = 0x00 regardless.
+            data = bytes([0x00, 0xFF, 0x00, self._ELTAKO_COVER_SECONDS])
+            logger.info(f"Sending A5-3F-7F STOP to {name}")
+        else:
+            if invert:
+                direction = 0x02 if direction == 0x01 else 0x01
+            tenths = int(round(max(0.0, seconds) * 10))
+            if tenths <= 0:
+                logger.warning(f"A5-3F-7F {command} for {name}: no runtime, not sent")
+                return False
+            tenths = min(tenths, 0xFFFF)
+            data = bytes([(tenths >> 8) & 0xFF, tenths & 0xFF, direction,
+                          self._ELTAKO_COVER_100MS])
+            inv = " (inverted)" if invert else ""
+            logger.info(
+                f"Sending A5-3F-7F {command} for {tenths / 10:.1f}s to {name}{inv}"
+            )
+
+        return await self.send_telegram(
+            sender_id=sender_id, rorg=0xA5, data=data, destination=0xFFFFFFFF
+        )
+
     async def send_a5_dimmer_command(self, sender_id: int, command: str,
                                      dim_value: int = 255, ramp_time: int = 1) -> bool:
         """Send A5-38-08 Central Command Dimming telegram.

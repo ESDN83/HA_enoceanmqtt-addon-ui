@@ -816,6 +816,80 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                 logger.warning(f"Unknown cover command '{command}' for {device_name}")
             return
 
+        # An Eltako shutter can also be driven over EEP A5-3F-7F, which is
+        # the only way to send it to a position: a rocker tap carries a
+        # direction and nothing else (#40, ADR-0015). That path needs its own
+        # teach-in (GFVS) in the actuator, so it stays off until the user has
+        # done it and ticked "position control", and it needs the travel time
+        # to turn a percentage into a runtime.
+        travel_time = int(getattr(device, "travel_time", 0) or 0)
+        if getattr(device, "position_control", False) and travel_time > 0:
+            if command == "STOP":
+                sent = await serial_handler.send_a5_eltako_cover_command(
+                    sender_id, "STOP", label=device_name
+                )
+                if sent:
+                    logger.info(f"Sent A5-3F-7F STOP to {device_name}")
+                else:
+                    logger.warning(f"STOP for {device_name} was not sent")
+                return
+
+            if entity == "position":
+                try:
+                    target = max(0, min(100, int(float(command))))
+                except ValueError:
+                    logger.warning(f"Invalid position '{command}' for {device_name}")
+                    return
+            elif command in ("OPEN", "CLOSE"):
+                target = 100 if command == "OPEN" else 0
+            else:
+                logger.warning(f"Unknown cover command '{command}' for {device_name}")
+                return
+
+            if target >= 100 or target <= 0:
+                # A full travel reaches the end from anywhere, so open and
+                # close send the whole travel time and land on an end
+                # position, which is where the position resynchronises
+                # (ADR-0014). openHAB sends the configured travel time here
+                # too, no margin on top: the actuator stops itself.
+                direction = "OPEN" if target >= 100 else "CLOSE"
+                seconds = float(travel_time)
+            else:
+                state = mqtt_handler.get_last_state(device_name) if mqtt_handler else None
+                current = (state or {}).get("POS")
+                if current is None:
+                    # Nothing known yet. Assume the end furthest from the
+                    # target: the run is then at most one full travel, and a
+                    # shutter that stood somewhere else reaches its end
+                    # position and reports it, which synchronises every
+                    # command after this one.
+                    current = 100 if target < 50 else 0
+                    logger.info(f"{device_name}: position unknown, assuming {current}%")
+                current = float(current)
+                if current == target:
+                    logger.info(f"{device_name} already at {target}%, nothing sent")
+                    return
+                direction = "OPEN" if target > current else "CLOSE"
+                seconds = abs(target - current) / 100 * travel_time
+
+            sent = await serial_handler.send_a5_eltako_cover_command(
+                sender_id, direction, seconds=seconds,
+                invert=device.invert, label=device_name
+            )
+            # No optimistic position echo: the actuator answers a travel with
+            # the time it actually ran, and that report is measured against
+            # the position the shutter had *before* the command. Writing the
+            # target in first would make the report count the same move twice.
+            # openHAB drives an FSB from the same reports for the same reason.
+            if sent:
+                logger.info(
+                    f"Sent A5-3F-7F {direction} {seconds:.1f}s (to {target}%) "
+                    f"to {device_name}"
+                )
+            else:
+                logger.warning(f"Position {target}% for {device_name} was not sent")
+            return
+
         # An Eltako shutter actuator reads the press duration as the command:
         # a short press runs the full travel, a long one moves only while
         # held. The pair must therefore stay atomic, see ADR-0012.

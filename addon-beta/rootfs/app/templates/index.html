@@ -421,12 +421,21 @@
                                     <div class="row mb-3">
                                         <div class="col-md-4">
                                             <label class="form-label" data-i18n="teach_in.actuator_type">Actuator Type</label>
-                                            <select class="form-select" id="actuator-type-teach-in">
+                                            <select class="form-select" id="actuator-type-teach-in" onchange="toggleGfvsOptions(this)">
                                                 <option value="light">Dimmer (FD62NPN, FUD61) → A5-38-08</option>
                                                 <option value="switch">Switch (FSR61, FSR14) → F6 Rocker</option>
                                                 <option value="cover">Blind (FSB61, FSB14, FJ62) → F6 Rocker</option>
+                                                <option value="cover_gfvs">Blind position (FSB, FJ62) → A5-3F-7F GFVS</option>
                                             </select>
                                         </div>
+                                        <div class="col-md-2" id="gfvs-rounds-group" style="display: none;">
+                                            <label class="form-label" data-i18n="teach_in.rounds">Rounds</label>
+                                            <input type="number" class="form-control" id="gfvs-rounds" value="4" min="1" max="10">
+                                        </div>
+                                    </div>
+                                    <div class="alert alert-warning small mb-3" id="gfvs-hint" style="display: none;">
+                                        <i class="bi bi-exclamation-triangle"></i>
+                                        <span data-i18n="teach_in.gfvs_hint">GFVS is the second teach-in of a shutter actuator, next to the directional pushbutton, and it is what lets the shutter be driven to a position. The actuator locks its learn mode afterwards: to teach anything else, unlock it again with 4 short taps and one long one on an already learned pushbutton. The device also needs its travel time set, otherwise a percentage has no runtime to be turned into.</span>
                                     </div>
                                     <div class="d-flex gap-2 flex-wrap">
                                         <button class="btn btn-warning" onclick="sendActuatorTeachIn()">
@@ -531,6 +540,14 @@
                                     <label class="form-label" data-i18n="teach_in.travel_time">Travel time (s)</label>
                                     <input type="number" class="form-control" name="travel_time" min="0" max="65535" placeholder="0">
                                     <small class="text-muted" data-i18n="teach_in.travel_time_hint">Seconds for a full run. Eltako shutter actuators report how long they ran, which becomes a position once this is known. 0 = no position, only open/closed.</small>
+                                </div>
+                                <div class="col-md-6 mb-3" id="position-control-group" style="display: none;">
+                                    <label class="form-label" data-i18n="teach_in.position_control">Position control</label>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="checkbox" name="position_control" id="position-control-checkbox">
+                                        <label class="form-check-label" for="position-control-checkbox" data-i18n="teach_in.position_control_label">Drive to a position (Eltako GFVS)</label>
+                                    </div>
+                                    <small class="text-muted" data-i18n="teach_in.position_control_hint">Only for an Eltako shutter actuator that was taught in as GFVS (A5-3F-7F) under Teach-In, and only with a travel time above. Open, close and stop then also travel by time instead of a rocker tap.</small>
                                 </div>
                             </div>
                             <div class="mb-3">

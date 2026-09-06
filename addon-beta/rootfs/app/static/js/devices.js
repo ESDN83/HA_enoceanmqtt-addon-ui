@@ -196,6 +196,17 @@ function toggleSenderIdField(select) {
             if (input) input.value = '';
         }
     }
+    // Same for driving to a position, which is a cover-only command path and
+    // needs the GFVS teach-in behind it (#40).
+    const posGroup = document.getElementById('position-control-group');
+    if (posGroup) {
+        const showPos = select.value === 'cover';
+        posGroup.style.display = showPos ? '' : 'none';
+        if (!showPos) {
+            const cb = posGroup.querySelector('input[name="position_control"]');
+            if (cb) cb.checked = false;
+        }
+    }
 }
 // The fields that say WHICH physical module this entry is. Changing one does
 // not reconfigure anything over the air: the module keeps whatever it was
@@ -245,6 +256,8 @@ async function saveDevice(e) {
     // An empty travel time field means "no position", which the backend
     // stores as 0. Sending "" instead would fail validation.
     device.travel_time = Math.max(0, parseInt(device.travel_time, 10) || 0);
+    const posCb = form.querySelector('input[name="position_control"]');
+    device.position_control = !!(posCb && posCb.checked);
     // The watchdog is one number on the wire: minutes, 0 meaning never. The
     // checkbox only decides whether the number is sent at all, so unticking it
     // has to reach the backend as 0 rather than as a missing field (#37).
@@ -407,6 +420,8 @@ async function editDevice(name) {
         if (invertCb) invertCb.checked = !!device.invert;
         const travelField = document.querySelector('[name="travel_time"]');
         if (travelField) travelField.value = device.travel_time || '';
+        const posCb = document.querySelector('[name="position_control"]');
+        if (posCb) posCb.checked = !!device.position_control;
 
         // Availability watchdog: a stored 0 means off, anything else is the
         // number of minutes (#37).

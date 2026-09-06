@@ -23,6 +23,7 @@ class DeviceCreate(BaseModel):
     actuator_type: Optional[str] = ""  # "light", "switch", "cover", or ""
     invert: Optional[bool] = False  # cover: reverse Open/Close + position
     travel_time: Optional[int] = 0  # cover: full travel time in seconds, 0 = unknown
+    position_control: Optional[bool] = False  # cover: Eltako GFVS teach-in done (A5-3F-7F)
     channel: Optional[int] = 0  # multi-channel actuators (D2-01-11/12): 0 or 1
     availability_timeout: Optional[int] = 0  # minutes of silence before unavailable; 0 = never (#37)
 
@@ -41,6 +42,7 @@ class DeviceUpdate(BaseModel):
     actuator_type: Optional[str] = None
     invert: Optional[bool] = None
     travel_time: Optional[int] = None
+    position_control: Optional[bool] = None
     channel: Optional[int] = None
     availability_timeout: Optional[int] = None
 
@@ -166,6 +168,7 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
         actuator_type=device.actuator_type or "",
         invert=bool(device.invert),
         travel_time=max(0, int(device.travel_time or 0)),
+        position_control=bool(device.position_control),
         channel=int(device.channel or 0),
         availability_timeout=max(0, int(device.availability_timeout or 0))
     )
@@ -225,6 +228,8 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
         update_data["invert"] = bool(update.invert)
     if update.travel_time is not None:
         update_data["travel_time"] = max(0, int(update.travel_time))
+    if update.position_control is not None:
+        update_data["position_control"] = bool(update.position_control)
     if update.availability_timeout is not None:
         update_data["availability_timeout"] = max(0, int(update.availability_timeout))
     if update.channel is not None:
