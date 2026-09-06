@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.8.2-beta2] - 2026-09-06 (beta channel)
+
+First field report on an FJ62/12-36V DC (#40). Three fixes to the position
+control from beta1, one of them important enough to update for on its own.
+
+### Fixed
+
+- **Send the GFVS teach-in once, not four times.** Four rounds locked an FJ62
+  so hard that a factory reset no longer reached it; only about an hour
+  disconnected from power brought it back. The actuator locks its learn mode as
+  soon as it has stored the sender, so every further round hits a locked
+  actuator. The default is now 1, and *Repeat Teach-In (30s)*, which would send
+  a sequence every two seconds for half a minute, is hidden for this option and
+  refused by the endpoint behind it. The count stays adjustable for an actuator
+  that really does miss the first telegram.
+- **The position follows a partial travel.** A shutter answers a travel with
+  the time it ran, which is only a position when there is a previous one to
+  measure it against. With the position still unknown, the command assumed an
+  end but kept that to itself, so the report was discarded and the slider only
+  ever moved when an end stop was hit. The assumed position is now published
+  before the command goes out.
+- **A travel report is no longer dropped when it comes back on the seconds time
+  base.** Only the data-telegram bit and a direction are required now, and the
+  time base bit decides how the runtime is read.
+
+### Changed
+
+- The travel report is logged at info level with its raw bytes, next to the
+  command that caused it, so a log says whether the actuator ran for the time
+  it was given.
+
 ## [1.8.2-beta1] - 2026-09-06 (beta channel)
 
 Eltako shutters can be driven to a position (#40, and a forum report of four

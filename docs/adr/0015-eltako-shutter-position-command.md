@@ -1,7 +1,8 @@
 # 0015. An Eltako shutter is driven to a position by time, after a second teach-in
 
-Status: accepted (v1.8.2-beta1). Extends ADR-0014, follows the routing rule of
-ADR-0003.
+Status: accepted (v1.8.2-beta1), amended by the first field report
+(v1.8.2-beta2, see "Amendment" below). Extends ADR-0014, follows the routing
+rule of ADR-0003.
 
 ## Context
 
@@ -58,10 +59,11 @@ implementation to check against, as it did for the receive side in ADR-0014.
   drifted apart within two commands. It also renders the entity as
   `assumed_state`, which hides whether the actuator reports at all, the one
   thing this beta is meant to find out.
-- **The GFVS teach-in is sent four times by default.** Eltako names no repeat
-  count for GFVS, and one telegram is easy to miss: the reporter of #40 needed
-  four rounds of the pushbutton teach-in before an FJ62 took it. Repeats cost
-  nothing once the actuator has learned it and locked its learn mode. The
+- ~~**The GFVS teach-in is sent four times by default.**~~ Reversed by the
+  field report, see the amendment. Eltako names no repeat count for GFVS, and
+  one telegram is easy to miss: the reporter of #40 needed four rounds of the
+  *pushbutton* teach-in before an FJ62 took it. The assumption that repeats
+  cost nothing once the actuator has locked its learn mode was wrong. The
   dialog carries the count and warns that the lock has to be released by hand
   (4 short taps and one long one on an already learned pushbutton) before
   anything else can be taught.
@@ -79,6 +81,43 @@ implementation to check against, as it did for the receive side in ADR-0014.
   (it reports one it was tapped into), the position would freeze at its last
   value and the echo this ADR argues against would have to come back, with the
   matching report suppressed. openHAB relying on those reports says it does not.
+
+## Amendment (v1.8.2-beta2), from the first field report on an FJ62/12-36V DC
+
+Three things came back from #40, and two of them are corrections.
+
+- **The GFVS teach-in is sent once.** Four rounds locked the actuator so hard
+  that a factory reset no longer reached it; about an hour disconnected from
+  power brought it back. "Repeats cost nothing" was an assumption, and it was
+  wrong: the actuator locks its learn mode the moment it has stored the sender,
+  so every further round arrives at a locked actuator. The default is 1, the
+  count stays adjustable up to 10 for an actuator that really does miss the
+  first telegram. *Repeat Teach-In (30s)*, which would fire a sequence every
+  two seconds for half a minute, is hidden for this option, and
+  `/api/gateway/teach-in-repeat` refuses `cover_gfvs` outright rather than
+  leaving the hazard one API call away.
+- **A travel report is accepted on either time base.** The report was only read
+  when DB0 was `0x0A`, on the reasoning that a *command* uses the seconds base
+  and the strict match therefore also rejects a foreign gateway's command. That
+  reasoning does not hold, because this add-on's own commands use `0x0A` too,
+  and it cost every report that came back on the seconds base. Only bit3 (data
+  telegram) and a direction in DB1 are required now; bit1 decides whether
+  DB3+DB2 is read as 100 ms or as seconds.
+- **The assumed position is written down before the command.** The report is
+  relative and needs a previous position to be measured against. When the
+  position was unknown, the command assumed an end but kept the assumption to
+  itself, so the report that followed had nothing to measure against and was
+  discarded: the slider only ever moved when an end stop was hit, which is
+  exactly what the field report describes. The assumed *pre-command* position
+  is now published before the telegram goes out. It is not the target, so the
+  argument against an optimistic echo above still stands.
+
+Confirmed by the same report and left alone: the actuator does send its travel
+report after a *commanded* travel, not only after a pushbutton one, so the
+fallback the Consequences section held in reserve is not needed. Still open,
+and the reason the travel report is now logged at info level next to the
+command that caused it: whether an FJ62 honours the 100 ms time base for a
+partial run, or runs its full travel regardless.
 
 ## Sources
 

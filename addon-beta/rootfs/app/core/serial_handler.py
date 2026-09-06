@@ -793,7 +793,14 @@ class SerialHandler:
             # forever, so a settled state is published even when the position
             # cannot be computed.
             decoded["state"] = "open"
-            logger.debug(f"Eltako cover travel: {device.name} ran {seconds:.1f}s {direction}")
+            # Logged at info, next to the "Sending A5-3F-7F ..." line of the
+            # command that caused it: the two together say whether the
+            # actuator ran for the time it was given, which is the one thing
+            # a bench with no shutter on it cannot answer (#40).
+            logger.info(
+                f"Eltako cover travel: {device.name} ran {seconds:.1f}s {direction} "
+                f"(report {telegram.data.hex().upper()})"
+            )
 
         if rps_state is not None:
             decoded["state"] = rps_state
@@ -939,19 +946,25 @@ class SerialHandler:
             return None
 
         db0 = telegram.data[3]
-        # bit3 = data telegram, bit1 = time given in 100 ms over DB3+DB2. A
-        # travel *command* uses the seconds base instead, so this also keeps
-        # the add-on from reading someone else's command as a report.
-        if db0 & 0x0A != 0x0A:
+        direction = {0x01: "opening", 0x02: "closing"}.get(telegram.data[2])
+        # bit3 marks a data telegram, which is the only bit that has to be
+        # set. The rest of DB0 is read, not demanded: bit2 is the pushbutton
+        # block (0x0E instead of 0x0A while the actuator is blocked) and bit1
+        # is the time base. Insisting on 0x0A dropped every report that came
+        # back on the seconds base, and a dropped report is a position that
+        # never moves off an end stop (#40).
+        if not db0 & 0x08 or direction is None:
+            logger.debug(
+                f"4BS from {device.name} is not a shutter travel report: "
+                f"data={telegram.data.hex().upper()}"
+            )
             return None
 
-        direction = {0x01: "opening", 0x02: "closing"}.get(telegram.data[2])
-        if direction is None:
-            return None
         if getattr(device, "invert", False):
             direction = self._ELTAKO_COVER_INVERTED[direction]
 
-        seconds = ((telegram.data[0] << 8) | telegram.data[1]) / 10
+        raw = (telegram.data[0] << 8) | telegram.data[1]
+        seconds = raw / 10 if db0 & 0x02 else float(raw)
         return direction, seconds
 
     def _eltako_cover_position(self, device, cover_state: Optional[str],
@@ -1392,18 +1405,19 @@ class SerialHandler:
     _ELTAKO_COVER_SECONDS = 0x08  # data telegram, runtime in seconds
 
     async def send_a5_3f_teach_in(self, destination: int, sender_offset: int = 1,
-                                  repeats: int = 4) -> bool:
+                                  repeats: int = 1) -> bool:
         """Teach the gateway into an Eltako shutter actuator as GFVS.
 
         This is a different teach-in from the directional pushbutton one: it is
         what makes the actuator accept the A5-3F-7F travel commands that drive
         it to a position.
 
-        Eltako names no repeat count for GFVS, and a single telegram is easy to
-        miss: the reporter of #40 needed four rounds of the pushbutton teach-in
-        before an FJ62 took it. The sequence is repeated for that reason, which
-        costs nothing once the actuator has learned it and locked its learn
-        mode.
+        Send it ONCE. Repeating is not free: four rounds locked an FJ62/12-36V
+        DC so hard that a factory reset no longer reached it, and only about an
+        hour disconnected from power brought it back (#40, field report). The
+        actuator locks its learn mode as soon as it has stored the GFVS sender,
+        so every further round hits a locked actuator. The count stays
+        adjustable for an actuator that really does miss the first telegram.
 
         Returns True when every telegram was acknowledged by the transceiver.
         """

@@ -430,12 +430,12 @@
                                         </div>
                                         <div class="col-md-2" id="gfvs-rounds-group" style="display: none;">
                                             <label class="form-label" data-i18n="teach_in.rounds">Rounds</label>
-                                            <input type="number" class="form-control" id="gfvs-rounds" value="4" min="1" max="10">
+                                            <input type="number" class="form-control" id="gfvs-rounds" value="1" min="1" max="10">
                                         </div>
                                     </div>
                                     <div class="alert alert-warning small mb-3" id="gfvs-hint" style="display: none;">
                                         <i class="bi bi-exclamation-triangle"></i>
-                                        <span data-i18n="teach_in.gfvs_hint">GFVS is the second teach-in of a shutter actuator, next to the directional pushbutton, and it is what lets the shutter be driven to a position. The actuator locks its learn mode afterwards: to teach anything else, unlock it again with 4 short taps and one long one on an already learned pushbutton. The device also needs its travel time set, otherwise a percentage has no runtime to be turned into.</span>
+                                        <span data-i18n="teach_in.gfvs_hint">GFVS is the second teach-in of a shutter actuator, next to the directional pushbutton, and it is what lets the shutter be driven to a position. Send it ONCE: the actuator locks its learn mode as soon as it has stored the sender, and repeated rounds have locked an FJ62 so hard that only an hour without power brought it back. To teach anything else, unlock it again with 4 short taps and one long one on an already learned pushbutton. The device also needs its travel time set, otherwise a percentage has no runtime to be turned into.</span>
                                     </div>
                                     <div class="d-flex gap-2 flex-wrap">
                                         <button class="btn btn-warning" onclick="sendActuatorTeachIn()">

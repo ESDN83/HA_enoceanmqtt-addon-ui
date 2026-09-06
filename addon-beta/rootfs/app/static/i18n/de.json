@@ -364,7 +364,7 @@
   "teach_in.travel_time": "Fahrzeit (s)",
   "teach_in.travel_time_hint": "Sekunden für eine komplette Fahrt. Eltako-Jalousieaktoren melden ihre tatsächliche Fahrzeit, daraus wird mit diesem Wert eine Position. 0 = keine Position, nur offen/geschlossen.",
   "teach_in.rounds": "Durchgänge",
-  "teach_in.gfvs_hint": "GFVS ist die zweite Einlernung eines Jalousieaktors, neben dem Richtungstaster, und erst damit lässt sich die Jalousie auf eine Position fahren. Der Aktor verriegelt danach seinen Lernmodus: für weitere Einlernungen mit 4 kurzen und einem langen Tastendruck an einem bereits eingelernten Taster wieder entriegeln. Am Gerät muss außerdem die Fahrzeit gesetzt sein, sonst hat ein Prozentwert keine Laufzeit.",
+  "teach_in.gfvs_hint": "GFVS ist die zweite Einlernung eines Jalousieaktors, neben dem Richtungstaster, und erst damit lässt sich die Jalousie auf eine Position fahren. Nur EINMAL senden: der Aktor verriegelt seinen Lernmodus, sobald er den Sender gespeichert hat, und wiederholte Durchgänge haben einen FJ62 so verriegelt, dass erst eine Stunde ohne Spannung geholfen hat. Für weitere Einlernungen mit 4 kurzen und einem langen Tastendruck an einem bereits eingelernten Taster wieder entriegeln. Am Gerät muss außerdem die Fahrzeit gesetzt sein, sonst hat ein Prozentwert keine Laufzeit.",
   "teach_in.position_control": "Positionssteuerung",
   "teach_in.position_control_label": "Auf Position fahren (Eltako GFVS)",
   "teach_in.position_control_hint": "Nur für Eltako-Jalousieaktoren, die unter Teach-In als GFVS (A5-3F-7F) eingelernt wurden, und nur mit gesetzter Fahrzeit. Auf, Zu und Stopp fahren dann ebenfalls über die Zeit statt über einen Tastendruck.",

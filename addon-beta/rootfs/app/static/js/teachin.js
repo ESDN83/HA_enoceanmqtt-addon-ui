@@ -72,13 +72,17 @@ async function suggestNextSenderOffset() {
 }
 // The GFVS teach-in is the only one with a repeat count, and the only one
 // that locks the actuator's learn mode, so both the input and the warning
-// belong to that option alone (#40).
+// belong to that option alone (#40). "Repeat Teach-In (30s)" is hidden for
+// it: that button sends a sequence every two seconds for half a minute, and
+// repeated GFVS rounds are what bricked an FJ62 for an hour in the field.
 function toggleGfvsOptions(select) {
     const gfvs = select.value === 'cover_gfvs';
     const rounds = document.getElementById('gfvs-rounds-group');
     if (rounds) rounds.style.display = gfvs ? '' : 'none';
     const hint = document.getElementById('gfvs-hint');
     if (hint) hint.style.display = gfvs ? '' : 'none';
+    const repeat = document.getElementById('btn-repeat-teach-in');
+    if (repeat) repeat.style.display = gfvs ? 'none' : '';
 }
 function teachInProtocol(actuatorType) {
     if (actuatorType === 'light') return 'A5-38-08 (Central Command)';
@@ -87,7 +91,7 @@ function teachInProtocol(actuatorType) {
 }
 function teachInRounds() {
     const field = document.getElementById('gfvs-rounds');
-    return Math.max(1, Math.min(10, parseInt(field && field.value, 10) || 4));
+    return Math.max(1, Math.min(10, parseInt(field && field.value, 10) || 1));
 }
 async function sendActuatorTeachIn() {
     const address = document.getElementById('actuator-address').value.trim();

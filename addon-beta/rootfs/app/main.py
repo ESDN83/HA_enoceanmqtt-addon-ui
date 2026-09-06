@@ -865,6 +865,19 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                     # command after this one.
                     current = 100 if target < 50 else 0
                     logger.info(f"{device_name}: position unknown, assuming {current}%")
+                    # Write the assumption down before sending. The actuator
+                    # answers a travel with the time it ran, and that report
+                    # only becomes a position when there is a previous one to
+                    # measure it against. Without this the first partial run
+                    # left the position unknown again, so the slider only ever
+                    # moved when an end stop was hit (#40). What goes out here
+                    # is the position *before* the command, not the target, so
+                    # the report is still not counted twice (ADR-0015).
+                    if mqtt_handler:
+                        baseline = dict(state or {})
+                        baseline["POS"] = current
+                        baseline.setdefault("state", "open" if current > 0 else "closed")
+                        await mqtt_handler.publish_state(device_name, baseline)
                 current = float(current)
                 if current == target:
                     logger.info(f"{device_name} already at {target}%, nothing sent")
