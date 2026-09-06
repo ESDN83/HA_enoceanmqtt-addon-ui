@@ -16,6 +16,9 @@ actuator and one checkbox on the device, so nothing changes until you set it up.
 - With position control on, open, close and stop travel by time as well, so all
   four commands take the same route. With it off, a cover behaves exactly as in
   1.8.1.
+- Such a cover is no longer *assumed state*: it shows the position the actuator
+  reports instead of the one Home Assistant guessed, and gets a proper control
+  instead of two buttons.
 
 ### Notes
 
