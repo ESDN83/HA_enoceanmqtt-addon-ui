@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.8.2-beta3] - 2026-09-08 (beta channel)
+
+An Eltako shutter that never reports its run time now tracks its position
+anyway (#40). Nothing changes for an actuator that does report.
+
+### Fixed
+
+- **A shutter that answers a commanded travel with nothing no longer freezes.**
+  An FJ62 reports the time it ran and the position follows it. An FSB61NP looks
+  like it does not: Eltako documents the runtime report for a run that was
+  *stopped before its runtime expired*, and a commanded travel carries its own
+  runtime, so there is nothing to report. The position stayed where it was and
+  the entity stayed on *opening* or *closing* forever, because the travel-start
+  telegram was the last thing that arrived. A travel is now settled by whichever
+  comes first: the actuator's report, an end position, or, if neither is heard by
+  the time the run must be over, the position that was commanded. See ADR-0016.
+- A report always wins over that fallback and is measured against the position
+  the shutter had before the command, never against what the fallback wrote, so
+  a move can still not be counted twice.
+- A **stop** cancels the fallback, because the travel will not reach what it was
+  sent to. The report the actuator sends for a stop is still used.
+
 ## [1.8.2-beta2] - 2026-09-06 (beta channel)
 
 First field report on an FJ62/12-36V DC (#40). Three fixes to the position

@@ -829,6 +829,11 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                     sender_id, "STOP", label=device_name
                 )
                 if sent:
+                    # The travel in flight will not reach what it was sent to,
+                    # so its fallback must not fire. The actuator answers a
+                    # stop with the time it actually ran, and that report is
+                    # still measured against the position it started from.
+                    serial_handler.cancel_cover_fallback(device_name)
                     logger.info(f"Sent A5-3F-7F STOP to {device_name}")
                 else:
                     logger.warning(f"STOP for {device_name} was not sent")
@@ -846,6 +851,9 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                 logger.warning(f"Unknown cover command '{command}' for {device_name}")
                 return
 
+            state = mqtt_handler.get_last_state(device_name) if mqtt_handler else None
+            current = (state or {}).get("POS")
+
             if target >= 100 or target <= 0:
                 # A full travel reaches the end from anywhere, so open and
                 # close send the whole travel time and land on an end
@@ -854,9 +862,9 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                 # too, no margin on top: the actuator stops itself.
                 direction = "OPEN" if target >= 100 else "CLOSE"
                 seconds = float(travel_time)
+                if current is None:
+                    current = 0 if target >= 100 else 100
             else:
-                state = mqtt_handler.get_last_state(device_name) if mqtt_handler else None
-                current = (state or {}).get("POS")
                 if current is None:
                     # Nothing known yet. Assume the end furthest from the
                     # target: the run is then at most one full travel, and a
@@ -899,6 +907,13 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                     f"Sent A5-3F-7F {direction} {seconds:.1f}s (to {target}%) "
                     f"to {device_name}"
                 )
+                # Remember what this travel was measured against. An actuator
+                # that reports its run time settles it; one that stays mute
+                # leaves the commanded target as the position instead of
+                # freezing the slider and the entity on "closing" (#40).
+                asyncio.create_task(serial_handler.track_cover_travel(
+                    device, float(current), target, seconds
+                ))
             else:
                 logger.warning(f"Position {target}% for {device_name} was not sent")
             return

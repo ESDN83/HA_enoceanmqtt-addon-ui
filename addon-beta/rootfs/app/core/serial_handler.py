@@ -180,6 +180,10 @@ class SerialHandler:
         # transmit queue. _last_tx carries the gap across slots.
         self._tx_lock = asyncio.Lock()
         self._last_tx: float = 0.0
+        # Position control only: what the last A5-3F-7F travel per device was
+        # measured against, and whether anything has answered it yet. See
+        # track_cover_travel.
+        self._cover_commands: Dict[str, dict] = {}
 
     @property
     def is_connected(self) -> bool:
@@ -978,6 +982,9 @@ class SerialHandler:
         inventing one.
         """
         if cover_state in ("open", "closed"):
+            # An end position is absolute, so it also answers whatever travel
+            # was commanded: nothing is left for the fallback to guess.
+            self._consume_cover_command(device.name)
             return 100 if cover_state == "open" else 0
         if cover_travel is None:
             return None
@@ -986,7 +993,9 @@ class SerialHandler:
         if travel_time <= 0 or not self.mqtt_handler:
             return None
 
-        previous = (self.mqtt_handler.get_last_state(device.name) or {}).get("POS")
+        previous = self._consume_cover_command(device.name)
+        if previous is None:
+            previous = (self.mqtt_handler.get_last_state(device.name) or {}).get("POS")
         if previous is None:
             return None
 
@@ -994,6 +1003,71 @@ class SerialHandler:
         step = seconds / travel_time * 100
         moved = float(previous) + (step if direction == "opening" else -step)
         return int(round(max(0.0, min(100.0, moved))))
+
+    # An actuator that answers a commanded travel with the time it ran needs
+    # nothing more than ADR-0014's arithmetic. Not every one of them does.
+    # Eltako documents the runtime report for a run that was "stopped before RV
+    # expired", and a commanded runtime *is* the runtime for some actuators, so
+    # nothing was stopped early and nothing is reported: an FJ62 reports, an
+    # FSB61NP looks like it does not (#40). Without a report the position froze
+    # at its last value and the entity stayed on "opening"/"closing" forever,
+    # because the F6 start telegram was the last thing that ever arrived.
+    #
+    # So a travel is remembered until something answers it. A report always
+    # wins and is measured against the baseline kept here, never against
+    # whatever the fallback published, so the two can never be counted twice.
+    # Only when nothing has answered by the time the run must be over does the
+    # commanded target become the position.
+    COVER_REPORT_GRACE_SECONDS = 3.0
+
+    async def track_cover_travel(self, device, baseline: float, target: int,
+                                 seconds: float):
+        """Remember one A5-3F-7F travel, and settle it if the actuator stays mute."""
+        name = device.name
+        entry = {"baseline": float(baseline), "target": int(target),
+                 "consumed": False, "fallback": True}
+        self._cover_commands[name] = entry
+
+        await asyncio.sleep(float(seconds) + self.COVER_REPORT_GRACE_SECONDS)
+
+        if self._cover_commands.get(name) is not entry:
+            return          # a newer command owns this device now
+        if entry["consumed"] or not entry["fallback"]:
+            return
+        entry["consumed"] = True
+        logger.info(
+            f"{name}: no travel report {seconds + self.COVER_REPORT_GRACE_SECONDS:.1f}s "
+            f"after the command, taking the commanded {target}% as the position"
+        )
+        await self._publish_cover_position(name, entry["target"])
+
+    def _consume_cover_command(self, name: str) -> Optional[float]:
+        """The baseline of the travel in flight, once. None if there is none."""
+        entry = self._cover_commands.get(name)
+        if entry is None or entry["consumed"]:
+            return None
+        entry["consumed"] = True
+        return entry["baseline"]
+
+    def cancel_cover_fallback(self, name: str):
+        """A stop ends the travel early, so the commanded target is not reached.
+
+        The baseline stays valid: the actuator answers a stop with the time it
+        actually ran, and that is measured against the position it started
+        from, exactly as any other report is.
+        """
+        entry = self._cover_commands.get(name)
+        if entry is not None:
+            entry["fallback"] = False
+
+    async def _publish_cover_position(self, name: str, pos: int):
+        """Write a position into the retained state without losing the rest."""
+        if not self.mqtt_handler:
+            return
+        payload = dict(self.mqtt_handler.get_last_state(name) or {})
+        payload["POS"] = int(pos)
+        payload["state"] = "open" if int(pos) > 0 else "closed"
+        await self.mqtt_handler.publish_state(name, payload)
 
     def _rps_actuator_state(self, telegram: RadioTelegram, device) -> Optional[str]:
         """"ON"/"OFF" if this telegram is an actuator's own status report."""
