@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.8.2-beta4] - 2026-09-11 (beta channel)
+
+Two bugs, one of them able to stop reception altogether.
+
+### Fixed
+
+- **Reception could die silently while sending kept working** (#41). Every
+  `connect()` started a read loop without stopping the one that was already
+  running, so two loops shared one socket and split the incoming byte stream
+  between them: neither ever saw a complete telegram, entities froze, and
+  actuators still switched. Three paths reached it, *Restart services*,
+  *Test connection*, and a retry after a base ID timeout, and each reconnect
+  added another reader. Every path that opens a transport now stops the
+  previous reader first, a loop that has been superseded stops by itself, and
+  the log line carries the reader number so a duplicate is visible at a glance.
+  See ADR-0017.
+- **An Eltako shutter no longer jumps to 0 % or 100 % on a partial move**
+  (#40). An FSB61NP ends *every* commanded run with the same *end position*
+  telegram it sends when it really is at an end: ten seconds of closing from
+  fully open were reported as "lower end position" with the shutter a quarter
+  of the way down, so the slider went to 0 % and the entity to *closed*. While
+  a partial travel is in flight that telegram now means "the motor has
+  stopped", and the commanded target is used. A full open or close is
+  unaffected, and a shutter that reports its run time keeps being tracked from
+  that. See ADR-0016.
+- The state of a cover always agrees with its position now, so no more *closed*
+  at 75 %.
+
+### Changed
+
+- "Connected to EnOcean transceiver" is logged once, not twice from two places.
+
 ## [1.8.2-beta3] - 2026-09-08 (beta channel)
 
 An Eltako shutter that never reports its run time now tracks its position

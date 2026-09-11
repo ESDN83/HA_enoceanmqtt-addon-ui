@@ -1,6 +1,7 @@
 # 0016. A commanded travel falls back to its target when the actuator reports nothing
 
-Status: accepted (v1.8.2-beta3). Extends ADR-0015.
+Status: accepted (v1.8.2-beta3), amended by the FSB61NP field log
+(v1.8.2-beta4, see "Amendment" below). Extends ADR-0015.
 
 ## Context
 
@@ -86,6 +87,48 @@ held against either without hardware. At travel time 10:
   `003C010A`, the position followed the reports and the fallback did not fire.
 - A stop three seconds into a full close was reported as `001D020A`, landing on
   51 % against the model's 51.4 %, with no fallback afterwards.
+
+## Amendment (v1.8.2-beta4): an FSB61NP does not stay mute, it claims an end position
+
+The fallback above was built on the assumption that a mute actuator says
+nothing at all. The log from the real FSB61NP says otherwise (#40). Commanded
+from fully open to 75 % at a travel time of 40 s, it ran the 10 s it was given
+and then sent **`0x50`, "lower end position"**, with the shutter a quarter of
+the way down:
+
+```
+17:34:54  Sending A5-3F-7F CLOSE for 10.0s   (data 0064020a)
+17:34:54  RX F6 02   -> travel down started
+17:35:04  RX F6 50   -> "lower end position"
+```
+
+Eltako describes that telegram for a command that finds the shutter already at
+an end: "wird bei einem Fahrkommando trotzdem das Relais eingeschaltet ... und
+nach Ablauf der RV abgeschaltet. (0x70 oder 0x50 wird gesendet)". This actuator
+sends it at the end of *every* commanded run. It means "the relay is off
+again", not "an end stop was reached", and taking it literally drove the
+position to 0 % and the entity to *closed* on every partial move: worse than
+the freeze the fallback was written for.
+
+**So an end position is absolute only when no partial travel is in flight.**
+While one is, `0x70`/`0x50` settles that travel with its commanded target
+instead. The two cannot be told apart from the telegram, and of the two
+possible errors, a position off by the tracking error beats a position that
+jumps to an end the shutter is visibly not at, and that corrects itself at the
+next full travel anyway. A full travel is unaffected: there the end position
+and the target say the same thing.
+
+The published state follows the position it produced, so a cover cannot be
+*closed* at 75 % any more.
+
+The simulator grew a third model for this: `fj62` reports the run time,
+`fsb61` claims the end position, `mute` says nothing. Only the first two have
+been seen in the field; `mute` keeps the timeout fallback under test.
+
+Verified at travel time 10, each against the model's own physical position:
+`fsb61` 100 % to 75 % landed on 75 % (*motor stopped*, not 0 %), `fj62` 75 % to
+25 % on 25 % from its report, `mute` 25 % to 60 % on 60 % from the fallback, and
+a stop three seconds into a full close on 31 % against the model's 31.5 %.
 
 ## Sources
 

@@ -184,6 +184,10 @@ class SerialHandler:
         # measured against, and whether anything has answered it yet. See
         # track_cover_travel.
         self._cover_commands: Dict[str, dict] = {}
+        # Bumped every time a read loop is started or stopped. A loop that
+        # finds the counter moved on knows a newer one has taken over and
+        # stops, so a stale one can never keep reading. See _stop_reader.
+        self._reader_generation: int = 0
 
     @property
     def is_connected(self) -> bool:
@@ -196,7 +200,14 @@ class SerialHandler:
         return self.port.startswith("tcp:")
 
     async def connect(self):
-        """Connect to EnOcean transceiver"""
+        """Connect to EnOcean transceiver.
+
+        Safe to call on a handler that is already connected or half way
+        through a reconnect: whatever was reading is stopped first. See
+        _stop_reader for why that matters.
+        """
+        await self._stop_reader()
+        await self._close_transport()
         try:
             if self.is_tcp:
                 await self._connect_tcp()
@@ -207,7 +218,9 @@ class SerialHandler:
             self._running = True
 
             # Start async read loop (uses run_in_executor for blocking serial reads)
-            self._read_task = asyncio.create_task(self._read_loop())
+            self._read_task = asyncio.create_task(
+                self._read_loop(self._reader_generation)
+            )
 
             logger.info(f"Connected to EnOcean transceiver at {self.port}")
 
@@ -270,21 +283,41 @@ class SerialHandler:
     async def disconnect(self):
         """Disconnect from EnOcean transceiver"""
         self._running = False
-
-        if self._read_task:
-            self._read_task.cancel()
-            try:
-                await self._read_task
-            except asyncio.CancelledError:
-                pass
-            self._read_task = None
-
+        await self._stop_reader()
         await self._close_transport()
 
         self._connected = False
         logger.info("Disconnected from EnOcean transceiver")
 
-    async def _read_loop(self):
+    async def _stop_reader(self):
+        """Stop the read loop if one is running, and wait until it has ended.
+
+        Every path that opens a transport goes through here first, because a
+        second read loop on the same handler is not a harmless duplicate. Both
+        loops call recv() on whatever `self._socket` currently is, so the
+        inbound byte stream is split between them and neither ever assembles a
+        whole ESP3 frame: receiving dies silently while sending still works,
+        and the log fills with several "Serial reader: still waiting for data"
+        lines that share an elapsed time but not a packet count.
+
+        Reported as #41 after reconnect loops, "restart services" and a failed
+        base ID read each left the previous loop running. connect() used to
+        overwrite _read_task without cancelling what it pointed at.
+        """
+        self._reader_generation += 1
+        task, self._read_task = self._read_task, None
+        if task is None or task.done():
+            return
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.debug(f"Previous read loop ended with {e}")
+        logger.info("Serial reader: previous loop stopped")
+
+    async def _read_loop(self, generation: Optional[int] = None):
         """Main read loop using run_in_executor for blocking serial reads.
 
         Recovers from connection loss by closing the dead transport and
@@ -303,6 +336,11 @@ class SerialHandler:
         logger.info("Listening for EnOcean telegrams...")
 
         while self._running:
+            if generation is not None and generation != self._reader_generation:
+                # A newer loop owns the transport. Two readers split the byte
+                # stream and neither sees a whole frame (#41).
+                logger.info("Serial reader: superseded by a newer loop, stopping")
+                return
             try:
                 # Wait for sync byte (0x55) using run_in_executor
                 byte = await loop.run_in_executor(None, self._serial_read, 1)
@@ -310,7 +348,7 @@ class SerialHandler:
                 if not byte:
                     timeout_count += 1
                     if timeout_count % 30 == 0:
-                        logger.info(f"Serial reader: still waiting for data ({timeout_count}s elapsed, {packet_count} packets so far)")
+                        logger.info(f"Serial reader #{generation}: still waiting for data ({timeout_count}s elapsed, {packet_count} packets so far)")
                     continue
 
                 timeout_count = 0
@@ -878,7 +916,12 @@ class SerialHandler:
                         # restart.
                         prev = self.mqtt_handler.get_last_state(target.name) or {}
                         pos = prev.get("POS")
-                    elif cover_travel is not None:
+                    elif cover_state in ("open", "closed") or cover_travel is not None:
+                        # A settled telegram. The state has to agree with the
+                        # position it produced, or Home Assistant shows a
+                        # closed cover sitting at 75 % (#40). "opening" and
+                        # "closing" are deliberately left alone: they are the
+                        # start of a run, not the end of one.
                         payload["state"] = "open" if pos > 0 else "closed"
                     if pos is not None:
                         payload["POS"] = pos
@@ -984,7 +1027,23 @@ class SerialHandler:
         if cover_state in ("open", "closed"):
             # An end position is absolute, so it also answers whatever travel
             # was commanded: nothing is left for the fallback to guess.
-            self._consume_cover_command(device.name)
+            entry = self._consume_cover_command(device.name)
+            if entry is not None and 0 < entry["target"] < 100:
+                # ... unless a *partial* travel was in flight. An FSB61NP ends
+                # every commanded run with the same 0x70/0x50 it uses for a
+                # real end position: ten seconds after a partial close it
+                # reported "lower end position" with the shutter a quarter of
+                # the way down (#40). Eltako describes that telegram as the
+                # relay switching off once the runtime has expired, which is
+                # not the same as an end stop being reached. While a partial
+                # travel is in flight it therefore means "the motor has
+                # stopped", and the commanded target is a better answer than
+                # an end position the shutter is demonstrably not at.
+                logger.info(
+                    f"{device.name}: {cover_state} reported at the end of a "
+                    f"{entry['target']}% travel, taking it as 'motor stopped'"
+                )
+                return int(entry["target"])
             return 100 if cover_state == "open" else 0
         if cover_travel is None:
             return None
@@ -993,7 +1052,8 @@ class SerialHandler:
         if travel_time <= 0 or not self.mqtt_handler:
             return None
 
-        previous = self._consume_cover_command(device.name)
+        entry = self._consume_cover_command(device.name)
+        previous = entry["baseline"] if entry is not None else None
         if previous is None:
             previous = (self.mqtt_handler.get_last_state(device.name) or {}).get("POS")
         if previous is None:
@@ -1041,13 +1101,13 @@ class SerialHandler:
         )
         await self._publish_cover_position(name, entry["target"])
 
-    def _consume_cover_command(self, name: str) -> Optional[float]:
-        """The baseline of the travel in flight, once. None if there is none."""
+    def _consume_cover_command(self, name: str) -> Optional[dict]:
+        """The travel in flight, once. None if there is none left to answer."""
         entry = self._cover_commands.get(name)
         if entry is None or entry["consumed"]:
             return None
         entry["consumed"] = True
-        return entry["baseline"]
+        return entry
 
     def cancel_cover_fallback(self, name: str):
         """A stop ends the travel early, so the commanded target is not reached.

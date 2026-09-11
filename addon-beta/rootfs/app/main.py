@@ -167,8 +167,10 @@ async def lifespan(app: FastAPI):
             serial_handler.register_telegram_callback(_on_telegram_for_diagnostics)
 
         try:
+            # connect() logs the same sentence itself. Logging it twice from
+            # two places reads like two connections, which is exactly the
+            # confusion the duplicate MQTT connect message once caused.
             await serial_handler.connect()
-            logger.info(f"Connected to EnOcean transceiver at {ENOCEAN_PORT}")
         except Exception as e:
             logger.error(f"Initial EnOcean connect failed: {e}, will retry in background")
             asyncio.create_task(_serial_background_connect(serial_handler, ENOCEAN_PORT))

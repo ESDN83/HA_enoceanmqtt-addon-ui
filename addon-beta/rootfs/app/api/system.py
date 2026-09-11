@@ -575,8 +575,11 @@ async def restart_services(request: Request) -> Dict[str, str]:
     serial_handler = request.app.state.serial_handler
 
     try:
-        # Disconnect
-        if serial_handler and serial_handler.is_connected:
+        # Disconnect unconditionally. is_connected is False while the read
+        # loop is between reconnect attempts, and skipping the teardown there
+        # left that loop running next to the one connect() starts: two readers
+        # split the byte stream and reception dies silently (#41).
+        if serial_handler:
             await serial_handler.disconnect()
 
         if mqtt_handler and mqtt_handler.is_connected:
