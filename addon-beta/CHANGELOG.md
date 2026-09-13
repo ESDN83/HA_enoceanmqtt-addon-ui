@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.2] - 2026-09-13 (beta channel)
+
+Released as stable. Identical to 1.8.2-beta4, so both channels are level again
+and the next beta starts from here. What went into it is in the four beta
+entries below, and in the stable changelog as one piece.
+
 ## [1.8.2-beta4] - 2026-09-11 (beta channel)
 
 Two bugs, one of them able to stop reception altogether.

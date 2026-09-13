@@ -1,5 +1,63 @@
 # Changelog
 
+## [1.8.2] - 2026-09-13
+
+Eltako shutters can be driven to a **position**, and reception can no longer die
+silently. Four beta builds, field tested on an FJ62/12-36V DC and an FSB61NP by
+the reporter of #40, who confirmed the position path on real hardware, and on
+#41's installation. Closes #40 and #41.
+
+### Fixed
+
+- **Reception could stop while sending kept working** (#41). Every connect
+  started a reader without stopping the one already running, so two of them
+  shared one socket and split the incoming byte stream: neither ever saw a
+  complete telegram, entities froze at their last value, and actuators still
+  switched. *Restart services*, *Test connection* and a retry after a base ID
+  timeout each added another reader, so it got worse the more you tried to fix
+  it, and a full add-on restart cleared it. **Everyone on 1.8.1 should update.**
+  See ADR-0017.
+
+### Features
+
+- **Drive an Eltako shutter to a position.** Teach-In has a new option, *Blind
+  position (FSB, FJ62) - A5-3F-7F GFVS*. Then open the device, set the **travel
+  time** and tick **Position control**: Home Assistant gets a position slider,
+  and the add-on turns a percentage into a travel time the actuator runs.
+  - Send the GFVS teach-in **once**. The actuator locks its learn mode as soon
+    as it has stored the sender, and repeated rounds have locked an FJ62 so hard
+    that only an hour without power brought it back.
+  - To teach the actuator anything else afterwards, unlock it again with 4 short
+    taps and one long one on an already learned pushbutton.
+  - With position control on, open, close and stop travel by time as well, so
+    all four commands take the same route. With it off, a cover behaves exactly
+    as in 1.8.1.
+  - Such a cover is no longer *assumed state*: it shows the position the
+    actuator reports instead of the one Home Assistant guessed, so the card gets
+    a proper control instead of two buttons.
+  - See ADR-0015 and ADR-0016.
+
+### Fixed in the shutter path
+
+- **The position follows a partial travel.** A shutter answers a travel with the
+  time it ran, which only becomes a position when there is a previous one to
+  measure it against, and that baseline is written down before the command now.
+- **A travel report is read on either time base**, not only on the 100 ms one.
+- **An actuator that reports nothing still tracks.** A travel is settled by
+  whichever comes first: the actuator's report, an end position, or the
+  commanded target once the run must be over. A report always wins, so nothing
+  is counted twice.
+- **No more jumping to 0 % or 100 % on a partial move.** An FSB61NP ends *every*
+  commanded run with the same *end position* telegram it sends when it really is
+  at an end. While a partial travel is in flight that now means "the motor has
+  stopped".
+- The state of a cover always agrees with its position, so no more *closed* at
+  75 %.
+
+### Changed
+
+- "Connected to EnOcean transceiver" is logged once, not twice from two places.
+
 ## [1.8.1] - 2026-09-03
 
 Eltako shutter actuators. Two beta builds, field tested on an Eltako

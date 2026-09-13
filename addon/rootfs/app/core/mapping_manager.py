@@ -1092,7 +1092,8 @@ class MappingManager:
         invert: bool = False,
         channel: int = 0,
         entity_name: str = None,
-        travel_time: int = 0
+        travel_time: int = 0,
+        position_control: bool = False
     ) -> List[Dict[str, Any]]:
         """Generate Home Assistant MQTT discovery configurations.
 
@@ -1209,14 +1210,28 @@ class MappingManager:
                     # ran, which becomes a position once the full travel time
                     # is known (ADR-0014). POS is published in HA terms
                     # already, so unlike D2-05 it needs no inversion here.
-                    # Read-only: driving to a position needs the A5-3F-7F
-                    # command path, which this actuator does not have yet.
+                    # Read-only unless the actuator was also taught in as
+                    # GFVS: driving it to a position is an A5-3F-7F travel
+                    # command, which an actuator that only knows this gateway
+                    # as a pushbutton ignores (#40, ADR-0015).
                     config["position_topic"] = f"{mqtt_prefix}/{device_name}/state"
                     config["position_template"] = (
                         "{{ value_json.POS if value_json.POS is defined else '' }}"
                     )
                     config["position_open"] = 100
                     config["position_closed"] = 0
+                    if position_control:
+                        config["set_position_topic"] = (
+                            f"{mqtt_prefix}/{device_name}/set/position"
+                        )
+                        # This cover has real feedback and a real target, so
+                        # it stops assuming. Left optimistic, Home Assistant
+                        # keeps its own idea of the position while the add-on
+                        # measures the next move against the reported one, and
+                        # the two drift apart silently. It also renders the
+                        # entity as assumed_state, which hides whether the
+                        # actuator reports at all (ADR-0015).
+                        config["optimistic"] = False
 
             configs.append({
                 "component": actuator_type,
@@ -1509,6 +1524,7 @@ class MappingManager:
             channel=int(getattr(device, "channel", 0) or 0),
             entity_name=entity_name,
             travel_time=int(getattr(device, "travel_time", 0) or 0),
+            position_control=bool(getattr(device, "position_control", False)),
         )
 
     def build_device_info(self, device, module_name: str = None) -> Dict[str, Any]:

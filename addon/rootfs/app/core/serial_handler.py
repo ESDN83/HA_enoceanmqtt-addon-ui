@@ -180,6 +180,14 @@ class SerialHandler:
         # transmit queue. _last_tx carries the gap across slots.
         self._tx_lock = asyncio.Lock()
         self._last_tx: float = 0.0
+        # Position control only: what the last A5-3F-7F travel per device was
+        # measured against, and whether anything has answered it yet. See
+        # track_cover_travel.
+        self._cover_commands: Dict[str, dict] = {}
+        # Bumped every time a read loop is started or stopped. A loop that
+        # finds the counter moved on knows a newer one has taken over and
+        # stops, so a stale one can never keep reading. See _stop_reader.
+        self._reader_generation: int = 0
 
     @property
     def is_connected(self) -> bool:
@@ -192,7 +200,14 @@ class SerialHandler:
         return self.port.startswith("tcp:")
 
     async def connect(self):
-        """Connect to EnOcean transceiver"""
+        """Connect to EnOcean transceiver.
+
+        Safe to call on a handler that is already connected or half way
+        through a reconnect: whatever was reading is stopped first. See
+        _stop_reader for why that matters.
+        """
+        await self._stop_reader()
+        await self._close_transport()
         try:
             if self.is_tcp:
                 await self._connect_tcp()
@@ -203,7 +218,9 @@ class SerialHandler:
             self._running = True
 
             # Start async read loop (uses run_in_executor for blocking serial reads)
-            self._read_task = asyncio.create_task(self._read_loop())
+            self._read_task = asyncio.create_task(
+                self._read_loop(self._reader_generation)
+            )
 
             logger.info(f"Connected to EnOcean transceiver at {self.port}")
 
@@ -266,21 +283,41 @@ class SerialHandler:
     async def disconnect(self):
         """Disconnect from EnOcean transceiver"""
         self._running = False
-
-        if self._read_task:
-            self._read_task.cancel()
-            try:
-                await self._read_task
-            except asyncio.CancelledError:
-                pass
-            self._read_task = None
-
+        await self._stop_reader()
         await self._close_transport()
 
         self._connected = False
         logger.info("Disconnected from EnOcean transceiver")
 
-    async def _read_loop(self):
+    async def _stop_reader(self):
+        """Stop the read loop if one is running, and wait until it has ended.
+
+        Every path that opens a transport goes through here first, because a
+        second read loop on the same handler is not a harmless duplicate. Both
+        loops call recv() on whatever `self._socket` currently is, so the
+        inbound byte stream is split between them and neither ever assembles a
+        whole ESP3 frame: receiving dies silently while sending still works,
+        and the log fills with several "Serial reader: still waiting for data"
+        lines that share an elapsed time but not a packet count.
+
+        Reported as #41 after reconnect loops, "restart services" and a failed
+        base ID read each left the previous loop running. connect() used to
+        overwrite _read_task without cancelling what it pointed at.
+        """
+        self._reader_generation += 1
+        task, self._read_task = self._read_task, None
+        if task is None or task.done():
+            return
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.debug(f"Previous read loop ended with {e}")
+        logger.info("Serial reader: previous loop stopped")
+
+    async def _read_loop(self, generation: Optional[int] = None):
         """Main read loop using run_in_executor for blocking serial reads.
 
         Recovers from connection loss by closing the dead transport and
@@ -299,6 +336,11 @@ class SerialHandler:
         logger.info("Listening for EnOcean telegrams...")
 
         while self._running:
+            if generation is not None and generation != self._reader_generation:
+                # A newer loop owns the transport. Two readers split the byte
+                # stream and neither sees a whole frame (#41).
+                logger.info("Serial reader: superseded by a newer loop, stopping")
+                return
             try:
                 # Wait for sync byte (0x55) using run_in_executor
                 byte = await loop.run_in_executor(None, self._serial_read, 1)
@@ -306,7 +348,7 @@ class SerialHandler:
                 if not byte:
                     timeout_count += 1
                     if timeout_count % 30 == 0:
-                        logger.info(f"Serial reader: still waiting for data ({timeout_count}s elapsed, {packet_count} packets so far)")
+                        logger.info(f"Serial reader #{generation}: still waiting for data ({timeout_count}s elapsed, {packet_count} packets so far)")
                     continue
 
                 timeout_count = 0
@@ -793,7 +835,14 @@ class SerialHandler:
             # forever, so a settled state is published even when the position
             # cannot be computed.
             decoded["state"] = "open"
-            logger.debug(f"Eltako cover travel: {device.name} ran {seconds:.1f}s {direction}")
+            # Logged at info, next to the "Sending A5-3F-7F ..." line of the
+            # command that caused it: the two together say whether the
+            # actuator ran for the time it was given, which is the one thing
+            # a bench with no shutter on it cannot answer (#40).
+            logger.info(
+                f"Eltako cover travel: {device.name} ran {seconds:.1f}s {direction} "
+                f"(report {telegram.data.hex().upper()})"
+            )
 
         if rps_state is not None:
             decoded["state"] = rps_state
@@ -867,7 +916,12 @@ class SerialHandler:
                         # restart.
                         prev = self.mqtt_handler.get_last_state(target.name) or {}
                         pos = prev.get("POS")
-                    elif cover_travel is not None:
+                    elif cover_state in ("open", "closed") or cover_travel is not None:
+                        # A settled telegram. The state has to agree with the
+                        # position it produced, or Home Assistant shows a
+                        # closed cover sitting at 75 % (#40). "opening" and
+                        # "closing" are deliberately left alone: they are the
+                        # start of a run, not the end of one.
                         payload["state"] = "open" if pos > 0 else "closed"
                     if pos is not None:
                         payload["POS"] = pos
@@ -939,19 +993,25 @@ class SerialHandler:
             return None
 
         db0 = telegram.data[3]
-        # bit3 = data telegram, bit1 = time given in 100 ms over DB3+DB2. A
-        # travel *command* uses the seconds base instead, so this also keeps
-        # the add-on from reading someone else's command as a report.
-        if db0 & 0x0A != 0x0A:
+        direction = {0x01: "opening", 0x02: "closing"}.get(telegram.data[2])
+        # bit3 marks a data telegram, which is the only bit that has to be
+        # set. The rest of DB0 is read, not demanded: bit2 is the pushbutton
+        # block (0x0E instead of 0x0A while the actuator is blocked) and bit1
+        # is the time base. Insisting on 0x0A dropped every report that came
+        # back on the seconds base, and a dropped report is a position that
+        # never moves off an end stop (#40).
+        if not db0 & 0x08 or direction is None:
+            logger.debug(
+                f"4BS from {device.name} is not a shutter travel report: "
+                f"data={telegram.data.hex().upper()}"
+            )
             return None
 
-        direction = {0x01: "opening", 0x02: "closing"}.get(telegram.data[2])
-        if direction is None:
-            return None
         if getattr(device, "invert", False):
             direction = self._ELTAKO_COVER_INVERTED[direction]
 
-        seconds = ((telegram.data[0] << 8) | telegram.data[1]) / 10
+        raw = (telegram.data[0] << 8) | telegram.data[1]
+        seconds = raw / 10 if db0 & 0x02 else float(raw)
         return direction, seconds
 
     def _eltako_cover_position(self, device, cover_state: Optional[str],
@@ -965,6 +1025,25 @@ class SerialHandler:
         inventing one.
         """
         if cover_state in ("open", "closed"):
+            # An end position is absolute, so it also answers whatever travel
+            # was commanded: nothing is left for the fallback to guess.
+            entry = self._consume_cover_command(device.name)
+            if entry is not None and 0 < entry["target"] < 100:
+                # ... unless a *partial* travel was in flight. An FSB61NP ends
+                # every commanded run with the same 0x70/0x50 it uses for a
+                # real end position: ten seconds after a partial close it
+                # reported "lower end position" with the shutter a quarter of
+                # the way down (#40). Eltako describes that telegram as the
+                # relay switching off once the runtime has expired, which is
+                # not the same as an end stop being reached. While a partial
+                # travel is in flight it therefore means "the motor has
+                # stopped", and the commanded target is a better answer than
+                # an end position the shutter is demonstrably not at.
+                logger.info(
+                    f"{device.name}: {cover_state} reported at the end of a "
+                    f"{entry['target']}% travel, taking it as 'motor stopped'"
+                )
+                return int(entry["target"])
             return 100 if cover_state == "open" else 0
         if cover_travel is None:
             return None
@@ -973,7 +1052,10 @@ class SerialHandler:
         if travel_time <= 0 or not self.mqtt_handler:
             return None
 
-        previous = (self.mqtt_handler.get_last_state(device.name) or {}).get("POS")
+        entry = self._consume_cover_command(device.name)
+        previous = entry["baseline"] if entry is not None else None
+        if previous is None:
+            previous = (self.mqtt_handler.get_last_state(device.name) or {}).get("POS")
         if previous is None:
             return None
 
@@ -981,6 +1063,71 @@ class SerialHandler:
         step = seconds / travel_time * 100
         moved = float(previous) + (step if direction == "opening" else -step)
         return int(round(max(0.0, min(100.0, moved))))
+
+    # An actuator that answers a commanded travel with the time it ran needs
+    # nothing more than ADR-0014's arithmetic. Not every one of them does.
+    # Eltako documents the runtime report for a run that was "stopped before RV
+    # expired", and a commanded runtime *is* the runtime for some actuators, so
+    # nothing was stopped early and nothing is reported: an FJ62 reports, an
+    # FSB61NP looks like it does not (#40). Without a report the position froze
+    # at its last value and the entity stayed on "opening"/"closing" forever,
+    # because the F6 start telegram was the last thing that ever arrived.
+    #
+    # So a travel is remembered until something answers it. A report always
+    # wins and is measured against the baseline kept here, never against
+    # whatever the fallback published, so the two can never be counted twice.
+    # Only when nothing has answered by the time the run must be over does the
+    # commanded target become the position.
+    COVER_REPORT_GRACE_SECONDS = 3.0
+
+    async def track_cover_travel(self, device, baseline: float, target: int,
+                                 seconds: float):
+        """Remember one A5-3F-7F travel, and settle it if the actuator stays mute."""
+        name = device.name
+        entry = {"baseline": float(baseline), "target": int(target),
+                 "consumed": False, "fallback": True}
+        self._cover_commands[name] = entry
+
+        await asyncio.sleep(float(seconds) + self.COVER_REPORT_GRACE_SECONDS)
+
+        if self._cover_commands.get(name) is not entry:
+            return          # a newer command owns this device now
+        if entry["consumed"] or not entry["fallback"]:
+            return
+        entry["consumed"] = True
+        logger.info(
+            f"{name}: no travel report {seconds + self.COVER_REPORT_GRACE_SECONDS:.1f}s "
+            f"after the command, taking the commanded {target}% as the position"
+        )
+        await self._publish_cover_position(name, entry["target"])
+
+    def _consume_cover_command(self, name: str) -> Optional[dict]:
+        """The travel in flight, once. None if there is none left to answer."""
+        entry = self._cover_commands.get(name)
+        if entry is None or entry["consumed"]:
+            return None
+        entry["consumed"] = True
+        return entry
+
+    def cancel_cover_fallback(self, name: str):
+        """A stop ends the travel early, so the commanded target is not reached.
+
+        The baseline stays valid: the actuator answers a stop with the time it
+        actually ran, and that is measured against the position it started
+        from, exactly as any other report is.
+        """
+        entry = self._cover_commands.get(name)
+        if entry is not None:
+            entry["fallback"] = False
+
+    async def _publish_cover_position(self, name: str, pos: int):
+        """Write a position into the retained state without losing the rest."""
+        if not self.mqtt_handler:
+            return
+        payload = dict(self.mqtt_handler.get_last_state(name) or {})
+        payload["POS"] = int(pos)
+        payload["state"] = "open" if int(pos) > 0 else "closed"
+        await self.mqtt_handler.publish_state(name, payload)
 
     def _rps_actuator_state(self, telegram: RadioTelegram, device) -> Optional[str]:
         """"ON"/"OFF" if this telegram is an actuator's own status report."""
@@ -1369,6 +1516,121 @@ class SerialHandler:
 
         logger.info("=== DIMMER TEACH-IN COMPLETE === (3 steps, 4 telegrams)")
         return True
+
+    # --- Eltako shutter command path, EEP A5-3F-7F ------------------------
+    # Eltako, "Inhalte der Eltako-Funktelegramme", sections FJ62/12-36V DC,
+    # FJ62NP-230V:
+    #   teach-in  00 00 00 28 unlocks the learn mode, FF F8 0D 80 teaches the
+    #             gateway in as GFVS (A5-3F-7F, manufacturer 0x00D). The
+    #             actuator then switches its confirmation telegrams on by
+    #             itself and locks the learn mode again.
+    #   command   DB3+DB2 runtime, DB1 0x00 stop / 0x01 up / 0x02 down,
+    #             DB0 bit3 data telegram, bit2 block for pushbuttons (kept at
+    #             0), bit1 time base (0 = seconds in DB2, 1 = 100 ms over
+    #             DB3+DB2). The actuator's own runtime is ignored whenever a
+    #             time is sent, so every command carries one.
+    # Cross-checked against openHAB's A5_3F_7F_EltakoFSB, which encodes a
+    # percentage move the same way. See ADR-0015 and issue #40.
+    ELTAKO_GFVS_UNLOCK = bytes([0x00, 0x00, 0x00, 0x28])
+    ELTAKO_GFVS_TEACH_IN = bytes([0xFF, 0xF8, 0x0D, 0x80])
+
+    _ELTAKO_COVER_DIR = {"STOP": 0x00, "OPEN": 0x01, "CLOSE": 0x02}
+    _ELTAKO_COVER_100MS = 0x0A    # data telegram, runtime in 100 ms
+    _ELTAKO_COVER_SECONDS = 0x08  # data telegram, runtime in seconds
+
+    async def send_a5_3f_teach_in(self, destination: int, sender_offset: int = 1,
+                                  repeats: int = 1) -> bool:
+        """Teach the gateway into an Eltako shutter actuator as GFVS.
+
+        This is a different teach-in from the directional pushbutton one: it is
+        what makes the actuator accept the A5-3F-7F travel commands that drive
+        it to a position.
+
+        Send it ONCE. Repeating is not free: four rounds locked an FJ62/12-36V
+        DC so hard that a factory reset no longer reached it, and only about an
+        hour disconnected from power brought it back (#40, field report). The
+        actuator locks its learn mode as soon as it has stored the GFVS sender,
+        so every further round hits a locked actuator. The count stays
+        adjustable for an actuator that really does miss the first telegram.
+
+        Returns True when every telegram was acknowledged by the transceiver.
+        """
+        sender_id = self.get_sender_id(sender_offset)
+        if sender_id is None:
+            logger.error("Cannot send teach-in: base ID not read yet")
+            return False
+
+        # Broadcast, like every other teach-in here: an Eltako actuator in
+        # learn mode stores the sender ID out of the telegram, it does not
+        # match on the destination.
+        broadcast = 0xFFFFFFFF
+        rounds = max(1, min(int(repeats or 1), 10))
+        logger.info(
+            f"=== GFVS TEACH-IN (A5-3F-7F) === sender=0x{sender_id:08X}, "
+            f"dest=0x{destination:08X}, {rounds} rounds"
+        )
+
+        ok = True
+        for i in range(rounds):
+            logger.info(f"  [{i + 1}/{rounds}] unlock 00000028, then teach-in FFF80D80")
+            ok &= await self.send_telegram(
+                sender_id=sender_id, rorg=0xA5,
+                data=self.ELTAKO_GFVS_UNLOCK, destination=broadcast
+            )
+            await asyncio.sleep(1.0)
+            ok &= await self.send_telegram(
+                sender_id=sender_id, rorg=0xA5,
+                data=self.ELTAKO_GFVS_TEACH_IN, destination=broadcast
+            )
+            if i < rounds - 1:
+                await asyncio.sleep(1.0)
+
+        logger.info(f"=== GFVS TEACH-IN COMPLETE === {rounds * 2} telegrams")
+        return bool(ok)
+
+    async def send_a5_eltako_cover_command(self, sender_id: int, command: str,
+                                           seconds: float = 0.0,
+                                           invert: bool = False,
+                                           label: str = "") -> bool:
+        """Send one A5-3F-7F travel command to an Eltako shutter actuator.
+
+        command is OPEN, CLOSE or STOP, seconds the runtime of a travel. The
+        runtime goes out in 100 ms steps: in whole seconds, a 30 s shutter
+        could only be driven in steps of 3 %.
+
+        invert swaps up and down for a reverse-mounted shutter, the same flag
+        and the same meaning as on the rocker path.
+        """
+        direction = self._ELTAKO_COVER_DIR.get(command)
+        if direction is None:
+            logger.warning(f"Unknown Eltako cover command '{command}'")
+            return False
+
+        name = label or f"{sender_id:08X}"
+
+        if command == "STOP":
+            # A stop carries no runtime. DB2 = 0xFF on the seconds base is what
+            # openHAB sends, and the actuator stops on DB1 = 0x00 regardless.
+            data = bytes([0x00, 0xFF, 0x00, self._ELTAKO_COVER_SECONDS])
+            logger.info(f"Sending A5-3F-7F STOP to {name}")
+        else:
+            if invert:
+                direction = 0x02 if direction == 0x01 else 0x01
+            tenths = int(round(max(0.0, seconds) * 10))
+            if tenths <= 0:
+                logger.warning(f"A5-3F-7F {command} for {name}: no runtime, not sent")
+                return False
+            tenths = min(tenths, 0xFFFF)
+            data = bytes([(tenths >> 8) & 0xFF, tenths & 0xFF, direction,
+                          self._ELTAKO_COVER_100MS])
+            inv = " (inverted)" if invert else ""
+            logger.info(
+                f"Sending A5-3F-7F {command} for {tenths / 10:.1f}s to {name}{inv}"
+            )
+
+        return await self.send_telegram(
+            sender_id=sender_id, rorg=0xA5, data=data, destination=0xFFFFFFFF
+        )
 
     async def send_a5_dimmer_command(self, sender_id: int, command: str,
                                      dim_value: int = 255, ramp_time: int = 1) -> bool:

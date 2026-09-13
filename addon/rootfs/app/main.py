@@ -167,8 +167,10 @@ async def lifespan(app: FastAPI):
             serial_handler.register_telegram_callback(_on_telegram_for_diagnostics)
 
         try:
+            # connect() logs the same sentence itself. Logging it twice from
+            # two places reads like two connections, which is exactly the
+            # confusion the duplicate MQTT connect message once caused.
             await serial_handler.connect()
-            logger.info(f"Connected to EnOcean transceiver at {ENOCEAN_PORT}")
         except Exception as e:
             logger.error(f"Initial EnOcean connect failed: {e}, will retry in background")
             asyncio.create_task(_serial_background_connect(serial_handler, ENOCEAN_PORT))
@@ -814,6 +816,108 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
                     logger.warning(f"D2-05 {command} for {device_name} was not sent")
             else:
                 logger.warning(f"Unknown cover command '{command}' for {device_name}")
+            return
+
+        # An Eltako shutter can also be driven over EEP A5-3F-7F, which is
+        # the only way to send it to a position: a rocker tap carries a
+        # direction and nothing else (#40, ADR-0015). That path needs its own
+        # teach-in (GFVS) in the actuator, so it stays off until the user has
+        # done it and ticked "position control", and it needs the travel time
+        # to turn a percentage into a runtime.
+        travel_time = int(getattr(device, "travel_time", 0) or 0)
+        if getattr(device, "position_control", False) and travel_time > 0:
+            if command == "STOP":
+                sent = await serial_handler.send_a5_eltako_cover_command(
+                    sender_id, "STOP", label=device_name
+                )
+                if sent:
+                    # The travel in flight will not reach what it was sent to,
+                    # so its fallback must not fire. The actuator answers a
+                    # stop with the time it actually ran, and that report is
+                    # still measured against the position it started from.
+                    serial_handler.cancel_cover_fallback(device_name)
+                    logger.info(f"Sent A5-3F-7F STOP to {device_name}")
+                else:
+                    logger.warning(f"STOP for {device_name} was not sent")
+                return
+
+            if entity == "position":
+                try:
+                    target = max(0, min(100, int(float(command))))
+                except ValueError:
+                    logger.warning(f"Invalid position '{command}' for {device_name}")
+                    return
+            elif command in ("OPEN", "CLOSE"):
+                target = 100 if command == "OPEN" else 0
+            else:
+                logger.warning(f"Unknown cover command '{command}' for {device_name}")
+                return
+
+            state = mqtt_handler.get_last_state(device_name) if mqtt_handler else None
+            current = (state or {}).get("POS")
+
+            if target >= 100 or target <= 0:
+                # A full travel reaches the end from anywhere, so open and
+                # close send the whole travel time and land on an end
+                # position, which is where the position resynchronises
+                # (ADR-0014). openHAB sends the configured travel time here
+                # too, no margin on top: the actuator stops itself.
+                direction = "OPEN" if target >= 100 else "CLOSE"
+                seconds = float(travel_time)
+                if current is None:
+                    current = 0 if target >= 100 else 100
+            else:
+                if current is None:
+                    # Nothing known yet. Assume the end furthest from the
+                    # target: the run is then at most one full travel, and a
+                    # shutter that stood somewhere else reaches its end
+                    # position and reports it, which synchronises every
+                    # command after this one.
+                    current = 100 if target < 50 else 0
+                    logger.info(f"{device_name}: position unknown, assuming {current}%")
+                    # Write the assumption down before sending. The actuator
+                    # answers a travel with the time it ran, and that report
+                    # only becomes a position when there is a previous one to
+                    # measure it against. Without this the first partial run
+                    # left the position unknown again, so the slider only ever
+                    # moved when an end stop was hit (#40). What goes out here
+                    # is the position *before* the command, not the target, so
+                    # the report is still not counted twice (ADR-0015).
+                    if mqtt_handler:
+                        baseline = dict(state or {})
+                        baseline["POS"] = current
+                        baseline.setdefault("state", "open" if current > 0 else "closed")
+                        await mqtt_handler.publish_state(device_name, baseline)
+                current = float(current)
+                if current == target:
+                    logger.info(f"{device_name} already at {target}%, nothing sent")
+                    return
+                direction = "OPEN" if target > current else "CLOSE"
+                seconds = abs(target - current) / 100 * travel_time
+
+            sent = await serial_handler.send_a5_eltako_cover_command(
+                sender_id, direction, seconds=seconds,
+                invert=device.invert, label=device_name
+            )
+            # No optimistic position echo: the actuator answers a travel with
+            # the time it actually ran, and that report is measured against
+            # the position the shutter had *before* the command. Writing the
+            # target in first would make the report count the same move twice.
+            # openHAB drives an FSB from the same reports for the same reason.
+            if sent:
+                logger.info(
+                    f"Sent A5-3F-7F {direction} {seconds:.1f}s (to {target}%) "
+                    f"to {device_name}"
+                )
+                # Remember what this travel was measured against. An actuator
+                # that reports its run time settles it; one that stays mute
+                # leaves the commanded target as the position instead of
+                # freezing the slider and the entity on "closing" (#40).
+                asyncio.create_task(serial_handler.track_cover_travel(
+                    device, float(current), target, seconds
+                ))
+            else:
+                logger.warning(f"Position {target}% for {device_name} was not sent")
             return
 
         # An Eltako shutter actuator reads the press duration as the command:

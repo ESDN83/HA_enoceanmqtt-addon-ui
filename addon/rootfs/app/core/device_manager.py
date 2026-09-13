@@ -35,6 +35,12 @@ class Device:
     # reports open/closed from the end-position confirmations, just no
     # percentage. See ADR-0014.
     travel_time: int = 0
+    # Cover only: this actuator was taught in as GFVS (Eltako A5-3F-7F), so it
+    # takes travel commands carrying a runtime and can be driven to a
+    # position. Off by default: the command path is wrong for an actuator that
+    # only knows the gateway as a directional pushbutton, and the teach-in
+    # cannot be detected from here. Needs travel_time. See ADR-0015 and #40.
+    position_control: bool = False
     # Minutes of silence after which the device is reported unavailable to Home
     # Assistant. 0 means never, which is the old behaviour and the default: a
     # switch actuator only transmits when it is switched, so a watchdog would
@@ -73,6 +79,7 @@ class Device:
             actuator_type=data.get("actuator_type", ""),
             invert=bool(data.get("invert", False)),
             travel_time=int(data.get("travel_time", 0) or 0),
+            position_control=bool(data.get("position_control", False)),
             channel=int(data.get("channel", 0) or 0),
             availability_timeout=int(data.get("availability_timeout", 0) or 0)
         )
