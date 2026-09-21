@@ -263,21 +263,32 @@ class SerialHandler:
         host = parts[1]
         port = int(parts[2])
 
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._socket.settimeout(5.0)
-        self._socket.connect((host, port))
-        self._socket.settimeout(1.0)
+        # Build it locally and publish it only once it is actually connected.
+        # Assigning self._socket first left a socket that had never connected
+        # behind whenever connect() timed out, and recv() on that raises
+        # socket.timeout, which _serial_read reports as "idle". The reader then
+        # sat there logging "still waiting for data" while no transport existed
+        # and nothing ever retried, until someone hit Restart services (#42).
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5.0)
+        try:
+            sock.connect((host, port))
+            sock.settimeout(1.0)
 
-        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-        # Linux-specific knobs (HA OS runs on Alpine Linux).
-        for name, value in (("TCP_KEEPIDLE", 30), ("TCP_KEEPINTVL", 10), ("TCP_KEEPCNT", 3)):
-            opt = getattr(socket, name, None)
-            if opt is not None:
-                try:
-                    self._socket.setsockopt(socket.IPPROTO_TCP, opt, value)
-                except OSError as e:
-                    logger.debug(f"Could not set {name}={value}: {e}")
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            # Linux-specific knobs (HA OS runs on Alpine Linux).
+            for name, value in (("TCP_KEEPIDLE", 30), ("TCP_KEEPINTVL", 10), ("TCP_KEEPCNT", 3)):
+                opt = getattr(socket, name, None)
+                if opt is not None:
+                    try:
+                        sock.setsockopt(socket.IPPROTO_TCP, opt, value)
+                    except OSError as e:
+                        logger.debug(f"Could not set {name}={value}: {e}")
+        except Exception:
+            sock.close()
+            raise
 
+        self._socket = sock
         logger.info(f"TCP connected to {host}:{port} (keepalive 30s idle / 10s intvl / 3 probes)")
 
     async def disconnect(self):
@@ -317,6 +328,12 @@ class SerialHandler:
             logger.debug(f"Previous read loop ended with {e}")
         logger.info("Serial reader: previous loop stopped")
 
+    # How long a session has to last before it counts as usable on its own,
+    # without having carried a single byte. An EnOcean gateway can be silent
+    # for minutes, so silence alone must not look like a failed session; an
+    # accept-then-FIN peer never gets near it. See the read loop's backoff.
+    GOOD_SESSION_SECONDS = 30.0
+
     async def _read_loop(self, generation: Optional[int] = None):
         """Main read loop using run_in_executor for blocking serial reads.
 
@@ -327,11 +344,22 @@ class SerialHandler:
         flowed and nothing in the log said why.
         """
         loop = asyncio.get_event_loop()
-        timeout_count = 0
         packet_count = 0
         backoff = 1.0
         skipped_bytes = 0
         skipped_sample = b""
+        # Real seconds, not a count of reads. The old heartbeat counted idle
+        # reads and called each one a second, which was only true while the
+        # socket timeout was 1 s: after a failed connect left a 5 s socket
+        # behind it reported 30 s where 150 s had passed (#42).
+        idle_since = None
+        idle_logged = 0.0
+        # A session that never delivered a byte and died at once is not a
+        # success, however clean the TCP handshake was. Against a peer that
+        # accepts and immediately sends FIN, resetting the backoff on connect
+        # produced one attempt per second for hours (#42).
+        session_start = time.monotonic()
+        session_bytes = 0
 
         logger.info("Listening for EnOcean telegrams...")
 
@@ -346,13 +374,21 @@ class SerialHandler:
                 byte = await loop.run_in_executor(None, self._serial_read, 1)
 
                 if not byte:
-                    timeout_count += 1
-                    if timeout_count % 30 == 0:
-                        logger.info(f"Serial reader #{generation}: still waiting for data ({timeout_count}s elapsed, {packet_count} packets so far)")
+                    now = time.monotonic()
+                    if idle_since is None:
+                        idle_since, idle_logged = now, 0.0
+                    idle = now - idle_since
+                    if idle - idle_logged >= 30:
+                        idle_logged = idle
+                        logger.info(
+                            f"Serial reader #{generation}: still waiting for data "
+                            f"({idle:.0f}s elapsed, {packet_count} packets so far)"
+                        )
                     continue
 
-                timeout_count = 0
-                backoff = 1.0  # reset backoff on any successful read
+                idle_since = None
+                session_bytes += 1
+                backoff = 1.0  # a byte arrived, so the session is usable
 
                 if byte[0] != SYNC_BYTE:
                     # One line per discarded byte floods the log at debug level
@@ -432,14 +468,34 @@ class SerialHandler:
             except (ConnectionError, serial.SerialException, OSError) as e:
                 if not self._running:
                     break
-                logger.warning(f"Transport lost: {e}, reconnecting in {backoff:.0f}s")
+                if self._connected:
+                    # A session counts as good if it carried data or simply
+                    # lasted: an EnOcean gateway may legitimately be silent for
+                    # minutes. Anything shorter and emptier than that gets the
+                    # grown backoff, so an accept-then-FIN peer is not hammered
+                    # once a second and can recover (#42).
+                    if session_bytes or (time.monotonic() - session_start
+                                         >= self.GOOD_SESSION_SECONDS):
+                        backoff = 1.0
+                    else:
+                        # The session itself is the failure here, not the
+                        # connect: an accept-then-FIN peer hands out a fresh
+                        # socket every time, so growing the backoff only on a
+                        # failed connect never grows it at all.
+                        backoff = min(backoff * 2, 30.0)
+                    logger.warning(f"Transport lost: {e}, reconnecting in {backoff:.0f}s")
+                else:
+                    logger.debug(f"Still no transport ({e}), next attempt in {backoff:.0f}s")
                 self._connected = False
                 await self._close_transport()
-                if not await self._wait_and_reconnect(backoff):
-                    backoff = min(backoff * 2, 30.0)
+                if await self._wait_and_reconnect(backoff):
+                    session_start, session_bytes = time.monotonic(), 0
                 else:
-                    backoff = 1.0
-                timeout_count = 0
+                    # Keep retrying. A failed attempt is just a failed attempt,
+                    # never a reason to stop: the peer may be a device that is
+                    # rebooting and will be back in seconds.
+                    backoff = min(backoff * 2, 30.0)
+                idle_since = None
                 continue
             except Exception as e:
                 if self._running:

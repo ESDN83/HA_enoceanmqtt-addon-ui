@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.8.3-beta1] - 2026-09-21 (beta channel)
+
+The TCP reconnect path, after a report on an ESPHome bridge (#42).
+
+### Fixed
+
+- **A reconnect that timed out stopped the reconnect loop for good.** The
+  socket was stored before it was connected, so a timed-out connect left a
+  socket behind that had never been connected. Reading from it raises a
+  timeout, which the reader treats as "no data yet", so it never noticed that
+  there was no transport and never retried: the add-on sat dead for 22 minutes
+  across two peer reboots until *Restart services*. A socket is now only kept
+  once it is connected, and a failed attempt is just an attempt.
+- **The reconnect backoff no longer resets on a bare TCP handshake.** A peer
+  that accepts and immediately hangs up, an ESP32 out of heap for instance, was
+  retried about once a second for hours, which kept it from recovering and
+  buried everything else in the log. A session now has to carry a byte or last
+  30 seconds before it counts, otherwise the backoff keeps growing to 30 s.
+- **The "still waiting for data" heartbeat measures real time.** It counted
+  reads and called each one a second, so with the stale socket's longer timeout
+  it reported 30 s where 150 s had passed. It also cannot appear any more while
+  no transport exists.
+
 ## [1.8.2] - 2026-09-13 (beta channel)
 
 Released as stable. Identical to 1.8.2-beta4, so both channels are level again
