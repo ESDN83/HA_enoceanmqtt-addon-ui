@@ -196,6 +196,17 @@ function toggleSenderIdField(select) {
             if (input) input.value = '';
         }
     }
+    // The press duration is a cover setting too: some shutter receivers only
+    // travel on a long press (Flextron ALADIN, ADR-0019).
+    const pressGroup = document.getElementById('press-time-group');
+    if (pressGroup) {
+        const showPress = select.value === 'cover';
+        pressGroup.style.display = showPress ? '' : 'none';
+        if (!showPress) {
+            const input = pressGroup.querySelector('input[name="press_time"]');
+            if (input) input.value = '';
+        }
+    }
     // Same for driving to a position, which is a cover-only command path and
     // needs the GFVS teach-in behind it (#40).
     const posGroup = document.getElementById('position-control-group');
@@ -256,6 +267,7 @@ async function saveDevice(e) {
     // An empty travel time field means "no position", which the backend
     // stores as 0. Sending "" instead would fail validation.
     device.travel_time = Math.max(0, parseInt(device.travel_time, 10) || 0);
+    device.press_time = Math.min(5000, Math.max(0, parseInt(device.press_time, 10) || 0));
     const posCb = form.querySelector('input[name="position_control"]');
     device.position_control = !!(posCb && posCb.checked);
     // The watchdog is one number on the wire: minutes, 0 meaning never. The
@@ -420,6 +432,8 @@ async function editDevice(name) {
         if (invertCb) invertCb.checked = !!device.invert;
         const travelField = document.querySelector('[name="travel_time"]');
         if (travelField) travelField.value = device.travel_time || '';
+        const pressField = document.querySelector('[name="press_time"]');
+        if (pressField) pressField.value = device.press_time || '';
         const posCb = document.querySelector('[name="position_control"]');
         if (posCb) posCb.checked = !!device.position_control;
 

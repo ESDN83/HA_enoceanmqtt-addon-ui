@@ -541,6 +541,11 @@
                                     <input type="number" class="form-control" name="travel_time" min="0" max="65535" placeholder="0">
                                     <small class="text-muted" data-i18n="teach_in.travel_time_hint">Seconds for a full run. Eltako shutter actuators report how long they ran, which becomes a position once this is known. 0 = no position, only open/closed.</small>
                                 </div>
+                                <div class="col-md-6 mb-3" id="press-time-group" style="display: none;">
+                                    <label class="form-label" data-i18n="teach_in.press_time">Press duration for Open/Close (ms)</label>
+                                    <input type="number" class="form-control" name="press_time" min="0" max="5000" step="100" placeholder="0">
+                                    <small class="text-muted" data-i18n="teach_in.press_time_hint">Only for covers driven as a pushbutton (F6). Empty or 0 = short press, right for Eltako. Actuators that turn a short press into a slat step and only travel on a long one (e.g. Flextron ALADIN) need about 2500. Stop always stays a short press.</small>
+                                </div>
                                 <div class="col-md-6 mb-3" id="position-control-group" style="display: none;">
                                     <label class="form-label" data-i18n="teach_in.position_control">Position control</label>
                                     <div class="form-check mt-2">
