@@ -1,6 +1,6 @@
 # 0018. A failed connect leaves no socket behind, and only a usable session resets the backoff
 
-Status: accepted (v1.8.3-beta1). Follows ADR-0017.
+Status: accepted (v1.8.3-beta1), released in v1.8.3. Follows ADR-0017.
 
 ## Context
 

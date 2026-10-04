@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.3] - 2026-10-04 (beta channel)
+
+Released as stable. Identical to 1.8.3-beta1, so both channels are level again
+and the next beta starts from here.
+
 ## [1.8.3-beta1] - 2026-09-21 (beta channel)
 
 The TCP reconnect path, after a report on an ESPHome bridge (#42).
