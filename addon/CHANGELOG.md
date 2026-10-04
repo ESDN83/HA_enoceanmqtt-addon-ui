@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.8.3] - 2026-10-04
+
+The TCP transport recovers on its own again after its peer has been away.
+Field tested on an ESPHome `stream_server` bridge by the reporter of #42, who
+confirmed the fix. Closes #42.
+
+### Fixed
+
+- **A reconnect that timed out stopped the reconnect loop for good** (#42).
+  The socket was kept before it was connected, so a timed-out connect left one
+  behind that had never been connected. The reader took its timeouts for "no
+  data yet", never noticed that there was no transport and never retried: the
+  add-on sat dead until *Restart services*. A socket is now only kept once it
+  is connected, and a failed attempt is just an attempt. **Everyone using a
+  TCP/network gateway (ESPHome, ser2net) should update.** See ADR-0018.
+- **The reconnect backoff no longer resets on a bare TCP handshake.** A peer
+  that accepts and hangs up at once, an ESP32 out of heap for instance, was
+  retried about once a second for hours. A session now has to carry a byte or
+  last 30 seconds to count, otherwise the backoff grows to 30 s.
+- **The "still waiting for data" heartbeat measures real time** instead of
+  counting reads, and no longer appears while no transport exists.
+
 ## [1.8.2] - 2026-09-13
 
 Eltako shutters can be driven to a **position**, and reception can no longer die
