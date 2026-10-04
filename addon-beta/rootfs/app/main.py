@@ -23,7 +23,7 @@ from api import devices, eep, mappings, system, gateway
 
 # Import core components
 from core.mqtt_handler import MQTTHandler
-from core.serial_handler import SerialHandler
+from core.serial_handler import SerialHandler, RPS_HOLD_SECONDS
 from core.device_manager import DeviceManager
 from core.eep_manager import EEPManager
 from core.mapping_manager import MappingManager
@@ -191,6 +191,7 @@ async def lifespan(app: FastAPI):
         # telegrams without telling anyone (ADR-0012).
         command_queue = CommandQueue(
             _handle_device_command,
+            extra_time=_command_extra_time,
             # No publisher when the entities do not exist: nothing would read
             # the topic and every command would write to it twice.
             on_change=_publish_gateway_state if GATEWAY_DIAGNOSTICS else None,
@@ -621,6 +622,26 @@ async def _echo_light_state(device_name: str, command: str, brightness: int = No
     await mqtt_handler.publish_state(device_name, state)
 
 
+def _cover_press_hold(device) -> float:
+    """Seconds an F6 cover's Open/Close press is held. ADR-0019."""
+    if device.press_time and device.press_time > 0:
+        return device.press_time / 1000.0
+    return RPS_HOLD_SECONDS
+
+
+def _command_extra_time(device_name: str) -> float:
+    """Time a command may need beyond the queue's normal deadline.
+
+    A long press is held in full before the release goes out, so the
+    command legitimately takes that long. Without this the queue would
+    report every Open/Close of such a cover as timed out.
+    """
+    device = device_manager.get_device(device_name) if device_manager else None
+    if device and device.actuator_type == "cover" and (device.press_time or 0) > 0:
+        return device.press_time / 1000.0
+    return 0.0
+
+
 async def _handle_device_command(device_name: str, payload: str, entity: str = None):
     """Handle MQTT command for an actuator device, send F6 telegram.
 
@@ -936,9 +957,13 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             rocker = 0x50 if rocker == 0x70 else 0x70
         if rocker is not None:
             _last_cover_rocker[device_name] = rocker
+            # A configured press time is for actuators that only travel on a
+            # long press (Flextron ALADIN, ADR-0019). Stop below stays a tap,
+            # which halts a running shutter on those as well.
             sent = await serial_handler.send_rps_press_release(
                 sender_id=sender_id, press_data=rocker,
-                destination=broadcast, label=device_name
+                destination=broadcast, label=device_name,
+                hold=_cover_press_hold(device)
             )
         elif command == "STOP":
             # A short tap stops a running shutter: "Kurzes Tippen unterbricht

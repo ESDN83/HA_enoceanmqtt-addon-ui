@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.8.4-beta1] - 2026-10-04 (beta channel)
+
+Covers that only travel on a long press, after a forum report on Flextron
+ALADIN 300630 shutter receivers.
+
+### Features
+
+- **Press duration for Open/Close** on covers driven as a pushbutton (F6).
+  Eltako reads a short press as "run the full way", which is what the add-on
+  has always sent. Flextron ALADIN does the opposite: a short press only steps
+  the slats and travel needs a press of about 2 s. Open the device and set
+  *Press duration for Open/Close* to about 2500 ms. Empty or 0 keeps the short
+  press, so nothing changes for Eltako. Stop always stays a short press, which
+  stops a running shutter on both. A long press no longer blocks other devices
+  while it is held. See ADR-0019.
+
 ## [1.8.3] - 2026-10-04 (beta channel)
 
 Released as stable. Identical to 1.8.3-beta1, so both channels are level again

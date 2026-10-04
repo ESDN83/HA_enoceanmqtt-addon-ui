@@ -24,6 +24,7 @@ class DeviceCreate(BaseModel):
     invert: Optional[bool] = False  # cover: reverse Open/Close + position
     travel_time: Optional[int] = 0  # cover: full travel time in seconds, 0 = unknown
     position_control: Optional[bool] = False  # cover: Eltako GFVS teach-in done (A5-3F-7F)
+    press_time: Optional[int] = 0  # cover, F6: Open/Close hold in ms, 0 = short press (ADR-0019)
     channel: Optional[int] = 0  # multi-channel actuators (D2-01-11/12): 0 or 1
     availability_timeout: Optional[int] = 0  # minutes of silence before unavailable; 0 = never (#37)
 
@@ -43,6 +44,7 @@ class DeviceUpdate(BaseModel):
     invert: Optional[bool] = None
     travel_time: Optional[int] = None
     position_control: Optional[bool] = None
+    press_time: Optional[int] = None
     channel: Optional[int] = None
     availability_timeout: Optional[int] = None
 
@@ -54,6 +56,14 @@ class DeviceUpdate(BaseModel):
 # cannot be addressed afterwards (issue #36). Quotes and accents are fine, the
 # UI escapes them properly now.
 _ILLEGAL_NAME_CHARS = ("/", "+", "#")
+
+# A press is held in full before the release goes out, and the command queue
+# waits for it. Five seconds is well past any long press an actuator asks for.
+PRESS_TIME_MAX_MS = 5000
+
+
+def _clamp_press_time(value) -> int:
+    return max(0, min(PRESS_TIME_MAX_MS, int(value or 0)))
 
 
 def _validate_device_name(name: str) -> str:
@@ -169,6 +179,7 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
         invert=bool(device.invert),
         travel_time=max(0, int(device.travel_time or 0)),
         position_control=bool(device.position_control),
+        press_time=_clamp_press_time(device.press_time),
         channel=int(device.channel or 0),
         availability_timeout=max(0, int(device.availability_timeout or 0))
     )
@@ -230,6 +241,8 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
         update_data["travel_time"] = max(0, int(update.travel_time))
     if update.position_control is not None:
         update_data["position_control"] = bool(update.position_control)
+    if update.press_time is not None:
+        update_data["press_time"] = _clamp_press_time(update.press_time)
     if update.availability_timeout is not None:
         update_data["availability_timeout"] = max(0, int(update.availability_timeout))
     if update.channel is not None:
