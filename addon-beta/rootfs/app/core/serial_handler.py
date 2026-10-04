@@ -185,6 +185,10 @@ class SerialHandler:
         # transmit queue. _last_tx carries the gap across slots.
         self._tx_lock = asyncio.Lock()
         self._last_tx: float = 0.0
+        # One rocker press at a time per sender ID. An actuator only knows
+        # the sender, so while a long press is held, a release from another
+        # device on the same sender would end it early. See ADR-0019.
+        self._rps_sender_locks: Dict[int, asyncio.Lock] = {}
         # Position control only: what the last A5-3F-7F travel per device was
         # measured against, and whether anything has answered it yet. See
         # track_cover_travel.
@@ -1943,6 +1947,13 @@ class SerialHandler:
 
     async def _send_rps_pair(self, sender_id: int, press_data: int, destination: int,
                              hold: float, label: str) -> bool:
+        lock = self._rps_sender_locks.setdefault(sender_id, asyncio.Lock())
+        async with lock:
+            return await self._send_rps_pair_unlocked(sender_id, press_data,
+                                                      destination, hold, label)
+
+    async def _send_rps_pair_unlocked(self, sender_id: int, press_data: int,
+                                      destination: int, hold: float, label: str) -> bool:
         if hold > RPS_HOLD_WARN_SECONDS:
             return await self._send_rps_long_press(sender_id, press_data, destination,
                                                    hold, label)

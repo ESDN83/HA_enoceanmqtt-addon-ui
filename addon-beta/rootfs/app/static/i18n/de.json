@@ -377,6 +377,7 @@
   "device.sender_clash_body": "Diese Sender-ID wird bereits verwendet von",
   "device.sender_clash_hint": "Eltako-Aktoren brauchen je eine eigene Sender-ID, sonst reagieren beide auf dieselben Befehle. Trotzdem speichern?",
   "device.sender_clash_btn": "Trotzdem speichern",
+  "teach_in.invert": "Umkehren",
   "teach_in.invert_label": "Laufrichtung umkehren (Auf/Zu vertauscht)",
   "teach_in.availability": "Verfügbarkeit",
   "teach_in.availability_label": "Gerät als nicht verfügbar melden, wenn es verstummt",

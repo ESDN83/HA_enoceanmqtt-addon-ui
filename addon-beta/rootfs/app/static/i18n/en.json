@@ -377,6 +377,7 @@
   "device.sender_clash_body": "This Sender ID is already used by",
   "device.sender_clash_hint": "Eltako-style actuators each need their own Sender ID, otherwise both react to the same commands. Save anyway?",
   "device.sender_clash_btn": "Save anyway",
+  "teach_in.invert": "Invert",
   "teach_in.invert_label": "Reverse direction (Open/Close inverted)",
   "teach_in.availability": "Availability",
   "teach_in.availability_label": "Report as unavailable when the device goes silent",

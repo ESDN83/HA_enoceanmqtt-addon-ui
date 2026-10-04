@@ -1,7 +1,7 @@
 # 0019. A rocker cover's press time is a device setting
 
-Status: proposed (v1.8.4-beta1), awaiting a field test on a Flextron ALADIN
-300630.
+Status: proposed (v1.8.4-beta1, amended in v1.8.4-beta2), awaiting a field
+test on a Flextron ALADIN 300630.
 
 ## Context
 
@@ -34,14 +34,22 @@ command deadline (2 s) are shorter than a 2 s press.
   up to three times if the slot is busy, so it is not lost.
 - The command queue grants a command its device's press time on top of the
   normal deadline, so a long press is not reported as timed out.
+- (beta2) One rocker press at a time per sender ID. An actuator only knows the
+  sender, so while a long press is held, a release from another device on the
+  same sender ends it early. Sharing a sender is allowed after a warning, for
+  group control for instance, so this is a real case. A press on that sender
+  waits until the held one is released, and the queue grants it the longest
+  press time among the covers it shares the sender with on top of its own.
+  Teach-in telegrams do not take the lock.
 
 ## Consequences
 
 - Eltako users see no change: the field is empty and the tap path is the
   same code as before.
-- The threshold for Flextron (about 2 s) comes from Flextron's ALADIN
-  documentation as quoted in search results; the 300630 manual itself could
-  not be fetched from the development environment. The hint suggests 2500 ms
+- The 300630 manual (MAN_300630_10) says "kurz" and "lange drücken" but gives
+  no number of seconds. Function 1 (blinds): short = slat step or stop, long =
+  run. Function 2 (shutter/awning): long = run, short = stop. Function 3 is
+  single-button mode. 2500 ms is an estimate. The hint suggests 2500 ms
   and the value is adjustable, so a different threshold needs no new release.
 - A cover with a long press occupies one queue worker for its press time.
   With two workers a scene of several such covers runs one press time per

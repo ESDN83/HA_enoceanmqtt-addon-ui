@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.4-beta2] - 2026-10-04 (beta channel)
+
+### Fixed
+
+- **A long press could be cut short by another device on the same sender
+  ID.** The actuator only knows the sender, so a release sent for the other
+  device in the middle of the hold ended the press. Presses on one sender now
+  go out one after the other, and the waiting command is not reported as
+  timed out. Only matters if you saved a device with a sender ID that is
+  already in use.
+- The heading above *Reverse direction* read "Direction" in every language.
+  It is now *Invert* / *Umkehren* and fits switches too.
+
 ## [1.8.4-beta1] - 2026-10-04 (beta channel)
 
 Covers that only travel on a long press, after a forum report on Flextron

@@ -634,12 +634,24 @@ def _command_extra_time(device_name: str) -> float:
 
     A long press is held in full before the release goes out, so the
     command legitimately takes that long. Without this the queue would
-    report every Open/Close of such a cover as timed out.
+    report every Open/Close of such a cover as timed out. A device that
+    shares its sender ID with such a cover waits for that press to be
+    released first (ADR-0019), so it gets the same allowance.
     """
     device = device_manager.get_device(device_name) if device_manager else None
-    if device and device.actuator_type == "cover" and (device.press_time or 0) > 0:
-        return device.press_time / 1000.0
-    return 0.0
+    if not device:
+        return 0.0
+    own = device.press_time if device.actuator_type == "cover" else 0
+    own = max(own or 0, 0)
+    sender = (device.sender_id or "").lower().replace("0x", "")
+    waited = 0
+    if sender:
+        for other in device_manager.devices.values():
+            if (other is not device and other.actuator_type == "cover"
+                    and (other.press_time or 0) > 0
+                    and (other.sender_id or "").lower().replace("0x", "") == sender):
+                waited = max(waited, other.press_time)
+    return (own + waited) / 1000.0
 
 
 async def _handle_device_command(device_name: str, payload: str, entity: str = None):
