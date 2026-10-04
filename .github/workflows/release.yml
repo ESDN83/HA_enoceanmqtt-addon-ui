@@ -2,12 +2,15 @@ name: Release
 
 # Pushing a vX.Y.Z tag publishes the GitHub release. The notes come from
 # .github/release-notes/<tag>.md: the first line is the release title, the
-# rest is the body. This lets a session without a personal GitHub token cut a
-# release with a plain `git push origin vX.Y.Z`.
+# rest is the body. A release can also be started by hand (Actions, "Run
+# workflow" on main, or the API): it then tags the current commit with the
+# version in addon/config.yaml. That is the path for a session whose git
+# access cannot push tags.
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,23 +20,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check the tag matches the stable version
+      - name: Work out the tag
         run: |
           want="v$(sed -n 's/^version: "\(.*\)"/\1/p' addon/config.yaml)"
-          if [ "$GITHUB_REF_NAME" != "$want" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$GITHUB_REF_NAME" != "main" ]; then
+              echo "::error::Run the release from main, not $GITHUB_REF_NAME"
+              exit 1
+            fi
+            echo "TAG=$want" >> "$GITHUB_ENV"
+          elif [ "$GITHUB_REF_NAME" != "$want" ]; then
             echo "::error::Tag $GITHUB_REF_NAME does not match addon/config.yaml ($want)"
             exit 1
+          else
+            echo "TAG=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
           fi
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          notes=".github/release-notes/${GITHUB_REF_NAME}.md"
+          notes=".github/release-notes/${TAG}.md"
           if [ ! -f "$notes" ]; then
             echo "::error::$notes is missing"
             exit 1
           fi
           title="$(head -n 1 "$notes")"
           tail -n +2 "$notes" | sed '1{/^$/d}' > "$RUNNER_TEMP/body.md"
-          gh release create "$GITHUB_REF_NAME" --title "$title" \
-            --notes-file "$RUNNER_TEMP/body.md" --verify-tag
+          # On a tag push the tag exists; by hand, gh creates it on this commit.
+          gh release create "$TAG" --title "$title" \
+            --notes-file "$RUNNER_TEMP/body.md" --target "$GITHUB_SHA"
