@@ -4,9 +4,9 @@ System API - System status and configuration
 
 import os
 import logging
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse, StreamingResponse
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import json
 import yaml
 import aiofiles
@@ -783,3 +783,169 @@ async def _supervisor_self_restart() -> bool:
         return await loop.run_in_executor(None, _call)
     except Exception:
         return False
+
+
+# === Import from another EnOcean add-on (ADR-0020) ===
+
+def _supervisor_get_json(path_or_url: str, timeout: float = 10):
+    """GET JSON from the Supervisor (a path) or from another add-on (a URL)."""
+    import urllib.request
+    url = path_or_url if path_or_url.startswith("http") else f"http://supervisor{path_or_url}"
+    headers = {}
+    if not path_or_url.startswith("http"):
+        headers["Authorization"] = f"Bearer {os.getenv('SUPERVISOR_TOKEN', '')}"
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read())
+
+
+async def _find_slim_addon() -> Dict[str, Any]:
+    """The installed Slim add-on, or {} if there is none or no Supervisor."""
+    import asyncio
+    import urllib.error
+    from core.legacy_import import SLIM_SLUGS
+    if not os.getenv("SUPERVISOR_TOKEN"):
+        return {}
+
+    def _call():
+        for slug in SLIM_SLUGS:
+            try:
+                info = _supervisor_get_json(f"/addons/{slug}/info").get("data", {})
+            except urllib.error.HTTPError:
+                continue  # not installed under this slug
+            return {"slug": slug, "state": info.get("state", ""),
+                    "ip": info.get("ip_address", ""), "port": info.get("ingress_port") or 8099}
+        return {}
+
+    try:
+        return await asyncio.get_event_loop().run_in_executor(None, _call)
+    except Exception as e:
+        logger.warning(f"Slim lookup via Supervisor failed: {e}")
+        return {}
+
+
+@router.get("/legacy-import/sources")
+async def legacy_import_sources() -> Dict[str, Any]:
+    """Which old add-on configurations can be read without an upload."""
+    from core.legacy_import import CHRISTOPHEHD_DEFAULT_FILE
+    slim = await _find_slim_addon()
+    return {
+        "christophehd": {"available": os.path.isfile(CHRISTOPHEHD_DEFAULT_FILE),
+                         "path": CHRISTOPHEHD_DEFAULT_FILE},
+        "slim": {"installed": bool(slim), "available": slim.get("state") == "started",
+                 "slug": slim.get("slug", "")},
+    }
+
+
+@router.post("/legacy-import/preview")
+async def legacy_import_preview(request: Request, source: str = Form(""),
+                                file: Optional[UploadFile] = File(None)) -> Dict[str, Any]:
+    """Read an old device list and return the candidates; creates nothing.
+
+    source = christophehd: /config/enoceanmqtt.devices
+    source = slim: fetched from the running Slim add-on
+    or an uploaded file (enoceanmqtt.devices, Slim devices.json or /api/devices)
+    """
+    import asyncio
+    from core import legacy_import as li
+
+    try:
+        if file is not None:
+            fmt, devices, skipped = li.detect_and_parse(await file.read())
+        elif source == "christophehd":
+            async with aiofiles.open(li.CHRISTOPHEHD_DEFAULT_FILE, "r") as f:
+                text = await f.read()
+            fmt = "christophehd"
+            devices, skipped = li.parse_christophehd(text)
+        elif source == "slim":
+            slim = await _find_slim_addon()
+            if slim.get("state") != "started" or not slim.get("ip"):
+                raise HTTPException(status_code=409, detail="The Slim app is not running. Start it, then try again.")
+            url = f"http://{slim['ip']}:{slim['port']}/api/devices"
+            data = await asyncio.get_event_loop().run_in_executor(None, _supervisor_get_json, url)
+            fmt = "slim"
+            devices, skipped = li.parse_slim(data)
+        else:
+            raise HTTPException(status_code=400, detail="Choose a source or upload a file")
+    except HTTPException:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found")
+    except Exception as e:
+        logger.warning(f"Legacy import preview failed: {e}")
+        raise HTTPException(status_code=400, detail=f"Could not read the device list: {e}")
+
+    li.annotate(devices, request.app.state.device_manager, getattr(request.app.state, "eep_manager", None))
+    logger.info(f"Legacy import preview ({fmt}): {len(devices)} devices, {len(skipped)} skipped")
+    return {"format": fmt, "devices": devices, "skipped": skipped}
+
+
+def _scan_retained_discovery(mqtt_handler, seconds: float = 3.0) -> list:
+    """All retained `<prefix>/+/+/config` messages, read with a short-lived
+    client of its own so the main connection's subscriptions stay untouched."""
+    import time
+    import uuid
+    import paho.mqtt.client as mqtt
+
+    found = []
+    client = mqtt.Client(client_id=f"enocean_legacy_scan_{uuid.uuid4().hex[:6]}")
+    if mqtt_handler.username:
+        client.username_pw_set(mqtt_handler.username, mqtt_handler.password)
+    client.on_connect = lambda c, u, f, rc: c.subscribe(f"{mqtt_handler.discovery_prefix}/+/+/config")
+    client.on_message = lambda c, u, m: found.append((m.topic, m.payload)) if m.retain else None
+    client.connect(mqtt_handler.host, mqtt_handler.port, keepalive=30)
+    client.loop_start()
+    try:
+        time.sleep(seconds)
+    finally:
+        client.loop_stop()
+        client.disconnect()
+    return found
+
+
+async def _find_old_entities(request: Request) -> list:
+    import asyncio
+    from core.legacy_import import match_old_entity
+    mqtt_handler = request.app.state.mqtt_handler
+    device_manager = request.app.state.device_manager
+    if not mqtt_handler or not mqtt_handler.is_connected:
+        raise HTTPException(status_code=503, detail="MQTT not connected")
+    # Only devices configured here: an old entity is removed only once its
+    # device exists in this app.
+    addresses = {d.address.strip().lower().replace("0x", "").zfill(8)
+                 for d in device_manager.devices.values() if d.address}
+    messages = await asyncio.get_event_loop().run_in_executor(
+        None, _scan_retained_discovery, mqtt_handler)
+    hits = [match_old_entity(t, p, mqtt_handler.discovery_prefix, addresses) for t, p in messages]
+    return sorted([h for h in hits if h], key=lambda h: (h["address"], h["topic"]))
+
+
+@router.post("/legacy-import/old-entities")
+async def legacy_old_entities(request: Request) -> Dict[str, Any]:
+    """List the old add-ons' entities of devices that are configured here."""
+    slim = await _find_slim_addon()
+    return {"entities": await _find_old_entities(request),
+            "slim_running": slim.get("state") == "started"}
+
+
+@router.post("/legacy-import/old-entities/remove")
+async def legacy_old_entities_remove(request: Request) -> Dict[str, Any]:
+    """Clear the retained discovery config of the chosen old entities.
+
+    Home Assistant then removes those entities; the device keeps every other
+    entity. Only topics that still pass the same check as the listing are
+    cleared, whatever the client sends.
+    """
+    body = await request.json()
+    wanted = set(body.get("topics") or [])
+    slim = await _find_slim_addon()
+    if slim.get("state") == "started":
+        raise HTTPException(status_code=409, detail="Stop the Slim app first, it would publish its entities again.")
+    allowed = {h["topic"] for h in await _find_old_entities(request)}
+    mqtt_handler = request.app.state.mqtt_handler
+    removed = []
+    for topic in sorted(wanted & allowed):
+        await mqtt_handler.publish(topic, "", retain=True)
+        removed.append(topic)
+    logger.info(f"Legacy cleanup: cleared {len(removed)} old discovery configs")
+    return {"removed": removed, "refused": sorted(wanted - allowed)}

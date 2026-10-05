@@ -334,3 +334,199 @@ function resetMqttConfig() {
         }
     );
 }
+
+// === Import from another EnOcean add-on (ADR-0020) ===
+// The server only reads and checks the old list; every chosen device is then
+// created through the normal POST /api/devices, one by one.
+let legacyCandidates = [];
+
+async function loadLegacySources() {
+    const hint = document.getElementById('legacy-sources-hint');
+    try {
+        const r = await fetch(getApiUrl('/api/system/legacy-import/sources'));
+        const s = await r.json();
+        document.getElementById('legacy-btn-christophehd').disabled = !s.christophehd.available;
+        document.getElementById('legacy-btn-slim').disabled = !s.slim.available;
+        const notes = [];
+        if (s.slim.installed && !s.slim.available) notes.push(t('legacy.slim_stopped', 'Slim is installed but not running. Start it to read its devices.'));
+        if (!s.christophehd.available && !s.slim.installed) notes.push(t('legacy.none_found', 'No old app found. You can still upload an enoceanmqtt.devices or Slim devices.json file.'));
+        hint.textContent = notes.join(' ');
+    } catch (e) {
+        hint.textContent = '';
+    }
+}
+
+async function legacyPreview(source) {
+    const fd = new FormData();
+    fd.append('source', source);
+    await legacyRunPreview(fd);
+}
+
+async function legacyPreviewFile(input) {
+    if (!input.files.length) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    input.value = '';
+    await legacyRunPreview(fd);
+}
+
+async function legacyRunPreview(fd) {
+    const box = document.getElementById('legacy-preview');
+    box.innerHTML = '<div class="spinner-border spinner-border-sm"></div>';
+    try {
+        const r = await fetch(getApiUrl('/api/system/legacy-import/preview'), {method: 'POST', body: fd});
+        const res = await r.json();
+        if (!r.ok) throw new Error(res.detail || r.statusText);
+        legacyCandidates = res.devices;
+        renderLegacyPreview(res);
+    } catch (e) {
+        box.innerHTML = '';
+        showToast(t('legacy.read_failed', 'Could not read the device list') + ': ' + e.message, 'danger');
+    }
+}
+
+const LEGACY_SKIP_REASONS = {
+    ignored: ['legacy.skip_ignored', 'marked ignore'],
+    no_address: ['legacy.skip_no_address', 'no valid address'],
+    no_eep: ['legacy.skip_no_eep', 'no EEP'],
+    model_only: ['legacy.skip_model', 'defined by model only, add it by hand with its EEP'],
+};
+
+function renderLegacyPreview(res) {
+    const box = document.getElementById('legacy-preview');
+    const rows = legacyCandidates.map((c, i) => {
+        const status = c.exists
+            ? `<span class="badge bg-secondary">${t('legacy.exists', 'already configured')}</span>`
+            : (c.eep_known ? '' : `<span class="badge bg-warning text-dark">${t('legacy.unknown_eep', 'EEP not in database')}</span>`);
+        return `<tr>
+            <td><input type="checkbox" class="form-check-input legacy-pick" data-i="${i}" ${c.exists || !c.eep_known ? '' : 'checked'}></td>
+            <td><input type="text" class="form-control form-control-sm legacy-name" data-i="${i}" value="${escapeHtml(c.name)}"></td>
+            <td><code>${escapeHtml(c.address)}</code></td>
+            <td>${escapeHtml(c.eep)}</td>
+            <td>${c.sender_id ? `<code>${escapeHtml(c.sender_id)}</code>` : ''}</td>
+            <td>${status}</td>
+        </tr>`;
+    }).join('');
+    const skipped = (res.skipped || []).map(s => {
+        const [key, fb] = LEGACY_SKIP_REASONS[s.reason] || ['', s.reason];
+        return `<li>${escapeHtml(s.name)}${s.address ? ` (<code>${escapeHtml(s.address)}</code>)` : ''}: ${key ? t(key, fb) : escapeHtml(fb)}</li>`;
+    }).join('');
+    const fmt = res.format === 'slim' ? 'EnOcean MQTT Slim' : 'ChristopheHD enocean-mqtt';
+    box.innerHTML = `
+        <div class="small mb-2"><strong>${fmt}</strong>: ${legacyCandidates.length} ${t('legacy.found', 'devices found')}</div>
+        ${legacyCandidates.length ? `<div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th></th><th>${t('legacy.col_name', 'Name')}</th><th>${t('legacy.col_address', 'Address')}</th><th>EEP</th><th>${t('legacy.col_sender', 'Sender ID')}</th><th></th></tr></thead>
+            <tbody>${rows}</tbody></table></div>` : ''}
+        ${skipped ? `<div class="small text-muted">${t('legacy.skipped', 'Not imported')}:<ul class="mb-2">${skipped}</ul></div>` : ''}
+        <div class="small text-muted mb-2">${t('legacy.check_actuators', 'Actuators (lights, switches, covers) may need their type and sender ID checked afterwards.')}</div>
+        ${legacyCandidates.length ? `<button class="btn btn-primary" onclick="legacyImportSelected()"><i class="bi bi-plus-circle"></i> ${t('legacy.import_selected', 'Add selected devices')}</button>` : ''}`;
+}
+
+async function legacyImportSelected() {
+    const picks = [...document.querySelectorAll('.legacy-pick:checked')].map(el => +el.dataset.i);
+    if (!picks.length) return;
+    let ok = 0;
+    const failed = [];
+    for (const i of picks) {
+        const c = legacyCandidates[i];
+        const name = document.querySelector(`.legacy-name[data-i="${i}"]`).value.trim();
+        try {
+            const r = await fetch(getApiUrl('/api/devices'), {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name, address: c.address, rorg: c.rorg, func: c.func, type: c.type,
+                    sender_id: c.sender_id || '', manufacturer: c.manufacturer || '',
+                }),
+            });
+            if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+            ok++;
+        } catch (e) {
+            failed.push(`${name}: ${e.message}`);
+        }
+    }
+    document.getElementById('legacy-preview').innerHTML = failed.length
+        ? `<div class="alert alert-warning small mb-0">${failed.map(escapeHtml).join('<br>')}</div>` : '';
+    showToast(`${ok} ${t('legacy.added', 'devices added')}${failed.length ? `, ${failed.length} ${t('legacy.failed', 'failed')}` : ''}`,
+        failed.length ? 'warning' : 'success');
+    if (typeof loadDevices === 'function') loadDevices();
+}
+
+const LEGACY_HELP_STEPS = [
+    ['legacy.help_1', 'Make a full Home Assistant backup. This tool comes without warranty.'],
+    ['legacy.help_2', 'Leave the old app running for now. Slim is read over the network; ChristopheHD is read from /config/enoceanmqtt.devices. You can also upload the file.'],
+    ['legacy.help_3', 'Step 1: read the list, check the names, add the selected devices. Devices that already exist are not ticked.'],
+    ['legacy.help_4', 'Stop the old app and turn off "Start on boot". Only one app can use the transceiver.'],
+    ['legacy.help_5', 'Step 2: find the old entities and remove the ones you no longer need. Only devices that exist in this app are offered, and the Home Assistant device itself is not deleted.'],
+    ['legacy.help_6', 'Rename the new entities to the old entity IDs (Settings, Entities). Automations and dashboards then keep working. The history of the old entities is not carried over.'],
+    ['legacy.help_7', 'Check actuators (light, switch, cover): their type and sender ID may need setting.'],
+];
+
+function showLegacyHelp() {
+    document.getElementById('legacyHelpSteps').innerHTML =
+        LEGACY_HELP_STEPS.map(([k, fb]) => `<li class="mb-2">${escapeHtml(t(k, fb))}</li>`).join('');
+    new bootstrap.Modal(document.getElementById('legacyHelpModal')).show();
+}
+
+let legacyOld = [];
+
+async function legacyFindOld() {
+    const box = document.getElementById('legacy-old');
+    box.innerHTML = '<div class="spinner-border spinner-border-sm"></div>';
+    try {
+        const r = await fetch(getApiUrl('/api/system/legacy-import/old-entities'), {method: 'POST'});
+        const res = await r.json();
+        if (!r.ok) throw new Error(res.detail || r.statusText);
+        legacyOld = res.entities;
+        renderLegacyOld(res);
+    } catch (e) {
+        box.innerHTML = '';
+        showToast(t('legacy.find_failed', 'Could not search for old entities') + ': ' + e.message, 'danger');
+    }
+}
+
+function renderLegacyOld(res) {
+    const box = document.getElementById('legacy-old');
+    if (!legacyOld.length) {
+        box.innerHTML = `<div class="small text-muted">${t('legacy.old_none', 'No old entities found for the devices configured here.')}</div>`;
+        return;
+    }
+    const rows = legacyOld.map((o, i) => `<tr>
+        <td><input type="checkbox" class="form-check-input legacy-old-pick" data-i="${i}" checked></td>
+        <td>${escapeHtml(o.device)}</td>
+        <td>${escapeHtml(o.name)}</td>
+        <td><code>${escapeHtml(o.address)}</code></td>
+        <td>${o.source === 'slim' ? 'Slim' : 'ChristopheHD'}</td>
+        <td class="small text-muted"><code>${escapeHtml(o.unique_id)}</code></td>
+    </tr>`).join('');
+    box.innerHTML = `
+        ${res.slim_running ? `<div class="alert alert-warning small py-2">${t('legacy.slim_still_running', 'Slim is still running. Stop it first, otherwise it publishes these entities again.')}</div>` : ''}
+        <div class="small mb-2">${legacyOld.length} ${t('legacy.old_found', 'old entities found')}</div>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th></th><th>${t('legacy.col_device', 'Device')}</th><th>${t('legacy.col_entity', 'Entity')}</th><th>${t('legacy.col_address', 'Address')}</th><th>${t('legacy.col_source', 'From')}</th><th>Unique ID</th></tr></thead>
+            <tbody>${rows}</tbody></table></div>
+        <button class="btn btn-danger" onclick="legacyRemoveOld()" ${res.slim_running ? 'disabled' : ''}>
+            <i class="bi bi-trash"></i> ${t('legacy.remove_selected', 'Remove selected old entities')}</button>`;
+}
+
+function legacyRemoveOld() {
+    const topics = [...document.querySelectorAll('.legacy-old-pick:checked')].map(el => legacyOld[+el.dataset.i].topic);
+    if (!topics.length) return;
+    showConfirmDialog(
+        t('legacy.remove_title', 'Remove old entities?'),
+        escapeHtml(t('legacy.remove_body', 'Home Assistant removes {n} old entities. Automations that still use their entity IDs stop working until you rename the new entities. The devices and the new entities stay.').replace('{n}', topics.length)),
+        t('legacy.remove_selected', 'Remove selected old entities'), 'btn-danger',
+        async () => {
+            try {
+                const r = await fetch(getApiUrl('/api/system/legacy-import/old-entities/remove'), {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({topics}),
+                });
+                const res = await r.json();
+                if (!r.ok) throw new Error(res.detail || r.statusText);
+                showToast(`${res.removed.length} ${t('legacy.removed', 'old entities removed')}`, 'success');
+                await legacyFindOld();
+            } catch (e) {
+                showToast(t('legacy.remove_failed', 'Removing failed') + ': ' + e.message, 'danger');
+            }
+        });
+}

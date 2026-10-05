@@ -155,15 +155,26 @@ When enabled (default), the app persists the last known state of all devices.
 After a restart, these states are republished so that infrequent sensors (like a
 Kessel Staufix that only reports every 8-10 hours) don't show as "unavailable".
 
-## Migration from ChristopheHD Add-on
+## Switching from EnOcean MQTT Slim or ChristopheHD enocean-mqtt
 
-If you are migrating from the ChristopheHD enocean-mqtt add-on:
+Settings → *Switch from another EnOcean app*. The **How it works** button there
+shows the same steps. No warranty: make a full Home Assistant backup first.
 
-1. Export your config from the old add-on (if possible)
-2. Install this app and stop the old one
-3. Import your devices via the Settings page
-4. The old `enoceanmqtt.devices` file format is supported for import
-5. MQTT topics are compatible, existing HA entities should continue working
+1. Leave the old app running for now.
+2. **Add devices.** ChristopheHD is read from `/config/enoceanmqtt.devices`,
+   Slim from the running Slim app; either can also be uploaded as a file.
+   Check the names and add the ticked devices. Sections marked `ignore` or
+   defined only by `model =` are listed as skipped; add those by hand.
+3. Stop the old app and turn off *Start on boot*. Only one app can use the
+   transceiver.
+4. **Remove old entities.** *Find old entities* lists the old app's entities,
+   but only for devices that now exist in this app. Removing them clears their
+   MQTT discovery messages, so Home Assistant drops exactly those entities.
+   The Home Assistant device and the new entities stay. While Slim is still
+   running this step is refused, since Slim would publish them again.
+5. Rename the new entities to the old entity IDs (Settings → Entities), so
+   automations and dashboards keep working. History is not carried over.
+6. Check actuators (light, switch, cover): type and sender ID may need setting.
 
 ## Troubleshooting
 

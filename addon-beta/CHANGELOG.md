@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.8.4-beta3] - 2026-10-06 (beta channel)
+
+### Added
+
+- **Switch from EnOcean MQTT Slim or ChristopheHD enocean-mqtt.** A new card
+  in Settings, in two steps:
+  - *Add devices*: reads the old device list, from
+    `/config/enoceanmqtt.devices`, from the running Slim app, or from an
+    uploaded file. You pick the devices, they are added like any other.
+  - *Remove old entities*: removes the old app's entities, only for devices
+    that now exist here. The Home Assistant device and the new entities stay.
+  - Then rename the new entities to the old entity IDs to keep your
+    automations. *How it works* in the card explains each step.
+  - All 11 languages. Without warranty, back up first.
+
 ## [1.8.4-beta2] - 2026-10-04 (beta channel)
 
 ### Fixed
