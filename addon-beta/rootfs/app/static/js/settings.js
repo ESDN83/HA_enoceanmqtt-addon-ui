@@ -376,7 +376,7 @@ async function legacyRunPreview(fd) {
     try {
         const r = await fetch(getApiUrl('/api/system/legacy-import/preview'), {method: 'POST', body: fd});
         const res = await r.json();
-        if (!r.ok) throw new Error(res.detail || r.statusText);
+        if (!r.ok) throw new Error(apiErrorText(res.detail, r.statusText));
         legacyCandidates = res.devices;
         renderLegacyPreview(res);
     } catch (e) {
@@ -439,7 +439,7 @@ async function legacyImportSelected() {
                     sender_id: c.sender_id || '', manufacturer: c.manufacturer || '',
                 }),
             });
-            if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+            if (!r.ok) throw new Error(apiErrorText((await r.json()).detail, r.statusText));
             ok++;
         } catch (e) {
             failed.push(`${name}: ${e.message}`);
@@ -476,7 +476,7 @@ async function legacyFindOld() {
     try {
         const r = await fetch(getApiUrl('/api/system/legacy-import/old-entities'), {method: 'POST'});
         const res = await r.json();
-        if (!r.ok) throw new Error(res.detail || r.statusText);
+        if (!r.ok) throw new Error(apiErrorText(res.detail, r.statusText));
         legacyOld = res.entities;
         renderLegacyOld(res);
     } catch (e) {
@@ -522,7 +522,7 @@ function legacyRemoveOld() {
                     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({topics}),
                 });
                 const res = await r.json();
-                if (!r.ok) throw new Error(res.detail || r.statusText);
+                if (!r.ok) throw new Error(apiErrorText(res.detail, r.statusText));
                 showToast(`${res.removed.length} ${t('legacy.removed', 'old entities removed')}`, 'success');
                 await legacyFindOld();
             } catch (e) {

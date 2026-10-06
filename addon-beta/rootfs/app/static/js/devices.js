@@ -360,7 +360,7 @@ async function performSaveDevice(device, editMode, form) {
             let errorMsg = t('device.save_failed', 'Failed to save device');
             try {
                 const error = await response.json();
-                errorMsg = error.detail || errorMsg;
+                errorMsg = apiErrorText(error.detail, errorMsg);
             } catch (parseError) {
                 errorMsg = `Server error: ${response.status} ${response.statusText}`;
             }

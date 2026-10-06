@@ -69,6 +69,20 @@ async function executeConfirmedAction() {
         _pendingConfirmAction = null;
     }
 }
+// FastAPI sends `detail` as a string for our own errors, but as a list of
+// {loc, msg} for a request that fails validation (422). Showing that list
+// as is printed "[object Object]" and hid which field was wrong.
+function apiErrorText(detail, fallback) {
+    if (!detail) return fallback;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+        return detail.map(d => {
+            const field = Array.isArray(d.loc) ? d.loc.filter(p => p !== 'body').join('.') : '';
+            return (field ? field + ': ' : '') + (d.msg || JSON.stringify(d));
+        }).join('; ');
+    }
+    return JSON.stringify(detail);
+}
 function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'

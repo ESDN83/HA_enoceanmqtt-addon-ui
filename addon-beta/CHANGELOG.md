@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.8.4-beta4] - 2026-10-06 (beta channel)
+
+### Fixed
+
+- **Saving a device could fail with "[object Object]".** An empty number
+  field (travel time, press duration, availability minutes) was rejected
+  instead of being read as 0. It is read as 0 now, and any other save error
+  names the field and the reason.
+
 ## [1.8.4-beta3] - 2026-10-06 (beta channel)
 
 ### Added

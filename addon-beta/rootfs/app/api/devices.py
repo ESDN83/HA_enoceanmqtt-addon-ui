@@ -3,10 +3,21 @@ Devices API - CRUD operations for EnOcean devices
 """
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List, Dict, Any
 
 router = APIRouter()
+
+_NUMBER_FIELDS = ("travel_time", "press_time", "channel", "availability_timeout")
+
+
+def _blank_is_zero(cls, value):
+    """An empty number field in the form arrives as "". The UI means 0 by it
+    ("empty or 0 = ..."), so take it as 0 instead of failing the whole save
+    with a 422 shown as "[object Object]" (forum post 41)."""
+    if isinstance(value, str) and not value.strip():
+        return 0
+    return value
 
 
 class DeviceCreate(BaseModel):
@@ -28,6 +39,8 @@ class DeviceCreate(BaseModel):
     channel: Optional[int] = 0  # multi-channel actuators (D2-01-11/12): 0 or 1
     availability_timeout: Optional[int] = 0  # minutes of silence before unavailable; 0 = never (#37)
 
+    _blank_numbers = field_validator(*_NUMBER_FIELDS, mode="before")(_blank_is_zero)
+
 
 class DeviceUpdate(BaseModel):
     """Device update model"""
@@ -47,6 +60,8 @@ class DeviceUpdate(BaseModel):
     press_time: Optional[int] = None
     channel: Optional[int] = None
     availability_timeout: Optional[int] = None
+
+    _blank_numbers = field_validator(*_NUMBER_FIELDS, mode="before")(_blank_is_zero)
 
 
 # A device name is three things at once: the primary key, the base of its MQTT
