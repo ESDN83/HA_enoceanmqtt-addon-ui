@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse, StreamingResponse
 from typing import Dict, Any, Optional
 import json
+import re
 import yaml
 import aiofiles
 import zipfile
@@ -881,17 +882,20 @@ async def legacy_import_preview(request: Request, source: str = Form(""),
 
 
 def _scan_retained_discovery(mqtt_handler, seconds: float = 3.0) -> list:
-    """All retained `<prefix>/+/+/config` messages, read with a short-lived
+    """The retained discovery configs of the old apps (`<prefix>/+/+/config`)
+    and of this one (`<prefix>/+/enocean/+/config`), read with a short-lived
     client of its own so the main connection's subscriptions stay untouched."""
     import time
     import uuid
     import paho.mqtt.client as mqtt
 
     found = []
+    dp = mqtt_handler.discovery_prefix
     client = mqtt.Client(client_id=f"enocean_legacy_scan_{uuid.uuid4().hex[:6]}")
     if mqtt_handler.username:
         client.username_pw_set(mqtt_handler.username, mqtt_handler.password)
-    client.on_connect = lambda c, u, f, rc: c.subscribe(f"{mqtt_handler.discovery_prefix}/+/+/config")
+    client.on_connect = lambda c, u, f, rc: c.subscribe(
+        [(f"{dp}/+/+/config", 0), (f"{dp}/+/enocean/+/config", 0)])
     client.on_message = lambda c, u, m: found.append((m.topic, m.payload)) if m.retain else None
     client.connect(mqtt_handler.host, mqtt_handler.port, keepalive=30)
     client.loop_start()
@@ -903,9 +907,43 @@ def _scan_retained_discovery(mqtt_handler, seconds: float = 3.0) -> list:
     return found
 
 
-async def _find_old_entities(request: Request) -> list:
+async def _ha_ws(messages: list) -> list:
+    """Send each message to Home Assistant's WebSocket API (through the
+    Supervisor, needs homeassistant_api) and return the results in order.
+    Raises if Home Assistant cannot be reached or a call fails."""
+    import websockets
+    token = os.getenv("SUPERVISOR_TOKEN", "")
+    if not token:
+        raise RuntimeError("no Supervisor token")
+    results = []
+    async with websockets.connect("ws://supervisor/core/websocket", max_size=None,
+                                  open_timeout=10) as ws:
+        await ws.recv()  # auth_required
+        await ws.send(json.dumps({"type": "auth", "access_token": token}))
+        if json.loads(await ws.recv()).get("type") != "auth_ok":
+            raise RuntimeError("Home Assistant refused the Supervisor token")
+        for i, msg in enumerate(messages, start=1):
+            await ws.send(json.dumps(dict(msg, id=i)))
+            while True:
+                reply = json.loads(await ws.recv())
+                if reply.get("id") == i and reply.get("type") == "result":
+                    break
+            if not reply.get("success"):
+                raise RuntimeError(str((reply.get("error") or {}).get("message") or reply))
+            results.append(reply.get("result"))
+    return results
+
+
+async def _mqtt_entity_ids() -> Dict[str, str]:
+    """unique_id -> entity_id of every MQTT entity in Home Assistant."""
+    (entries,) = await _ha_ws([{"type": "config/entity_registry/list"}])
+    return {e["unique_id"]: e["entity_id"] for e in entries
+            if e.get("platform") == "mqtt" and e.get("unique_id")}
+
+
+async def _find_old_entities(request: Request) -> Dict[str, Any]:
     import asyncio
-    from core.legacy_import import match_old_entity
+    from core.legacy_import import match_old_entity, match_own_entity, pair_entities
     mqtt_handler = request.app.state.mqtt_handler
     device_manager = request.app.state.device_manager
     if not mqtt_handler or not mqtt_handler.is_connected:
@@ -916,36 +954,89 @@ async def _find_old_entities(request: Request) -> list:
                  for d in device_manager.devices.values() if d.address}
     messages = await asyncio.get_event_loop().run_in_executor(
         None, _scan_retained_discovery, mqtt_handler)
-    hits = [match_old_entity(t, p, mqtt_handler.discovery_prefix, addresses) for t, p in messages]
-    return sorted([h for h in hits if h], key=lambda h: (h["address"], h["topic"]))
+    dp = mqtt_handler.discovery_prefix
+    old = [h for h in (match_old_entity(t, p, dp, addresses) for t, p in messages) if h]
+    own = [h for h in (match_own_entity(t, p, dp, addresses) for t, p in messages) if h]
+    pair_entities(old, own)
+
+    # Entity IDs live only in Home Assistant's registry. Without it the old
+    # entities can still be removed, the IDs then have to be renamed by hand.
+    registry = True
+    try:
+        ids = await _mqtt_entity_ids()
+    except Exception as e:
+        logger.warning(f"Legacy cleanup: entity registry not readable: {e}")
+        ids, registry = {}, False
+    for o in old:
+        o["old_entity_id"] = ids.get(o["unique_id"], "")
+        o["new_entity_id"] = ids.get(o["new_unique_id"], "") if o["new_unique_id"] else ""
+        # The new entity already took the ID in an earlier run, and the old
+        # app came back as `<id>_2`. Renaming now would hand ours the suffix.
+        if (o["new_entity_id"] and o["old_entity_id"]
+                and re.fullmatch(re.escape(o["new_entity_id"]) + r"_\d+", o["old_entity_id"])):
+            o["new_entity_id"], o["pair_note"] = "", "already"
+    old.sort(key=lambda h: (h["address"], h["topic"]))
+    return {"entities": old, "registry": registry}
 
 
 @router.post("/legacy-import/old-entities")
 async def legacy_old_entities(request: Request) -> Dict[str, Any]:
-    """List the old add-ons' entities of devices that are configured here."""
+    """List the old add-ons' entities of devices that are configured here,
+    each with the new entity that would take over its entity ID."""
     slim = await _find_slim_addon()
-    return {"entities": await _find_old_entities(request),
-            "slim_running": slim.get("state") == "started"}
+    found = await _find_old_entities(request)
+    return dict(found, slim_running=slim.get("state") == "started")
 
 
 @router.post("/legacy-import/old-entities/remove")
 async def legacy_old_entities_remove(request: Request) -> Dict[str, Any]:
-    """Clear the retained discovery config of the chosen old entities.
+    """Clear the retained discovery config of the chosen old entities, then
+    (`keep_ids`) give each paired new entity the old entity ID.
 
-    Home Assistant then removes those entities; the device keeps every other
-    entity. Only topics that still pass the same check as the listing are
-    cleared, whatever the client sends.
+    Home Assistant removes an entity whose config is cleared; the device keeps
+    every other entity. Only topics that still pass the same check as the
+    listing are cleared, whatever the client sends. The old ID is free only
+    once Home Assistant has dropped the old entity, so the rename waits for
+    that.
     """
+    import asyncio
     body = await request.json()
     wanted = set(body.get("topics") or [])
+    keep_ids = bool(body.get("keep_ids"))
     slim = await _find_slim_addon()
     if slim.get("state") == "started":
         raise HTTPException(status_code=409, detail="Stop the Slim app first, it would publish its entities again.")
-    allowed = {h["topic"] for h in await _find_old_entities(request)}
+    found = await _find_old_entities(request)
+    chosen = [o for o in found["entities"] if o["topic"] in wanted]
+    allowed = {o["topic"] for o in found["entities"]}
     mqtt_handler = request.app.state.mqtt_handler
-    removed = []
-    for topic in sorted(wanted & allowed):
-        await mqtt_handler.publish(topic, "", retain=True)
-        removed.append(topic)
-    logger.info(f"Legacy cleanup: cleared {len(removed)} old discovery configs")
-    return {"removed": removed, "refused": sorted(wanted - allowed)}
+    for o in chosen:
+        await mqtt_handler.publish(o["topic"], "", retain=True)
+    logger.info(f"Legacy cleanup: cleared {len(chosen)} old discovery configs")
+
+    renamed, rename_failed = [], []
+    pairs = [o for o in chosen if keep_ids and o["old_entity_id"] and o["new_entity_id"]
+             and o["old_entity_id"] != o["new_entity_id"]]
+    if pairs:
+        gone = {o["unique_id"] for o in pairs}
+        for _ in range(30):  # up to 15 s for Home Assistant to drop them
+            try:
+                ids = await _mqtt_entity_ids()
+            except Exception as e:
+                ids = {}
+                logger.warning(f"Legacy cleanup: registry not readable: {e}")
+            if ids and not gone & ids.keys():
+                break
+            await asyncio.sleep(0.5)
+        for o in pairs:
+            try:
+                await _ha_ws([{"type": "config/entity_registry/update",
+                               "entity_id": o["new_entity_id"],
+                               "new_entity_id": o["old_entity_id"]}])
+                renamed.append({"from": o["new_entity_id"], "to": o["old_entity_id"]})
+            except Exception as e:
+                rename_failed.append({"from": o["new_entity_id"], "to": o["old_entity_id"],
+                                      "error": str(e)})
+        logger.info(f"Legacy cleanup: renamed {len(renamed)} entities, {len(rename_failed)} failed")
+    return {"removed": [o["topic"] for o in chosen], "refused": sorted(wanted - allowed),
+            "renamed": renamed, "rename_failed": rename_failed}

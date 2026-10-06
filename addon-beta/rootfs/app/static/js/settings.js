@@ -457,8 +457,8 @@ const LEGACY_HELP_STEPS = [
     ['legacy.help_2', 'Leave the old app running for now. Slim is read over the network; ChristopheHD is read from /config/enoceanmqtt.devices. You can also upload the file.'],
     ['legacy.help_3', 'Step 1: read the list, check the names, add the selected devices. Devices that already exist are not ticked.'],
     ['legacy.help_4', 'Stop the old app and turn off "Start on boot". Only one app can use the transceiver.'],
-    ['legacy.help_5', 'Step 2: find the old entities and remove the ones you no longer need. Only devices that exist in this app are offered, and the Home Assistant device itself is not deleted.'],
-    ['legacy.help_6', 'Rename the new entities to the old entity IDs (Settings, Entities). Automations and dashboards then keep working. The history of the old entities is not carried over.'],
+    ['legacy.help_5', 'Step 2: find the old entities and remove them. Only devices that exist in this app are offered, and the Home Assistant device itself is not deleted.'],
+    ['legacy.help_6', 'With the box ticked, each new entity gets the entity ID of its old one, so automations, dashboards and history carry on. Entities without a partner in the table are renamed by hand (Settings, Entities).'],
     ['legacy.help_7', 'Check actuators (light, switch, cover): their type and sender ID may need setting.'],
 ];
 
@@ -485,6 +485,22 @@ async function legacyFindOld() {
     }
 }
 
+const LEGACY_PAIR_NOTES = {
+    no_match: ['legacy.pair_no_match', 'no matching new entity'],
+    other_type: ['legacy.pair_other_type', 'new entity has another type, rename by hand'],
+    already: ['legacy.pair_already', 'the new entity already has this ID'],
+    ambiguous: ['legacy.pair_ambiguous', 'several candidates, rename by hand'],
+};
+
+function legacyPairCell(o, registry) {
+    if (o.new_entity_id && o.old_entity_id) {
+        return `<i class="bi bi-arrow-left"></i> <code>${escapeHtml(o.new_entity_id)}</code>`;
+    }
+    if (o.new_unique_id && !registry) return `<span class="text-muted">${t('legacy.pair_no_registry', 'rename by hand')}</span>`;
+    const [key, fb] = LEGACY_PAIR_NOTES[o.pair_note] || LEGACY_PAIR_NOTES.no_match;
+    return `<span class="text-muted">${t(key, fb)}</span>`;
+}
+
 function renderLegacyOld(res) {
     const box = document.getElementById('legacy-old');
     if (!legacyOld.length) {
@@ -493,18 +509,22 @@ function renderLegacyOld(res) {
     }
     const rows = legacyOld.map((o, i) => `<tr>
         <td><input type="checkbox" class="form-check-input legacy-old-pick" data-i="${i}" checked></td>
-        <td>${escapeHtml(o.device)}</td>
-        <td>${escapeHtml(o.name)}</td>
-        <td><code>${escapeHtml(o.address)}</code></td>
-        <td>${o.source === 'slim' ? 'Slim' : 'ChristopheHD'}</td>
-        <td class="small text-muted"><code>${escapeHtml(o.unique_id)}</code></td>
+        <td>${escapeHtml(o.device)}<div class="small text-muted">${escapeHtml(o.address)} · ${o.source === 'slim' ? 'Slim' : 'ChristopheHD'}</div></td>
+        <td class="small text-break">${o.old_entity_id ? `<code>${escapeHtml(o.old_entity_id)}</code>` : escapeHtml(o.name)}</td>
+        <td class="small text-break">${legacyPairCell(o, res.registry)}</td>
     </tr>`).join('');
+    const pairs = legacyOld.filter(o => o.new_entity_id && o.old_entity_id).length;
     box.innerHTML = `
         ${res.slim_running ? `<div class="alert alert-warning small py-2">${t('legacy.slim_still_running', 'Slim is still running. Stop it first, otherwise it publishes these entities again.')}</div>` : ''}
+        ${res.registry ? '' : `<div class="alert alert-warning small py-2">${t('legacy.registry_unavailable', 'The entity list of Home Assistant could not be read. Old entities can be removed, but the entity IDs have to be renamed by hand.')}</div>`}
         <div class="small mb-2">${legacyOld.length} ${t('legacy.old_found', 'old entities found')}</div>
         <div class="table-responsive"><table class="table table-sm align-middle">
-            <thead><tr><th></th><th>${t('legacy.col_device', 'Device')}</th><th>${t('legacy.col_entity', 'Entity')}</th><th>${t('legacy.col_address', 'Address')}</th><th>${t('legacy.col_source', 'From')}</th><th>Unique ID</th></tr></thead>
+            <thead><tr><th></th><th>${t('legacy.col_device', 'Device')}</th><th>${t('legacy.col_old_entity', 'Old entity')}</th><th>${t('legacy.col_takes_id', 'New entity that gets this ID')}</th></tr></thead>
             <tbody>${rows}</tbody></table></div>
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="legacy-keep-ids" ${pairs ? 'checked' : 'disabled'}>
+            <label class="form-check-label" for="legacy-keep-ids">${t('legacy.keep_ids', 'Give the new entities the old entity IDs, so automations and dashboards keep working')}</label>
+        </div>
         <button class="btn btn-danger" onclick="legacyRemoveOld()" ${res.slim_running ? 'disabled' : ''}>
             <i class="bi bi-trash"></i> ${t('legacy.remove_selected', 'Remove selected old entities')}</button>`;
 }
@@ -512,20 +532,38 @@ function renderLegacyOld(res) {
 function legacyRemoveOld() {
     const topics = [...document.querySelectorAll('.legacy-old-pick:checked')].map(el => legacyOld[+el.dataset.i].topic);
     if (!topics.length) return;
+    const keepCb = document.getElementById('legacy-keep-ids');
+    const keepIds = !!(keepCb && keepCb.checked);
     showConfirmDialog(
         t('legacy.remove_title', 'Remove old entities?'),
-        escapeHtml(t('legacy.remove_body', 'Home Assistant removes {n} old entities. Automations that still use their entity IDs stop working until you rename the new entities. The devices and the new entities stay.').replace('{n}', topics.length)),
+        escapeHtml(t(keepIds ? 'legacy.remove_body_keep' : 'legacy.remove_body',
+            keepIds
+                ? 'Home Assistant removes {n} old entities, then the new entities get their entity IDs. The devices and the new entities stay. The history of the old entities is not carried over.'
+                : 'Home Assistant removes {n} old entities. Automations that still use their entity IDs stop working until you rename the new entities. The devices and the new entities stay.'
+        ).replace('{n}', topics.length)),
         t('legacy.remove_selected', 'Remove selected old entities'), 'btn-danger',
         async () => {
+            const box = document.getElementById('legacy-old');
+            box.innerHTML = '<div class="spinner-border spinner-border-sm"></div>';
             try {
                 const r = await fetch(getApiUrl('/api/system/legacy-import/old-entities/remove'), {
-                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({topics}),
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({topics, keep_ids: keepIds}),
                 });
                 const res = await r.json();
                 if (!r.ok) throw new Error(apiErrorText(res.detail, r.statusText));
-                showToast(`${res.removed.length} ${t('legacy.removed', 'old entities removed')}`, 'success');
+                let msg = `${res.removed.length} ${t('legacy.removed', 'old entities removed')}`;
+                if (keepIds) msg += `, ${res.renamed.length} ${t('legacy.renamed', 'entity IDs taken over')}`;
+                showToast(msg, res.rename_failed.length ? 'warning' : 'success');
                 await legacyFindOld();
+                if (res.rename_failed.length) {
+                    document.getElementById('legacy-old').insertAdjacentHTML('afterbegin',
+                        `<div class="alert alert-warning small">${t('legacy.rename_failed', 'These could not be renamed, do it by hand')}:<ul class="mb-0">${
+                            res.rename_failed.map(f => `<li><code>${escapeHtml(f.from)}</code> → <code>${escapeHtml(f.to)}</code>: ${escapeHtml(f.error)}</li>`).join('')
+                        }</ul></div>`);
+                }
             } catch (e) {
+                box.innerHTML = '';
                 showToast(t('legacy.remove_failed', 'Removing failed') + ': ' + e.message, 'danger');
             }
         });

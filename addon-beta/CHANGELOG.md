@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.8.4-beta5] - 2026-10-06 (beta channel)
+
+### Added
+
+- **Switching apps keeps your entity IDs.** Step 2 of *Switch from another
+  EnOcean app* now gives each new entity the entity ID of its old one when it
+  removes the old entities. Automations, dashboards and the history carry on
+  without any renaming. The table shows which new entity gets which ID;
+  entities without a clear partner (another type, several candidates) are
+  listed and renamed by hand. Untick the box to only remove.
+
 ## [1.8.4-beta4] - 2026-10-06 (beta channel)
 
 ### Fixed

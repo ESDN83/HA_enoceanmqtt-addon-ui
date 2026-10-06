@@ -168,12 +168,16 @@ shows the same steps. No warranty: make a full Home Assistant backup first.
 3. Stop the old app and turn off *Start on boot*. Only one app can use the
    transceiver.
 4. **Remove old entities.** *Find old entities* lists the old app's entities,
-   but only for devices that now exist in this app. Removing them clears their
-   MQTT discovery messages, so Home Assistant drops exactly those entities.
-   The Home Assistant device and the new entities stay. While Slim is still
-   running this step is refused, since Slim would publish them again.
-5. Rename the new entities to the old entity IDs (Settings → Entities), so
-   automations and dashboards keep working. History is not carried over.
+   but only for devices that now exist in this app, each with the new entity
+   that takes over its entity ID (same device, same value, same type).
+   Removing them clears their MQTT discovery messages, so Home Assistant drops
+   exactly those entities; the Home Assistant device and the new entities
+   stay. While Slim is still running this step is refused, since Slim would
+   publish them again.
+5. With *Give the new entities the old entity IDs* ticked (the default), the
+   new entities are renamed right after, so automations, dashboards and the
+   history carry on. Entities the table marks as "rename by hand" are done
+   under Settings → Entities.
 6. Check actuators (light, switch, cover): type and sender ID may need setting.
 
 ## Troubleshooting

@@ -1,6 +1,6 @@
 # 0020. Import the device list of Slim and ChristopheHD enocean-mqtt
 
-Status: proposed (v1.8.4-beta3).
+Status: proposed (v1.8.4-beta3, amended in v1.8.4-beta5).
 
 ## Context
 
@@ -52,6 +52,31 @@ the old entities:
 - The server re-checks every topic it is asked to clear against the same
   rule and refuses while Slim is running, which would republish them.
 - The help popup and all strings exist in all 11 languages.
+
+## Amendment (v1.8.4-beta5): keep the old entity IDs
+
+Users asked how to get their old entity IDs back. Step 2 now does it:
+
+- Every entity, old and new, gets a field key: the field its
+  `value_template` reads (`value_json.TMP` gives `tmp`), else the unique_id
+  after the address. ChristopheHD's `_RSSI_`/`_DATE_` map to `rssi`/
+  `last_seen`. The apps name entities differently (Slim `..._TMP`,
+  ChristopheHD `tempC`), but all read the same decoded telegram.
+- A pair needs the same address, key and component (the domain is part of
+  an entity ID). ChristopheHD's raw/rounded twins resolve to the rounded one;
+  anything still ambiguous, or of another type (Slim's D5 `sensor` vs our
+  `binary_sensor`), is shown for renaming by hand.
+- Entity IDs come from the entity registry over the WebSocket API
+  (`ws://supervisor/core/websocket`, `homeassistant_api`). After the old
+  configs are cleared, the rename waits until HA has dropped the old entities,
+  then calls `config/entity_registry/update` with `new_entity_id`.
+- The recorder cannot migrate the new entity's few hours of history onto an
+  ID that already has history, so the new entity simply continues the old
+  entity's history under that ID. Verified in the devcontainer.
+- If the old app comes back after a migration, HA recreates its entities as
+  `<id>_2`. Those are not renamed onto ours (marked "already has this ID").
+- Without the registry (WebSocket unreachable), removal still works and the
+  IDs are left for renaming by hand.
 
 ## Consequences
 

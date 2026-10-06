@@ -198,4 +198,90 @@ def match_old_entity(topic: str, payload: bytes, discovery_prefix: str,
         "device": str((cfg.get("device") or {}).get("name") or ""),
         "address": "0x" + hit.upper(),
         "source": "slim" if state.startswith("enocean/") else "christophehd",
+        "key": field_key(cfg, uid, hit),
     }
+
+
+# ChristopheHD reads RSSI and the receive time from its own pseudo-fields;
+# this app and Slim call them rssi and last_seen.
+_FIELD_ALIASES = {"_rssi_": "rssi", "_date_": "last_seen"}
+
+_TEMPLATE_FIELD = re.compile(r"""value_json(?:\.(\w+)|\[['"](\w+)['"]\])""")
+
+
+def field_key(cfg: Dict[str, Any], uid: str, address: str) -> str:
+    """Which value an entity shows, as a lowercase key (`tmp`, `rssi`).
+
+    The three apps name entities differently (Slim `enocean_<addr>_TMP`,
+    ChristopheHD `..._tempC`, this app `enocean_<eep>_<addr>_TMP`), but all of
+    them read one field of the same decoded telegram, so the field in the
+    value_template is what pairs an old entity with its new one. Without a
+    template, the unique_id after the address (and a sender, for ChristopheHD)
+    is used.
+    """
+    m = _TEMPLATE_FIELD.search(str(cfg.get("value_template") or ""))
+    if m:
+        key = (m.group(1) or m.group(2)).lower()
+        return _FIELD_ALIASES.get(key, key)
+    tokens = uid.lower().split("_")
+    if address in tokens:
+        tokens = tokens[tokens.index(address) + 1:]
+        if tokens and (tokens[0] == "none" or re.fullmatch(r"[0-9a-f]{8}", tokens[0])):
+            tokens = tokens[1:]  # ChristopheHD: sender, or NONE
+    return "_".join(tokens)
+
+
+def match_own_entity(topic: str, payload: bytes, discovery_prefix: str,
+                     addresses: set) -> Dict[str, str]:
+    """An entity this app publishes (`<prefix>/<component>/enocean/<uid>/config`)
+    for one of `addresses`, with the same `key` as match_old_entity, or {}."""
+    if not topic.startswith(discovery_prefix + "/") or not payload:
+        return {}
+    parts = topic[len(discovery_prefix) + 1:].split("/")
+    if len(parts) != 4 or parts[1] != "enocean" or parts[3] != "config":
+        return {}
+    try:
+        cfg = json.loads(payload)
+    except ValueError:
+        return {}
+    uid = str(cfg.get("unique_id", "")) if isinstance(cfg, dict) else ""
+    hit = next((t for t in uid.lower().split("_") if t in addresses), "")
+    if not hit:
+        return {}
+    return {"unique_id": uid, "component": parts[0], "address": "0x" + hit.upper(),
+            "key": field_key(cfg, uid, hit)}
+
+
+def pair_entities(old: List[Dict[str, str]], own: List[Dict[str, str]]) -> None:
+    """Give each old entity the new entity that takes over its entity ID, in
+    place: `new_unique_id`, or `pair_note` saying why there is none.
+
+    A pair needs the same address, the same field and the same component
+    (the domain is part of an entity ID, a sensor cannot become a
+    binary_sensor). ChristopheHD offers a raw and a rounded entity for some
+    fields; the rounded one wins. Anything still ambiguous is left alone.
+    """
+    for o in old:
+        o["new_unique_id"], o["pair_note"] = "", ""
+    by_key: Dict[Tuple[str, str], List[Dict[str, str]]] = {}
+    for o in old:
+        by_key.setdefault((o["address"], o["key"]), []).append(o)
+    for n in own:
+        group = by_key.get((n["address"], n["key"]), [])
+        same = [o for o in group if o["component"] == n["component"]]
+        if not same:
+            for o in group:
+                o["pair_note"] = o["pair_note"] or "other_type"
+            continue
+        if len(same) > 1:
+            cooked = [o for o in same if not o["unique_id"].lower().endswith("_raw")
+                      and not o["name"].lower().endswith("_raw")]
+            same = cooked if len(cooked) == 1 else same
+        if len(same) > 1:
+            for o in same:
+                o["pair_note"] = "ambiguous"
+            continue
+        same[0]["new_unique_id"], same[0]["pair_note"] = n["unique_id"], ""
+    for o in old:
+        if not o["new_unique_id"] and not o["pair_note"]:
+            o["pair_note"] = "no_match"
