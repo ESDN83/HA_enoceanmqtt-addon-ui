@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.4-beta6] - 2026-10-06 (beta channel)
+
+### Fixed
+
+- **After an update the page could keep running the previous version.** The
+  app page stayed open in Home Assistant (or came from the browser cache), so
+  new buttons and fields were missing and saving could fail. The page now
+  notices a new version: a banner offers a reload, and the next page switch
+  reloads by itself. The page itself is no longer cached.
+- **Slim A5-04-02 humidity keeps its entity ID too.** Slim calls the field
+  `HM`, this app `HUM`; step 2 now pairs them.
+
 ## [1.8.4-beta5] - 2026-10-06 (beta channel)
 
 ### Added

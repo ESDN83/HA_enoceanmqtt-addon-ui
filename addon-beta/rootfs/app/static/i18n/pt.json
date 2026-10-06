@@ -391,5 +391,8 @@
   "legacy.remove_body_keep": "O Home Assistant remove {n} entidades antigas e depois as novas entidades recebem os seus IDs. Os dispositivos e as novas entidades permanecem, e o histórico continua no ID antigo.",
   "legacy.renamed": "IDs de entidade transferidos",
   "legacy.rename_failed": "Estes não puderam ser renomeados, faça-o à mão",
-  "legacy.pair_already": "a entidade nova já tem este ID"
+  "legacy.pair_already": "a entidade nova já tem este ID",
+  "app.version_mismatch": "A app foi atualizada para {v}. Recarregue a página para a usar.",
+  "app.version_mismatch_cached": "A app foi atualizada para {v}, mas o navegador ainda mostra a página antiga. Recarregue com Ctrl+F5 ou limpe a cache do navegador.",
+  "app.reload": "Recarregar"
 }

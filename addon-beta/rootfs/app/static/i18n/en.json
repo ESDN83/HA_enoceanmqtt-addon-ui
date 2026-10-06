@@ -453,5 +453,8 @@
   "legacy.remove_body_keep": "Home Assistant removes {n} old entities, then the new entities get their entity IDs. The devices and the new entities stay, and the history continues under the old ID.",
   "legacy.renamed": "entity IDs taken over",
   "legacy.rename_failed": "These could not be renamed, do it by hand",
-  "legacy.pair_already": "the new entity already has this ID"
+  "legacy.pair_already": "the new entity already has this ID",
+  "app.version_mismatch": "The app was updated to {v}. Reload the page to use it.",
+  "app.version_mismatch_cached": "The app was updated to {v}, but the browser still shows the old page. Reload it with Ctrl+F5 or clear the browser cache.",
+  "app.reload": "Reload"
 }

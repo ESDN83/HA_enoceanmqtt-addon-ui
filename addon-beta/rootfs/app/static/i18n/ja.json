@@ -391,5 +391,8 @@
   "legacy.remove_body_keep": "Home Assistant は {n} 件の古いエンティティを削除し、その後新しいエンティティがその ID を受け取ります。デバイスと新しいエンティティは残り、履歴は古い ID のまま続きます。",
   "legacy.renamed": "件のエンティティ ID を引き継ぎ",
   "legacy.rename_failed": "以下は名前を変更できませんでした。手動で行ってください",
-  "legacy.pair_already": "新しいエンティティは既にこの ID を持っています"
+  "legacy.pair_already": "新しいエンティティは既にこの ID を持っています",
+  "app.version_mismatch": "アプリが {v} に更新されました。使用するにはページを再読み込みしてください。",
+  "app.version_mismatch_cached": "アプリは {v} に更新されましたが、ブラウザはまだ古いページを表示しています。Ctrl+F5 で再読み込みするか、ブラウザのキャッシュを消去してください。",
+  "app.reload": "再読み込み"
 }

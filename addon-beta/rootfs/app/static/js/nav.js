@@ -17,6 +17,9 @@ function closeSidebar() {
     backdrop.classList.remove('show');
 }
 function navigateTo(page) {
+    // A page switch is a safe moment to pick up a new version: no form is
+    // half filled in (see noteServerVersion).
+    if (_serverVersion && reloadForNewVersion()) return;
     // Hide all pages
     document.querySelectorAll('.page-content').forEach(p => p.style.display = 'none');
     // Show selected page

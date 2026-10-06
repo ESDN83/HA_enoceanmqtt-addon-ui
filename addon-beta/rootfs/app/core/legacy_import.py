@@ -204,7 +204,8 @@ def match_old_entity(topic: str, payload: bytes, discovery_prefix: str,
 
 # ChristopheHD reads RSSI and the receive time from its own pseudo-fields;
 # this app and Slim call them rssi and last_seen.
-_FIELD_ALIASES = {"_rssi_": "rssi", "_date_": "last_seen"}
+# Slim's A5-04-02 profile calls humidity HM where the EEP.xml says HUM.
+_FIELD_ALIASES = {"_rssi_": "rssi", "_date_": "last_seen", "hm": "hum"}
 
 _TEMPLATE_FIELD = re.compile(r"""value_json(?:\.(\w+)|\[['"](\w+)['"]\])""")
 

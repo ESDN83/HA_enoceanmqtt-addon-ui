@@ -69,6 +69,44 @@ async function executeConfirmedAction() {
         _pendingConfirmAction = null;
     }
 }
+// After an update the browser can keep running the previous version's scripts
+// (the app page stayed open in HA, or a cache served them), while the API is
+// already the new one. That mix broke saving and hid new fields for two
+// testers. loadStatus reports the server version here; on a mismatch a banner
+// offers a reload, and the next page switch reloads by itself. If the mismatch
+// survives a reload, the page itself is cached: no loop, the banner says how.
+let _serverVersion = null;
+
+function noteServerVersion(version) {
+    const mine = window.APP_ASSET_V || '';
+    if (!version || !mine || version === mine) return;
+    _serverVersion = version;
+    let tried = false;
+    try { tried = sessionStorage.getItem('enocean_reloaded_for') === version; } catch (e) { /* no storage */ }
+    let bar = document.getElementById('version-mismatch-bar');
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'version-mismatch-bar';
+        bar.className = 'alert alert-warning d-flex align-items-center gap-2 m-2 py-2';
+        bar.style.position = 'fixed'; bar.style.top = '0'; bar.style.left = '0'; bar.style.right = '0'; bar.style.zIndex = '2000';
+        document.body.appendChild(bar);
+    }
+    bar.innerHTML = escapeHtml(tried
+        ? t('app.version_mismatch_cached', 'The app was updated to {v}, but the browser still shows the old page. Reload it with Ctrl+F5 or clear the browser cache.').replace('{v}', version)
+        : t('app.version_mismatch', 'The app was updated to {v}. Reload the page to use it.').replace('{v}', version))
+        + (tried ? '' : ` <button class="btn btn-sm btn-warning ms-auto" onclick="reloadForNewVersion()">${escapeHtml(t('app.reload', 'Reload'))}</button>`);
+}
+
+function reloadForNewVersion() {
+    if (!_serverVersion) return false;
+    try {
+        if (sessionStorage.getItem('enocean_reloaded_for') === _serverVersion) return false;
+        sessionStorage.setItem('enocean_reloaded_for', _serverVersion);
+    } catch (e) { /* no storage: still reload once */ }
+    window.location.reload();
+    return true;
+}
+
 // FastAPI sends `detail` as a string for our own errors, but as a list of
 // {loc, msg} for a request that fails validation (422). Showing that list
 // as is printed "[object Object]" and hid which field was wrong.

@@ -453,5 +453,8 @@
   "legacy.remove_body_keep": "Home Assistant entfernt {n} alte Entitäten, danach bekommen die neuen Entitäten deren Entitäts-IDs. Die Geräte und die neuen Entitäten bleiben, der Verlauf läuft unter der alten ID weiter.",
   "legacy.renamed": "Entitäts-IDs übernommen",
   "legacy.rename_failed": "Diese konnten nicht umbenannt werden, bitte von Hand",
-  "legacy.pair_already": "die neue Entität hat diese ID schon"
+  "legacy.pair_already": "die neue Entität hat diese ID schon",
+  "app.version_mismatch": "Die App wurde auf {v} aktualisiert. Lade die Seite neu, um sie zu nutzen.",
+  "app.version_mismatch_cached": "Die App wurde auf {v} aktualisiert, der Browser zeigt aber noch die alte Seite. Lade sie mit Strg+F5 neu oder leere den Browser-Cache.",
+  "app.reload": "Neu laden"
 }

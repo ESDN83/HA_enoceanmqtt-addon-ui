@@ -1033,10 +1033,12 @@ app.include_router(gateway.router, prefix="/api/gateway", tags=["gateway"])
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     """Serve the main UI"""
+    # Never cache the page: it names the script versions to load, and a
+    # cached copy kept a browser on the previous version's scripts.
     return templates.TemplateResponse("index.html", {
         "request": request,
         "version": VERSION
-    })
+    }, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/health")

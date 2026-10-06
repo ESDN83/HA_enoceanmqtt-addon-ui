@@ -391,5 +391,8 @@
   "legacy.remove_body_keep": "Home Assistant 将移除 {n} 个旧实体，然后新实体获得它们的实体 ID。设备和新实体会保留，历史记录在旧 ID 下继续。",
   "legacy.renamed": "个实体 ID 已接管",
   "legacy.rename_failed": "以下实体无法重命名，请手动处理",
-  "legacy.pair_already": "新实体已拥有此 ID"
+  "legacy.pair_already": "新实体已拥有此 ID",
+  "app.version_mismatch": "应用已更新到 {v}。请重新加载页面以使用。",
+  "app.version_mismatch_cached": "应用已更新到 {v}，但浏览器仍显示旧页面。请按 Ctrl+F5 重新加载或清除浏览器缓存。",
+  "app.reload": "重新加载"
 }

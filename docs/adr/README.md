@@ -25,3 +25,4 @@ Rules:
 - [0014](0014-eltako-shutter-feedback-and-stop.md) An Eltako shutter reports itself, and it is stopped by a tap
 - [0015](0015-eltako-shutter-position-command.md) An Eltako shutter is driven to a position by time, after a second teach-in
 - [0020](0020-import-from-slim-and-christophehd.md) Import the device list of Slim and ChristopheHD, and remove their old entities
+- [0021](0021-reload-on-version-mismatch.md) The page reloads itself after an update
