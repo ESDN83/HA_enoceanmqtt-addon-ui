@@ -6,7 +6,7 @@ import os
 import logging
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse, StreamingResponse
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 import json
 import re
 import yaml
@@ -934,11 +934,18 @@ async def _ha_ws(messages: list) -> list:
     return results
 
 
-async def _mqtt_entity_ids() -> Dict[str, str]:
-    """unique_id -> entity_id of every MQTT entity in Home Assistant."""
+async def _mqtt_entity_ids() -> Dict[Tuple[str, str], str]:
+    """(domain, unique_id) -> entity_id of every MQTT entity in Home Assistant.
+
+    A unique_id is only unique within one domain: an entity that was once
+    published as a sensor and later as a binary_sensor leaves two registry
+    entries with the same unique_id, and only the one in the component the
+    discovery config names is the live one.
+    """
     (entries,) = await _ha_ws([{"type": "config/entity_registry/list"}])
-    return {e["unique_id"]: e["entity_id"] for e in entries
-            if e.get("platform") == "mqtt" and e.get("unique_id")}
+    return {(e["entity_id"].split(".", 1)[0], e["unique_id"]): e["entity_id"]
+            for e in entries
+            if e.get("platform") == "mqtt" and e.get("unique_id") and e.get("entity_id")}
 
 
 async def _find_old_entities(request: Request) -> Dict[str, Any]:
@@ -968,8 +975,11 @@ async def _find_old_entities(request: Request) -> Dict[str, Any]:
         logger.warning(f"Legacy cleanup: entity registry not readable: {e}")
         ids, registry = {}, False
     for o in old:
-        o["old_entity_id"] = ids.get(o["unique_id"], "")
-        o["new_entity_id"] = ids.get(o["new_unique_id"], "") if o["new_unique_id"] else ""
+        # A pair always shares the component (pair_entities), so both IDs
+        # are looked up in the old entity's domain.
+        o["old_entity_id"] = ids.get((o["component"], o["unique_id"]), "")
+        o["new_entity_id"] = (ids.get((o["component"], o["new_unique_id"]), "")
+                              if o["new_unique_id"] else "")
         # The new entity already took the ID in an earlier run, and the old
         # app came back as `<id>_2`. Renaming now would hand ours the suffix.
         if (o["new_entity_id"] and o["old_entity_id"]
@@ -1018,7 +1028,7 @@ async def legacy_old_entities_remove(request: Request) -> Dict[str, Any]:
     pairs = [o for o in chosen if keep_ids and o["old_entity_id"] and o["new_entity_id"]
              and o["old_entity_id"] != o["new_entity_id"]]
     if pairs:
-        gone = {o["unique_id"] for o in pairs}
+        gone = {(o["component"], o["unique_id"]) for o in pairs}
         for _ in range(30):  # up to 15 s for Home Assistant to drop them
             try:
                 ids = await _mqtt_entity_ids()

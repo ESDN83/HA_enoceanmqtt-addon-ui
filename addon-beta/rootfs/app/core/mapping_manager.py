@@ -49,6 +49,15 @@ def _rocker_button_binary_sensors() -> Dict[str, Any]:
 
 
 # Default mappings for common EEP profiles
+
+# Occupancy: EEP.xml calls the field PIRS in every A5-07/A5-08 profile, and
+# its meaning differs per profile. The mapping key stays PIR so the entity
+# keeps its unique_id (ADR-0022). An empty render skips telegrams that carry
+# no PIRS (teach-in), the way the plain template did.
+_PIRS_A5_07_01 = "{{ ('1' if value_json.PIRS >= 128 else '0') if value_json.PIRS is defined else '' }}"
+_PIRS_A5_07_0X = "{{ value_json.PIRS if value_json.PIRS is defined else '' }}"
+_PIRS_A5_08 = "{{ (1 - value_json.PIRS) if value_json.PIRS is defined else '' }}"
+
 DEFAULT_MAPPINGS = {
     # 4BS Temperature Sensors (A5-02-xx)
     "A5-02-05": {
@@ -80,7 +89,9 @@ DEFAULT_MAPPINGS = {
         "PIR": {
             "component": "binary_sensor",
             "name": "Occupancy",
-            "device_class": "occupancy"
+            "device_class": "occupancy",
+            # PIRS 0-255, 128 and up means motion
+            "value_template": _PIRS_A5_07_01
         },
         "SVC": {
             "component": "sensor",
@@ -429,7 +440,9 @@ DEFAULT_MAPPINGS = {
         "PIR": {
             "component": "binary_sensor",
             "name": "Occupancy",
-            "device_class": "occupancy"
+            "device_class": "occupancy",
+            # PIRS 1 means motion
+            "value_template": _PIRS_A5_07_0X
         },
         "SVC": {
             "component": "sensor",
@@ -442,7 +455,9 @@ DEFAULT_MAPPINGS = {
         "PIR": {
             "component": "binary_sensor",
             "name": "Occupancy",
-            "device_class": "occupancy"
+            "device_class": "occupancy",
+            # PIRS 1 means motion
+            "value_template": _PIRS_A5_07_0X
         },
         "ILL": {
             "component": "sensor",
@@ -474,7 +489,9 @@ DEFAULT_MAPPINGS = {
         "PIR": {
             "component": "binary_sensor",
             "name": "Occupancy",
-            "device_class": "occupancy"
+            "device_class": "occupancy",
+            # PIRS 0 means PIR on
+            "value_template": _PIRS_A5_08
         },
         "SVC": {
             "component": "sensor",
@@ -499,7 +516,9 @@ DEFAULT_MAPPINGS = {
         "PIR": {
             "component": "binary_sensor",
             "name": "Occupancy",
-            "device_class": "occupancy"
+            "device_class": "occupancy",
+            # PIRS 0 means PIR on
+            "value_template": _PIRS_A5_08
         },
         "SVC": {
             "component": "sensor",
@@ -524,7 +543,9 @@ DEFAULT_MAPPINGS = {
         "PIR": {
             "component": "binary_sensor",
             "name": "Occupancy",
-            "device_class": "occupancy"
+            "device_class": "occupancy",
+            # PIRS 0 means PIR on
+            "value_template": _PIRS_A5_08
         },
         "SVC": {
             "component": "sensor",

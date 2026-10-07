@@ -90,3 +90,7 @@ Users asked how to get their old entity IDs back. Step 2 now does it:
   source (`HA_enoceanmqtt` develop, `ha_communicator.py`), not a running
   ChristopheHD app.
 - The wrong migration section in DOCS.md is replaced.
+- Entity IDs are looked up by (domain, unique_id), not unique_id alone: an
+  entity once published as a sensor and later as a binary_sensor leaves two
+  registry entries with one unique_id, and picking the wrong one made the
+  rename fail with "New entity ID should be same domain" (beta7, forum post 49).

@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.4-beta7] - 2026-10-07 (beta channel)
+
+### Fixed
+
+- **Motion sensors never showed occupancy.** The A5-07 and A5-08 occupancy
+  entity read a field the profile does not have (`PIR` instead of `PIRS`), so
+  it stayed unknown. It now reads `PIRS` with each profile's meaning, and keeps
+  its entity ID. Switching from Slim now pairs it with Slim's presence entity.
+- **Keeping entity IDs could fail with "New entity ID should be same
+  domain".** When Home Assistant still remembered an entity as both a sensor
+  and a binary sensor, step 2 could pick the wrong one. It now only looks in
+  the domain the entity is published in.
+
 ## [1.8.4-beta6] - 2026-10-06 (beta channel)
 
 ### Fixed
