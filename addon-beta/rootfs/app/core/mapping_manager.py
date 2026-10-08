@@ -58,6 +58,10 @@ _PIRS_A5_07_01 = "{{ ('1' if value_json.PIRS >= 128 else '0') if value_json.PIRS
 _PIRS_A5_07_0X = "{{ value_json.PIRS if value_json.PIRS is defined else '' }}"
 _PIRS_A5_08 = "{{ (1 - value_json.PIRS) if value_json.PIRS is defined else '' }}"
 
+# D5-00-01: EEP.xml says CO 0 = open, 1 = closed; a door binary_sensor is on
+# when open. Under the old CO key, so the entity keeps its unique_id.
+_CO_OPEN = "{{ (1 - value_json.CO) if value_json.CO is defined else '' }}"
+
 DEFAULT_MAPPINGS = {
     # 4BS Temperature Sensors (A5-02-xx)
     "A5-02-05": {
@@ -128,7 +132,9 @@ DEFAULT_MAPPINGS = {
         "CO": {
             "component": "binary_sensor",
             "name": "Contact",
-            "device_class": "door"
+            "device_class": "door",
+            # CO 1 means closed, and HA's door class reads on as open (ADR-0023)
+            "value_template": _CO_OPEN
         }
     },
     # RPS Rocker Switch, 2 Rockers (F6-02-01)
@@ -1291,10 +1297,12 @@ class MappingManager:
                     if key not in _INTERNAL_KEYS and key not in config:
                         config[key] = value
 
-                # Binary sensor: HA expects "ON"/"OFF" by default, but EEP values are 0/1
+                # Binary sensor: HA expects "ON"/"OFF" by default, but EEP values are 0/1.
+                # `invert` swaps them for one device, for a contact mounted the
+                # other way or a profile whose meaning we got wrong (ADR-0023).
                 if component == "binary_sensor":
-                    config["payload_on"] = "1"
-                    config["payload_off"] = "0"
+                    config["payload_on"] = "0" if invert else "1"
+                    config["payload_off"] = "1" if invert else "0"
 
                 # Add device info
                 config["device"] = device_info

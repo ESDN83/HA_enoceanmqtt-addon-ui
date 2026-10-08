@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.8.4-beta8] - 2026-10-08 (beta channel)
+
+### Fixed
+
+- **Window and door contacts (D5-00-01) showed open when closed.** The
+  profile reports 1 for closed, Home Assistant reads on as open. Entity IDs
+  stay. Check automations that relied on the swapped state.
+
+### Added
+
+- **Invert for sensors.** The device's *Invert* option now also works for
+  sensors: it swaps on and off of all its binary sensors, for a contact
+  mounted the other way round.
+
 ## [1.8.4-beta7] - 2026-10-07 (beta channel)
 
 ### Fixed

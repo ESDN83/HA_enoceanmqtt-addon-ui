@@ -110,7 +110,7 @@ function resetDeviceForm() {
     const roleField = form.querySelector('[name="actuator_type"]');
     if (roleField) {
         roleField.value = '';
-        toggleSenderIdField(roleField);   // hides sender + invert groups
+        toggleSenderIdField(roleField);   // back to sensor: hides sender, resets invert
     }
     const channelGroup = document.getElementById('channel-group');
     if (channelGroup) channelGroup.style.display = 'none';
@@ -167,12 +167,13 @@ function toggleSenderIdField(select) {
             if (input) input.value = '';
         }
     }
-    // Invert applies to covers (Open/Close direction) and to switches
+    // Invert applies to covers (Open/Close direction), to switches
     // (ON/OFF meaning of Eltako status reports, which rocker side
-    // means ON depends on how the actuator was taught in).
+    // means ON depends on how the actuator was taught in), and to sensors,
+    // where it swaps on/off of every binary sensor (ADR-0023).
     const invertGroup = document.getElementById('invert-group');
     if (invertGroup) {
-        const showInvert = select.value === 'cover' || select.value === 'switch';
+        const showInvert = !select.value || select.value === 'cover' || select.value === 'switch';
         invertGroup.style.display = showInvert ? '' : 'none';
         if (!showInvert) {
             const cb = invertGroup.querySelector('input[name="invert"]');
@@ -180,7 +181,9 @@ function toggleSenderIdField(select) {
         }
         const label = invertGroup.querySelector('.form-check-label');
         if (label) {
-            label.textContent = select.value === 'switch'
+            label.textContent = !select.value
+                ? t('teach_in.invert_label_sensor', 'Invert binary sensors (on/off swapped)')
+                : select.value === 'switch'
                 ? t('teach_in.invert_label_switch', 'Invert reported state (ON/OFF swapped)')
                 : t('teach_in.invert_label', 'Reverse direction (Open/Close inverted)');
         }

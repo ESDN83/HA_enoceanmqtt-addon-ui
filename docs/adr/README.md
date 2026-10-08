@@ -27,3 +27,4 @@ Rules:
 - [0020](0020-import-from-slim-and-christophehd.md) Import the device list of Slim and ChristopheHD, and remove their old entities
 - [0021](0021-reload-on-version-mismatch.md) The page reloads itself after an update
 - [0022](0022-occupancy-reads-pirs.md) Occupancy reads PIRS, under the old PIR key
+- [0023](0023-contact-meaning-and-sensor-invert.md) D5 contacts report open as on, and sensors can be inverted
