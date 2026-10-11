@@ -29,3 +29,4 @@ Rules:
 - [0022](0022-occupancy-reads-pirs.md) Occupancy reads PIRS, under the old PIR key
 - [0023](0023-contact-meaning-and-sensor-invert.md) D5 contacts report open as on, and sensors can be inverted
 - [0024](0024-window-handle-retired-fields-rssi.md) Window handles read CT, retired fields are cleared, RSSI from byte 5
+- [0025](0025-mapping-audit-against-eep-xml.md) Default mappings are checked against EEP.xml

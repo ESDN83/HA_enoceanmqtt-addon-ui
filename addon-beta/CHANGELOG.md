@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.8.4-beta10] - 2026-10-11 (beta channel)
+
+### Fixed
+
+All default mappings were checked against the profile database. These read
+values their profile does not have and stayed unknown; they now work, and
+entity IDs stay:
+
+- **A5-06-01** light sensor: illuminance in both ranges.
+- **A5-09-04** CO2 sensor: CO2; temperature and humidity only if fitted.
+- **A5-09-05** VOC sensor: VOC in ppb plus the VOC type. Its temperature and
+  humidity entities are removed, the profile has neither.
+- **A5-12-01** electricity meter: energy in kWh and current power in W, with
+  the meter's divisor. Home Assistant may ask once to fix the energy unit
+  (was Wh).
+- **A5-14-01** contact: a new Contact entity; the Vibration entity is
+  removed, the profile has none.
+- **A5-30-02** input.
+- **D2-01** switches and dimmers without an actuator role: the output showed
+  never on, now any level above 0 is on.
+
 ## [1.8.4-beta9] - 2026-10-11 (beta channel)
 
 ### Fixed

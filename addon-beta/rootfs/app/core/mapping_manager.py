@@ -68,10 +68,39 @@ _CT_OPEN = "{{ ('0' if value_json.CT == 0 else '1') if value_json.CT is defined 
 _CT_STATE = ("{{ {0: 'closed', 1: 'tilted', 3: 'open'}.get(value_json.CT, '') "
              "if value_json.CT is defined else '' }}")
 
+# Mappings below that once read fields their profile does not have were
+# corrected against EEP.xml in beta10 (ADR-0025). The keys stay, so each
+# entity keeps its unique_id; the value_template reads the real field.
+# Profiles without a definition in EEP.xml are left alone: nothing decodes
+# them without a custom profile.
+
+# A5-06-01: RS picks which of the two ranges the telegram uses.
+_ILL_A5_06_01 = ("{{ (value_json.ILL2 if value_json.RS == 1 else value_json.ILL1) "
+                 "if value_json.RS is defined else '' }}")
+# A5-09-04: the sensor flags whether temperature and humidity are fitted.
+_TMP_A5_09_04 = "{{ value_json.TMP if value_json.TSN == 1 else '' }}"
+_HUM_A5_09_04 = "{{ value_json.HUM if value_json.HSN == 1 else '' }}"
+# A5-12-01: MR is either the cumulative kWh (DT 0) or the current W (DT 1),
+# divided by 1/10/100/1000 (DIV). The other kind renders empty, which keeps
+# the entity's last value.
+_MR_DIV = "[1, 10, 100, 1000][value_json.DIV | int]"
+_ENERGY_A5_12_01 = ("{{ (value_json.MR / " + _MR_DIV + ") | round(3) "
+                    "if value_json.DT == 0 else '' }}")
+_POWER_A5_12_01 = ("{{ (value_json.MR / " + _MR_DIV + ") | round(3) "
+                   "if value_json.DT == 1 else '' }}")
+# D2-01 in sensor mode: OV is 0-100 %, 127 means not valid. Any level counts
+# as on, so a dimmer at 40 % is on, not "no matching payload".
+_OV_ON = ("{% set v = value_json.OV | int(-1) %}"
+          "{{ '' if v < 0 or v == 127 else ('1' if v > 0 else '0') }}")
+_OV_CH1_ON = ("{% set v = value_json.OV_CH1 | int(-1) %}"
+              "{{ '' if v < 0 or v == 127 else ('1' if v > 0 else '0') }}")
+
 # Fields an earlier mapping published that the profile does not have. Their
 # retained discovery configs are cleared, or the entities would stay unknown
 # forever (ADR-0024).
 RETIRED_FIELDS = {
+    "A5-09-05": {"TMP": "sensor", "HUM": "sensor"},
+    "A5-14-01": {"VIB": "binary_sensor"},
     "A5-14-09": {"ILL": "sensor"},
     "A5-14-0A": {"ILL": "sensor"},
 }
@@ -446,7 +475,8 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Illuminance",
             "device_class": "illuminance",
-            "unit_of_measurement": "lx"
+            "unit_of_measurement": "lx",
+            "value_template": _ILL_A5_06_01
         },
         "SVC": {
             "component": "sensor",
@@ -594,39 +624,38 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "CO2",
             "device_class": "carbon_dioxide",
-            "unit_of_measurement": "ppm"
+            "unit_of_measurement": "ppm",
+            "value_template": "{{ value_json.Conc }}"
         },
         "TMP": {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "°C"
+            "unit_of_measurement": "°C",
+            "value_template": _TMP_A5_09_04
         },
         "HUM": {
             "component": "sensor",
             "name": "Humidity",
             "device_class": "humidity",
-            "unit_of_measurement": "%"
+            "unit_of_measurement": "%",
+            "value_template": _HUM_A5_09_04
         }
     },
     "A5-09-05": {
+        # ppb is the "_parts" class; the plain one is µg/m³ only.
         "VOC": {
             "component": "sensor",
             "name": "VOC",
-            "device_class": "volatile_organic_compounds",
-            "unit_of_measurement": "ppb"
+            "device_class": "volatile_organic_compounds_parts",
+            "unit_of_measurement": "ppb",
+            "value_template": "{{ value_json.Conc }}"
         },
-        "TMP": {
+        "VOC_ID": {
             "component": "sensor",
-            "name": "Temperature",
-            "device_class": "temperature",
-            "unit_of_measurement": "°C"
-        },
-        "HUM": {
-            "component": "sensor",
-            "name": "Humidity",
-            "device_class": "humidity",
-            "unit_of_measurement": "%"
+            "name": "VOC Type",
+            "icon": "mdi:molecule",
+            "value_template": "{{ value_json.VOC_ID_text }}"
         }
     },
     # 4BS HVAC / Room Panels (A5-10), from arno0392 fork
@@ -669,14 +698,17 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Energy",
             "device_class": "energy",
-            "unit_of_measurement": "Wh",
-            "state_class": "total_increasing"
+            "unit_of_measurement": "kWh",
+            "state_class": "total_increasing",
+            "value_template": _ENERGY_A5_12_01
         },
         "TMP": {
             "component": "sensor",
             "name": "Current Power",
             "device_class": "power",
-            "unit_of_measurement": "W"
+            "unit_of_measurement": "W",
+            "state_class": "measurement",
+            "value_template": _POWER_A5_12_01
         }
     },
     "A5-12-02": {
@@ -699,10 +731,11 @@ DEFAULT_MAPPINGS = {
     },
     # 4BS Multi-sensors: vibration/window/lux (A5-14), from arno0392 fork
     "A5-14-01": {
-        "VIB": {
+        # EEP.xml: CT 1 open, 0 closed; there is no VIB (retired).
+        "CT": {
             "component": "binary_sensor",
-            "name": "Vibration",
-            "device_class": "vibration"
+            "name": "Contact",
+            "device_class": "window"
         },
         "SVC": {
             "component": "sensor",
@@ -792,10 +825,12 @@ DEFAULT_MAPPINGS = {
         }
     },
     "A5-30-02": {
+        # EEP.xml: a single IPS bit, 1 = contact open.
         "DI0": {
             "component": "binary_sensor",
             "name": "Input 0",
-            "device_class": "power"
+            "device_class": "power",
+            "value_template": "{{ value_json.IPS }}"
         }
     },
     # VLD Electronic Switches and Dimmers (D2-01), from arno0392 fork
@@ -804,9 +839,7 @@ DEFAULT_MAPPINGS = {
             "component": "binary_sensor",
             "name": "Output",
             "device_class": "power",
-            "payload_on": "100",
-            "payload_off": "0",
-            "value_template": "{{ value_json.OV }}"
+            "value_template": _OV_ON
         }
     },
     "D2-01-02": {
@@ -814,9 +847,7 @@ DEFAULT_MAPPINGS = {
             "component": "binary_sensor",
             "name": "Output",
             "device_class": "power",
-            "payload_on": "100",
-            "payload_off": "0",
-            "value_template": "{{ value_json.OV }}"
+            "value_template": _OV_ON
         }
     },
     "D2-01-06": {
@@ -824,9 +855,7 @@ DEFAULT_MAPPINGS = {
             "component": "binary_sensor",
             "name": "Output",
             "device_class": "power",
-            "payload_on": "100",
-            "payload_off": "0",
-            "value_template": "{{ value_json.OV }}"
+            "value_template": _OV_ON
         }
     },
     "D2-01-08": {
@@ -879,9 +908,7 @@ DEFAULT_MAPPINGS = {
             "component": "binary_sensor",
             "name": "Output",
             "device_class": "power",
-            "payload_on": "100",
-            "payload_off": "0",
-            "value_template": "{{ value_json.OV }}"
+            "value_template": _OV_ON
         }
     },
     "D2-01-0E": {
@@ -889,9 +916,7 @@ DEFAULT_MAPPINGS = {
             "component": "binary_sensor",
             "name": "Output",
             "device_class": "power",
-            "payload_on": "100",
-            "payload_off": "0",
-            "value_template": "{{ value_json.OV }}"
+            "value_template": _OV_ON
         }
     },
     "D2-01-11": {
@@ -915,17 +940,13 @@ DEFAULT_MAPPINGS = {
             "component": "binary_sensor",
             "name": "Channel 0",
             "device_class": "light",
-            "payload_on": "100",
-            "payload_off": "0",
-            "value_template": "{{ value_json.OV | string }}"
+            "value_template": _OV_ON
         },
         "OV_CH1": {
             "component": "binary_sensor",
             "name": "Channel 1",
             "device_class": "light",
-            "payload_on": "100",
-            "payload_off": "0",
-            "value_template": "{{ value_json.OV_CH1 | string }}"
+            "value_template": _OV_CH1_ON
         }
     },
     # VLD Blinds Control variants (D2-05), from arno0392 fork
