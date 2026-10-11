@@ -458,6 +458,11 @@ async def _publish_all_discoveries():
                     config=item["config"]
                 )
 
+            # Entities an earlier mapping made for fields the profile does
+            # not have (ADR-0024).
+            for item in mapping_manager.retired_discovery(device):
+                await mqtt_handler.remove_discovery_config(item["component"], item["unique_id"])
+
             # Publish device availability (online)
             await mqtt_handler.publish_device_availability(device.name, available=True)
 

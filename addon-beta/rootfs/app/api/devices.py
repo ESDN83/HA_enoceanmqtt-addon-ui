@@ -119,6 +119,8 @@ async def _publish_discovery(device, mqtt_handler, mapping_manager, device_manag
             unique_id=item["unique_id"],
             config=item["config"]
         )
+    for item in mapping_manager.retired_discovery(device):
+        await mqtt_handler.remove_discovery_config(item["component"], item["unique_id"])
     await mqtt_handler.publish_device_availability(device.name, available=True)
     return configs
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.8.4-beta9] - 2026-10-11 (beta channel)
+
+### Fixed
+
+- **RSSI was missing for every device.** The signal level was read from the
+  wrong byte of the telegram. When a transceiver sends no level, Home
+  Assistant now shows unknown instead of 0 dBm.
+- **Window handles (A5-14-09, A5-14-0A) stayed unknown.** The window entity
+  now follows the handle (tilted counts as open), and a new *Handle* entity
+  shows closed, tilted or open. The Illuminance entity these profiles do not
+  have is removed. Entity IDs stay.
+
+### Docs
+
+- The migration from Slim or ChristopheHD is described in full, including
+  what each note in the table means and how to rename by hand.
+
 ## [1.8.4-beta8] - 2026-10-08 (beta channel)
 
 ### Fixed

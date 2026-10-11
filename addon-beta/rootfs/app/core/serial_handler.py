@@ -621,11 +621,14 @@ class SerialHandler:
         payload = data[1:-5]
 
         # Get signal strength from optional data
-        # ESP3: optional[4] = dBm value (negated). 0xFF = not available (USB300).
+        # ESP3 RADIO_ERP1 optional data: SubTelNum (1), Destination ID (4),
+        # dBm (1, negated), Security Level (1). 0xFF = not available.
+        # Index 4 was read until beta9, the last byte of the destination ID,
+        # which is 0xFF for every broadcast, so RSSI was never set.
         # Valid EnOcean RSSI: roughly -20 to -120 dBm.
         dbm = 0
-        if len(optional) >= 5:
-            raw_dbm = optional[4]
+        if len(optional) >= 6:
+            raw_dbm = optional[5]
             if 20 <= raw_dbm <= 120:
                 dbm = -raw_dbm
             # else: 0 = not available (0xFF, 0x00, or out-of-range)

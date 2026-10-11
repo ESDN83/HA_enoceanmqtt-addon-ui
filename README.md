@@ -438,15 +438,14 @@ The `mapping_overrides.yaml` and `mapping.yaml` files can be edited manually if 
 +---------------------------------------------------------+
 ```
 
-## Migration from ChristopheHD app (enocean-mqtt)
+## Switching from Slim or ChristopheHD enocean-mqtt
 
-If you are migrating from the ChristopheHD enocean-mqtt app:
-
-1. **Export your config** from the old app (if possible)
-2. **Install this app** and stop the old one
-3. **Import your devices** via the Settings page or manually re-add them
-4. Your existing `enoceanmqtt.devices` file format is supported for import
-5. MQTT topics are compatible, existing HA entities should continue working
+The app imports the device list of EnOcean MQTT Slim or ChristopheHD
+enocean-mqtt and replaces their entities, keeping the entity IDs where it can
+(Settings → *Switch from another EnOcean app*). The steps, the notes in the
+table and the type changes to check are in the app's documentation
+([DOCS.md](addon-beta/DOCS.md#switching-from-enocean-mqtt-slim-or-christophehd-enocean-mqtt)).
+Make a full Home Assistant backup first.
 
 ## Development
 

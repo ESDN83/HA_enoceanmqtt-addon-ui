@@ -62,6 +62,20 @@ _PIRS_A5_08 = "{{ (1 - value_json.PIRS) if value_json.PIRS is defined else '' }}
 # when open. Under the old CO key, so the entity keeps its unique_id.
 _CO_OPEN = "{{ (1 - value_json.CO) if value_json.CO is defined else '' }}"
 
+# A5-14-09/0A window handle: CT 0 closed, 1 tilt, 3 open (2 reserved). The
+# window counts as open when tilted too.
+_CT_OPEN = "{{ ('0' if value_json.CT == 0 else '1') if value_json.CT is defined else '' }}"
+_CT_STATE = ("{{ {0: 'closed', 1: 'tilted', 3: 'open'}.get(value_json.CT, '') "
+             "if value_json.CT is defined else '' }}")
+
+# Fields an earlier mapping published that the profile does not have. Their
+# retained discovery configs are cleared, or the entities would stay unknown
+# forever (ADR-0024).
+RETIRED_FIELDS = {
+    "A5-14-09": {"ILL": "sensor"},
+    "A5-14-0A": {"ILL": "sensor"},
+}
+
 DEFAULT_MAPPINGS = {
     # 4BS Temperature Sensors (A5-02-xx)
     "A5-02-05": {
@@ -716,16 +730,20 @@ DEFAULT_MAPPINGS = {
         }
     },
     "A5-14-09": {
+        # Window handle: EEP.xml has CT (0 closed, 1 tilt, 3 open) and SVC,
+        # no OC and no ILL. OC stays the key of the window entity so it keeps
+        # its unique_id; ILL is retired (ADR-0024).
         "OC": {
             "component": "binary_sensor",
             "name": "Contact",
-            "device_class": "window"
+            "device_class": "window",
+            "value_template": _CT_OPEN
         },
-        "ILL": {
+        "CT": {
             "component": "sensor",
-            "name": "Illuminance",
-            "device_class": "illuminance",
-            "unit_of_measurement": "lx"
+            "name": "Handle",
+            "icon": "mdi:window-open-variant",
+            "value_template": _CT_STATE
         },
         "SVC": {
             "component": "sensor",
@@ -738,18 +756,19 @@ DEFAULT_MAPPINGS = {
         "OC": {
             "component": "binary_sensor",
             "name": "Contact",
-            "device_class": "window"
+            "device_class": "window",
+            "value_template": _CT_OPEN
+        },
+        "CT": {
+            "component": "sensor",
+            "name": "Handle",
+            "icon": "mdi:window-open-variant",
+            "value_template": _CT_STATE
         },
         "VIB": {
             "component": "binary_sensor",
             "name": "Vibration",
             "device_class": "vibration"
-        },
-        "ILL": {
-            "component": "sensor",
-            "name": "Illuminance",
-            "device_class": "illuminance",
-            "unit_of_measurement": "lx"
         },
         "SVC": {
             "component": "sensor",
@@ -1338,7 +1357,9 @@ class MappingManager:
                 "unique_id": rssi_uid,
                 "object_id": f"{device_name}_rssi".lower().replace(" ", "_"),
                 "state_topic": state_topic,
-                "value_template": "{{ value_json.rssi }}",
+                # 0 means the transceiver sent no level; "None" makes HA
+                # show unknown instead of a misleading 0 dBm.
+                "value_template": "{{ value_json.rssi if value_json.rssi else None }}",
                 "device_class": "signal_strength",
                 "unit_of_measurement": "dBm",
                 "icon": "mdi:wifi",
@@ -1555,6 +1576,17 @@ class MappingManager:
             travel_time=int(getattr(device, "travel_time", 0) or 0),
             position_control=bool(getattr(device, "position_control", False)),
         )
+
+    def retired_discovery(self, device) -> List[Dict[str, str]]:
+        """Discovery configs of `device` that an earlier version published
+        for fields its profile does not have, to be cleared (ADR-0024)."""
+        if device.actuator_type:
+            return []
+        retired = RETIRED_FIELDS.get(device.eep_id.upper(), {})
+        return [{"component": component,
+                 "unique_id": self.build_unique_id(device.eep_id, device.address,
+                                                   device.sender_id, field)}
+                for field, component in retired.items()]
 
     def build_device_info(self, device, module_name: str = None) -> Dict[str, Any]:
         """Build HA device info from device object.
