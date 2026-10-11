@@ -469,6 +469,25 @@ async def download_backup(filename: str, request: Request):
     return FileResponse(filepath, filename=filename, media_type="application/zip")
 
 
+def _set_aside_custom_profiles(config_path: str) -> int:
+    """Move the user's profile files (and the removed-bundled marks) into
+    custom_eep/.pre_restore/, replacing what an earlier restore left there.
+    Returns how many files were moved."""
+    import shutil
+    custom_path = os.path.join(config_path, "custom_eep")
+    if not os.path.isdir(custom_path):
+        return 0
+    aside = os.path.join(custom_path, ".pre_restore")
+    shutil.rmtree(aside, ignore_errors=True)
+    moved = 0
+    for fname in os.listdir(custom_path):
+        if fname.endswith((".yaml", ".yml")):
+            os.makedirs(aside, exist_ok=True)
+            shutil.move(os.path.join(custom_path, fname), os.path.join(aside, fname))
+            moved += 1
+    return moved
+
+
 @router.post("/backup/restore/{filename}")
 async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
     """Restore from a backup file"""
@@ -491,6 +510,13 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
 
     try:
         with zipfile.ZipFile(filepath, 'r') as zf:
+            # A backup holds the complete set of the user's profiles and the
+            # removed-bundled marks, so a restore replaces them rather than
+            # adding to them: a profile created after the backup, or a mark
+            # an older backup does not have, would otherwise survive it
+            # (ADR-0027). The replaced files are kept in .pre_restore/.
+            profiles_replaced = _set_aside_custom_profiles(config_path)
+
             for name in zf.namelist():
                 if name in ("devices.json", "devices.yaml"):
                     # Restore devices (support both old JSON and new YAML backups)
@@ -540,7 +566,8 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
                     imported["mapping_overrides"] = True
 
         # Reinitialize EEP manager if any EEP-related data was restored
-        if eep_manager and (imported.get("eep_xml") or imported.get("custom_profiles", 0) > 0):
+        if eep_manager and (imported.get("eep_xml") or imported.get("custom_profiles", 0) > 0
+                            or profiles_replaced):
             eep_manager.profiles.clear()
             await eep_manager.initialize()
 

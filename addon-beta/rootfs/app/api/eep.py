@@ -66,6 +66,8 @@ async def get_profile_tree(request: Request) -> Dict[str, Any]:
             "eep_id": profile.eep_id,
             "description": profile.description,
             "is_custom": profile.is_custom,
+            "source": profile.source,
+            "bundled_newer": profile.bundled_newer,
             "has_mapping_override": eep_upper in overrides
         }
 
@@ -75,7 +77,8 @@ async def get_profile_tree(request: Request) -> Dict[str, Any]:
         if key not in matched_override_keys:
             orphaned.append({"eep_id": key, "mapping": overrides[key]})
 
-    return {"tree": tree, "orphaned_overrides": orphaned}
+    return {"tree": tree, "orphaned_overrides": orphaned,
+            "hidden_bundled": eep_manager.get_hidden_bundled()}
 
 
 @router.get("/search/{query}")
@@ -279,7 +282,8 @@ async def update_custom_profile(eep_id: str, profile: CustomProfileCreate, reque
 
 @router.delete("/custom/{eep_id}")
 async def delete_custom_profile(eep_id: str, request: Request) -> Dict[str, str]:
-    """Delete a custom EEP profile"""
+    """Delete a custom profile, reset an edited bundled one, or hide a bundled
+    one. The status says which (ADR-0027)."""
     eep_manager = request.app.state.eep_manager
     if not eep_manager:
         raise HTTPException(status_code=500, detail="EEP manager not initialized")
@@ -291,11 +295,22 @@ async def delete_custom_profile(eep_id: str, request: Request) -> Dict[str, str]
     if not existing.is_custom:
         raise HTTPException(status_code=400, detail="Cannot delete built-in profile")
 
-    success = await eep_manager.delete_custom_profile(eep_id)
-    if not success:
+    result = await eep_manager.delete_custom_profile(eep_id)
+    if not result:
         raise HTTPException(status_code=500, detail="Failed to delete custom profile")
 
-    return {"status": "deleted"}
+    return {"status": result}
+
+
+@router.post("/custom/{eep_id}/restore")
+async def restore_bundled_profile(eep_id: str, request: Request) -> Dict[str, str]:
+    """Bring back a bundled profile the user removed."""
+    eep_manager = request.app.state.eep_manager
+    if not eep_manager:
+        raise HTTPException(status_code=500, detail="EEP manager not initialized")
+    if not await eep_manager.restore_bundled_profile(eep_id):
+        raise HTTPException(status_code=404, detail=f"No removed bundled profile '{eep_id}'")
+    return {"status": "restored"}
 
 
 def _get_rorg_description(rorg: str) -> str:

@@ -417,6 +417,48 @@ async def _serial_background_connect(handler, port: str):
             backoff = min(backoff * 2, 60.0)
 
 
+
+async def _clear_stale_discovery(published: set):
+    """Clear this app's retained discovery configs that it no longer makes.
+
+    A retained config outlives whatever produced it: a mapping field removed
+    in the mapping editor, or a field a corrected default mapping no longer
+    has, stayed in Home Assistant as an entity that never updates (forum post
+    59). Only configs in this app's own format for a configured device's
+    address are touched (`enocean_<eep6>_<addr8>_...` under `.../enocean/`),
+    so another app's entities, the gateway diagnostics and devices that are
+    not configured here are left alone. ADR-0026.
+    """
+    import re
+    from api.system import _scan_retained_discovery
+    from core.mapping_manager import _normalize_address
+
+    addresses = {_normalize_address(d.address) for d in device_manager.devices.values() if d.address}
+    if not addresses:
+        return
+    messages = await asyncio.get_event_loop().run_in_executor(
+        None, _scan_retained_discovery, mqtt_handler)
+    prefix = mqtt_handler.discovery_prefix + "/"
+    stale = []
+    for topic, payload in messages:
+        if not payload or not topic.startswith(prefix):
+            continue
+        parts = topic[len(prefix):].split("/")
+        if len(parts) != 4 or parts[1] != "enocean" or parts[3] != "config":
+            continue
+        component, uid = parts[0], parts[2]
+        tokens = uid.lower().split("_")
+        if (len(tokens) < 4 or tokens[0] != "enocean"
+                or not re.fullmatch(r"[0-9a-f]{6}", tokens[1]) or tokens[2] not in addresses):
+            continue
+        if (component, uid) not in published:
+            stale.append((component, uid))
+    for component, uid in stale:
+        await mqtt_handler.remove_discovery_config(component, uid)
+    if stale:
+        logger.info(f"Cleared {len(stale)} stale discovery configs: "
+                    + ", ".join(f"{c}/{u}" for c, u in stale))
+
 async def _publish_all_discoveries():
     """Publish HA MQTT discovery and availability for all configured devices,
     then re-publish cached states.
@@ -435,6 +477,10 @@ async def _publish_all_discoveries():
         return
 
     logger.info("Publishing HA discovery for all devices...")
+
+    # Every config published now, to tell stale ones apart afterwards.
+    published = set()
+    publish_failed = False
 
     for device in device_manager.devices.values():
         try:
@@ -457,11 +503,7 @@ async def _publish_all_discoveries():
                     unique_id=item["unique_id"],
                     config=item["config"]
                 )
-
-            # Entities an earlier mapping made for fields the profile does
-            # not have (ADR-0024).
-            for item in mapping_manager.retired_discovery(device):
-                await mqtt_handler.remove_discovery_config(item["component"], item["unique_id"])
+                published.add((item["component"], item["unique_id"]))
 
             # Publish device availability (online)
             await mqtt_handler.publish_device_availability(device.name, available=True)
@@ -469,9 +511,19 @@ async def _publish_all_discoveries():
             logger.debug(f"Published discovery for {device.name}")
 
         except Exception as e:
+            publish_failed = True
             logger.error(f"Failed to publish discovery for {device.name}: {e}")
 
     logger.info(f"Published HA discovery for {device_manager.device_count} devices")
+
+    if publish_failed:
+        # A device whose configs were not built would look entirely stale.
+        logger.warning("Skipping stale discovery cleanup, a device failed to publish")
+    else:
+        try:
+            await _clear_stale_discovery(published)
+        except Exception as e:
+            logger.error(f"Stale discovery cleanup failed: {e}")
 
     # The add-on's own gateway device, opt-in via the gateway_diagnostics
     # option (#38). When it is switched off the configs are actively removed,

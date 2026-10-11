@@ -30,3 +30,5 @@ Rules:
 - [0023](0023-contact-meaning-and-sensor-invert.md) D5 contacts report open as on, and sensors can be inverted
 - [0024](0024-window-handle-retired-fields-rssi.md) Window handles read CT, retired fields are cleared, RSSI from byte 5
 - [0025](0025-mapping-audit-against-eep-xml.md) Default mappings are checked against EEP.xml
+- [0026](0026-clear-stale-discovery-configs.md) Stale discovery configs are cleared at startup
+- [0027](0027-bundled-profiles-overlay.md) Bundled profiles overlay, they are not copied

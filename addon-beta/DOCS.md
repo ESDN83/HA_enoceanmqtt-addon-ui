@@ -89,6 +89,15 @@ Toggle between Visual and Text (YAML) editing modes for full control:
 Create fully custom EEP profiles for non-standard devices, or "fork" a standard
 profile to customize its Telegram Fields and HA mappings together.
 
+Some profiles ship with the app (marked *bundled*, e.g. A5-3F-7F for Eltako
+shutters). Editing one keeps your version across updates; *Reset to bundled
+version* brings the shipped one back (your edit is kept as a `.bak` file).
+*Remove* hides a bundled profile for good; it is listed under *Removed bundled
+profiles* with a *Restore* button.
+
+When a mapping field is removed or changed, its old entity is removed from
+Home Assistant at the next start of the app.
+
 ![Custom Profile](https://github.com/user-attachments/assets/8da98b5c-14cf-4e4e-a26a-cc31aac98e67)
 
 ### Add Device

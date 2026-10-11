@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.8.4-beta11] - 2026-10-11 (beta channel)
+
+### Fixed
+
+- **Entities of removed mapping fields stayed in Home Assistant.** At
+  startup the app now removes its own entities that it no longer creates,
+  for configured devices only.
+- **A deleted bundled profile (A5-3F-7F) came back after a restart, and
+  edits to it were overwritten.** Bundled profiles now stay in the app and
+  are no longer copied. Deleting an edited one resets it to the bundled
+  version (your edit is kept as .bak), deleting an untouched one removes it
+  for good, with a restore button under *Removed bundled profiles*. If the
+  app later ships a newer version of a profile you edited, it says so
+  instead of replacing your version.
+- Deleting a custom profile brings back the standard profile of the same
+  EEP immediately, not only after a restart.
+
 ## [1.8.4-beta10] - 2026-10-11 (beta channel)
 
 ### Fixed

@@ -1,6 +1,6 @@
 # 0024. Window handles read CT, retired fields are cleared, RSSI from byte 5
 
-Status: proposed (v1.8.4-beta9).
+Status: proposed (v1.8.4-beta9). The RETIRED_FIELDS list is superseded by ADR-0026.
 
 ## Context
 

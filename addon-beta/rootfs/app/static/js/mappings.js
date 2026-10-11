@@ -21,6 +21,7 @@ async function loadProfiles() {
         const treeResponse = await response.json();
         const tree = treeResponse.tree || treeResponse;
         const orphanedOverrides = treeResponse.orphaned_overrides || [];
+        const hiddenBundled = treeResponse.hidden_bundled || [];
 
         const container = document.getElementById('eep-tree');
         container.innerHTML = '';
@@ -51,11 +52,30 @@ async function loadProfiles() {
                 typeDiv.className = 'ms-3 eep-item custom';
                 typeDiv.style.cursor = 'pointer';
                 typeDiv.dataset.search = `${typeData.eep_id} ${typeData.description} custom`.toLowerCase();
-                typeDiv.innerHTML = `<i class="bi bi-file-earmark-fill text-warning"></i> ${typeData.eep_id} - ${typeData.description}`;
+                typeDiv.innerHTML = `<i class="bi bi-file-earmark-fill text-warning"></i> ${typeData.eep_id} - ${typeData.description} ${profileSourceBadge(typeData)}`;
                 typeDiv.onclick = () => showProfileDetails(typeData.eep_id);
                 customSection.appendChild(typeDiv);
             });
             container.appendChild(customSection);
+        }
+
+        // Bundled profiles the user removed: they stay removed, but can be
+        // brought back here (ADR-0027).
+        if (hiddenBundled.length > 0) {
+            const hiddenSection = document.createElement('div');
+            hiddenSection.className = 'mb-3 border-start border-secondary border-3 ps-2';
+            hiddenSection.innerHTML = `<strong class="text-muted"><i class="bi bi-eye-slash"></i> ${t('profile.hidden_bundled', 'Removed bundled profiles')} (${hiddenBundled.length})</strong>`;
+            hiddenBundled.forEach(h => {
+                const row = document.createElement('div');
+                row.className = 'ms-3 eep-item d-flex justify-content-between align-items-center';
+                row.dataset.search = `${h.eep_id} ${h.description}`.toLowerCase();
+                row.innerHTML = `<span class="text-muted">${h.eep_id} - ${h.description}</span>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="restoreBundledProfile('${h.eep_id}')">
+                        <i class="bi bi-arrow-counterclockwise"></i> ${t('profile.restore', 'Restore')}
+                    </button>`;
+                hiddenSection.appendChild(row);
+            });
+            container.appendChild(hiddenSection);
         }
 
         // Show overridden profiles section (always expanded)
@@ -172,15 +192,23 @@ async function showProfileDetails(eepId) {
         const container = document.getElementById('profile-details');
         let actionsHtml = '';
         if (profile.is_custom) {
+            // What "delete" does depends on where the profile comes from
+            // (ADR-0027): a bundled edit is reset, a bundled one is removed.
+            const del = profile.source === 'bundled_modified'
+                ? {icon: 'bi-arrow-counterclockwise', label: t('profile.reset_bundled', 'Reset to bundled version')}
+                : profile.source === 'bundled'
+                ? {icon: 'bi-eye-slash', label: t('profile.remove', 'Remove')}
+                : {icon: 'bi-trash', label: t('profile.delete', 'Delete')};
             actionsHtml = `
                 <div class="mt-2">
                     <button class="btn btn-sm btn-outline-primary me-2" onclick="editCustomProfile('${profile.eep_id}')">
                         <i class="bi bi-pencil"></i> ${t('profile.edit', 'Edit Profile')}
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCustomProfile('${profile.eep_id}')">
-                        <i class="bi bi-trash"></i> ${t('profile.delete', 'Delete')}
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCustomProfile('${profile.eep_id}', '${profile.source}')">
+                        <i class="bi ${del.icon}"></i> ${del.label}
                     </button>
-                </div>`;
+                </div>
+                ${profile.bundled_newer ? `<div class="alert alert-info py-1 px-2 mt-2 small mb-0"><i class="bi bi-info-circle"></i> ${t('profile.bundled_newer', 'The app ships a newer version of this profile. Your version is kept; reset to the bundled version to use it.')}</div>` : ''}`;
         } else {
             actionsHtml = `
                 <div class="mt-2">
@@ -278,7 +306,7 @@ async function showProfileDetails(eepId) {
         container.innerHTML = `
             <h5>${profile.eep_id}</h5>
             <p>${profile.description}</p>
-            ${profile.is_custom ? `<span class="badge bg-warning">${t('profile.custom', 'Custom Profile')}</span>` : `<span class="badge bg-secondary">${t('profile.standard', 'Standard Profile')}</span>`}
+            ${profile.is_custom ? `<span class="badge bg-warning">${t('profile.custom', 'Custom Profile')}</span> ${profileSourceBadge(profile)}` : `<span class="badge bg-secondary">${t('profile.standard', 'Standard Profile')}</span>`}
             ${actionsHtml}
             <hr>
             <h6>${t('profile.telegram_fields', 'Telegram Fields')}</h6>
@@ -785,8 +813,18 @@ async function resetMappingOverride(eepId) {
         showToast(e.message, 'danger');
     }
 }
-async function deleteCustomProfile(eepId) {
-    if (!confirm(`${t('profile.delete_confirm', 'Delete custom profile')} ${eepId}? ${t('common.cannot_undo', 'This cannot be undone.')}`)) return;
+function profileSourceBadge(p) {
+    if (p.source === 'bundled') return `<span class="badge bg-secondary">${t('profile.bundled', 'bundled')}</span>`;
+    if (p.source === 'bundled_modified') return `<span class="badge bg-info">${t('profile.bundled_modified', 'bundled, edited')}</span>`;
+    return '';
+}
+async function deleteCustomProfile(eepId, source) {
+    const question = source === 'bundled_modified'
+        ? t('profile.reset_bundled_confirm', 'Reset {id} to the bundled version? Your version is kept as a .bak file.').replace('{id}', eepId)
+        : source === 'bundled'
+        ? t('profile.remove_bundled_confirm', 'Remove the bundled profile {id}? It stays removed after updates and can be restored under "Removed bundled profiles".').replace('{id}', eepId)
+        : `${t('profile.delete_confirm', 'Delete custom profile')} ${eepId}? ${t('common.cannot_undo', 'This cannot be undone.')}`;
+    if (!confirm(question)) return;
 
     try {
         const response = await fetch(getApiUrl(`/api/eep/custom/${eepId}`), {method: 'DELETE'});
@@ -794,9 +832,26 @@ async function deleteCustomProfile(eepId) {
             const errData = await response.json().catch(() => null);
             throw new Error(errData?.detail || `Server error (${response.status})`);
         }
+        const result = await response.json().catch(() => ({}));
         document.getElementById('profile-details').innerHTML = `<p class="text-muted">${t('profiles.select_hint', 'Select a profile to view details')}</p>`;
         loadProfiles();
-        showToast(`${t('profile.deleted', 'Profile deleted')}: ${eepId}`, 'success');
+        const done = result.status === 'reset' ? t('profile.reset_done', 'Profile reset to the bundled version')
+            : result.status === 'hidden' ? t('profile.removed', 'Profile removed')
+            : t('profile.deleted', 'Profile deleted');
+        showToast(`${done}: ${eepId}`, 'success');
+    } catch (error) {
+        showToast(error.message, 'danger');
+    }
+}
+async function restoreBundledProfile(eepId) {
+    try {
+        const response = await fetch(getApiUrl(`/api/eep/custom/${eepId}/restore`), {method: 'POST'});
+        if (!response.ok) {
+            const errData = await response.json().catch(() => null);
+            throw new Error(errData?.detail || `Server error (${response.status})`);
+        }
+        loadProfiles();
+        showToast(`${t('profile.restored', 'Profile restored')}: ${eepId}`, 'success');
     } catch (error) {
         showToast(error.message, 'danger');
     }

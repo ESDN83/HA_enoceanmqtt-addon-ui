@@ -95,16 +95,6 @@ _OV_ON = ("{% set v = value_json.OV | int(-1) %}"
 _OV_CH1_ON = ("{% set v = value_json.OV_CH1 | int(-1) %}"
               "{{ '' if v < 0 or v == 127 else ('1' if v > 0 else '0') }}")
 
-# Fields an earlier mapping published that the profile does not have. Their
-# retained discovery configs are cleared, or the entities would stay unknown
-# forever (ADR-0024).
-RETIRED_FIELDS = {
-    "A5-09-05": {"TMP": "sensor", "HUM": "sensor"},
-    "A5-14-01": {"VIB": "binary_sensor"},
-    "A5-14-09": {"ILL": "sensor"},
-    "A5-14-0A": {"ILL": "sensor"},
-}
-
 DEFAULT_MAPPINGS = {
     # 4BS Temperature Sensors (A5-02-xx)
     "A5-02-05": {
@@ -731,7 +721,7 @@ DEFAULT_MAPPINGS = {
     },
     # 4BS Multi-sensors: vibration/window/lux (A5-14), from arno0392 fork
     "A5-14-01": {
-        # EEP.xml: CT 1 open, 0 closed; there is no VIB (retired).
+        # EEP.xml: CT 1 open, 0 closed; there is no VIB.
         "CT": {
             "component": "binary_sensor",
             "name": "Contact",
@@ -765,7 +755,7 @@ DEFAULT_MAPPINGS = {
     "A5-14-09": {
         # Window handle: EEP.xml has CT (0 closed, 1 tilt, 3 open) and SVC,
         # no OC and no ILL. OC stays the key of the window entity so it keeps
-        # its unique_id; ILL is retired (ADR-0024).
+        # its unique_id; ILL is gone; its old entity is cleared at startup (ADR-0026).
         "OC": {
             "component": "binary_sensor",
             "name": "Contact",
@@ -1597,17 +1587,6 @@ class MappingManager:
             travel_time=int(getattr(device, "travel_time", 0) or 0),
             position_control=bool(getattr(device, "position_control", False)),
         )
-
-    def retired_discovery(self, device) -> List[Dict[str, str]]:
-        """Discovery configs of `device` that an earlier version published
-        for fields its profile does not have, to be cleared (ADR-0024)."""
-        if device.actuator_type:
-            return []
-        retired = RETIRED_FIELDS.get(device.eep_id.upper(), {})
-        return [{"component": component,
-                 "unique_id": self.build_unique_id(device.eep_id, device.address,
-                                                   device.sender_id, field)}
-                for field, component in retired.items()]
 
     def build_device_info(self, device, module_name: str = None) -> Dict[str, Any]:
         """Build HA device info from device object.
