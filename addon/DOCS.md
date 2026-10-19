@@ -89,6 +89,15 @@ Toggle between Visual and Text (YAML) editing modes for full control:
 Create fully custom EEP profiles for non-standard devices, or "fork" a standard
 profile to customize its Telegram Fields and HA mappings together.
 
+Some profiles ship with the app (marked *bundled*, e.g. A5-3F-7F for Eltako
+shutters). Editing one keeps your version across updates; *Reset to bundled
+version* brings the shipped one back (your edit is kept as a `.bak` file).
+*Remove* hides a bundled profile for good; it is listed under *Removed bundled
+profiles* with a *Restore* button.
+
+When a mapping field is removed or changed, its old entity is removed from
+Home Assistant at the next start of the app.
+
 ![Custom Profile](https://github.com/user-attachments/assets/8da98b5c-14cf-4e4e-a26a-cc31aac98e67)
 
 ### Add Device
@@ -155,15 +164,57 @@ When enabled (default), the app persists the last known state of all devices.
 After a restart, these states are republished so that infrequent sensors (like a
 Kessel Staufix that only reports every 8-10 hours) don't show as "unavailable".
 
-## Migration from ChristopheHD Add-on
+## Switching from EnOcean MQTT Slim or ChristopheHD enocean-mqtt
 
-If you are migrating from the ChristopheHD enocean-mqtt add-on:
+Settings → *Switch from another EnOcean app*. The **How it works** button there
+shows the same steps. No warranty: make a full Home Assistant backup first.
 
-1. Export your config from the old add-on (if possible)
-2. Install this app and stop the old one
-3. Import your devices via the Settings page
-4. The old `enoceanmqtt.devices` file format is supported for import
-5. MQTT topics are compatible, existing HA entities should continue working
+### Steps
+
+1. Leave the old app running for now.
+2. **Add devices.** ChristopheHD is read from `/config/enoceanmqtt.devices`,
+   Slim from the running Slim app; either can also be uploaded as a file.
+   Check the names and add the ticked devices. Sections marked `ignore` or
+   defined only by `model =` are listed as skipped; add those by hand.
+3. Stop the old app and turn off *Start on boot*. Only one app can use the
+   transceiver.
+4. **Find old entities.** The table lists the old app's entities, but only
+   for devices that now exist in this app, each with the new entity that
+   takes over its entity ID (same device, same value, same type). While Slim
+   is still running this step is refused, since Slim would publish them
+   again.
+5. **Remove.** This clears the old entities' MQTT discovery messages, so Home
+   Assistant drops exactly those entities; the Home Assistant device and the
+   new entities stay. With *Give the new entities the old entity IDs* ticked
+   (the default), the new entities are renamed right after, so automations,
+   dashboards and the history carry on.
+6. Check actuators (light, switch, cover): type and sender ID may need
+   setting.
+
+### Notes in the table
+
+| Note | Meaning | What to do |
+|---|---|---|
+| *(new entity shown)* | Paired, gets the old ID. | Nothing. |
+| no matching new entity | This app has no entity for that value. | Remove it, or keep it if you still need it. |
+| new entity has another type, rename by hand | Same value, different type, e.g. a sensor became a binary sensor. Home Assistant cannot rename across types. | Rename by hand (below), then check automations. |
+| several candidates, rename by hand | More than one old entity fits. | Rename by hand. |
+| the new entity already has this ID | Done in an earlier run. | Remove the old one. |
+
+### Renaming by hand
+
+1. Remove the old entity first, so its ID is free.
+2. Settings → Entities, open the new entity, gear icon, *Entity ID*, enter
+   the old ID, save.
+
+### Type changes to check
+
+- **Slim door/window contacts (D5-00-01)** were sensors with `0`/`1`. Here
+  they are binary sensors with `on` (open) / `off` (closed). Automations that
+  compare with `0` or `1` need updating.
+- **Contacts and motion sensors** can be flipped per device: open the device,
+  tick *Invert binary sensors*. Use it for a contact mounted the other way
+  round.
 
 ## Troubleshooting
 

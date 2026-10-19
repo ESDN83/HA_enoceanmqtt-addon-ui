@@ -23,7 +23,7 @@ from api import devices, eep, mappings, system, gateway
 
 # Import core components
 from core.mqtt_handler import MQTTHandler
-from core.serial_handler import SerialHandler
+from core.serial_handler import SerialHandler, RPS_HOLD_SECONDS
 from core.device_manager import DeviceManager
 from core.eep_manager import EEPManager
 from core.mapping_manager import MappingManager
@@ -191,6 +191,7 @@ async def lifespan(app: FastAPI):
         # telegrams without telling anyone (ADR-0012).
         command_queue = CommandQueue(
             _handle_device_command,
+            extra_time=_command_extra_time,
             # No publisher when the entities do not exist: nothing would read
             # the topic and every command would write to it twice.
             on_change=_publish_gateway_state if GATEWAY_DIAGNOSTICS else None,
@@ -416,6 +417,48 @@ async def _serial_background_connect(handler, port: str):
             backoff = min(backoff * 2, 60.0)
 
 
+
+async def _clear_stale_discovery(published: set):
+    """Clear this app's retained discovery configs that it no longer makes.
+
+    A retained config outlives whatever produced it: a mapping field removed
+    in the mapping editor, or a field a corrected default mapping no longer
+    has, stayed in Home Assistant as an entity that never updates (forum post
+    59). Only configs in this app's own format for a configured device's
+    address are touched (`enocean_<eep6>_<addr8>_...` under `.../enocean/`),
+    so another app's entities, the gateway diagnostics and devices that are
+    not configured here are left alone. ADR-0026.
+    """
+    import re
+    from api.system import _scan_retained_discovery
+    from core.mapping_manager import _normalize_address
+
+    addresses = {_normalize_address(d.address) for d in device_manager.devices.values() if d.address}
+    if not addresses:
+        return
+    messages = await asyncio.get_event_loop().run_in_executor(
+        None, _scan_retained_discovery, mqtt_handler)
+    prefix = mqtt_handler.discovery_prefix + "/"
+    stale = []
+    for topic, payload in messages:
+        if not payload or not topic.startswith(prefix):
+            continue
+        parts = topic[len(prefix):].split("/")
+        if len(parts) != 4 or parts[1] != "enocean" or parts[3] != "config":
+            continue
+        component, uid = parts[0], parts[2]
+        tokens = uid.lower().split("_")
+        if (len(tokens) < 4 or tokens[0] != "enocean"
+                or not re.fullmatch(r"[0-9a-f]{6}", tokens[1]) or tokens[2] not in addresses):
+            continue
+        if (component, uid) not in published:
+            stale.append((component, uid))
+    for component, uid in stale:
+        await mqtt_handler.remove_discovery_config(component, uid)
+    if stale:
+        logger.info(f"Cleared {len(stale)} stale discovery configs: "
+                    + ", ".join(f"{c}/{u}" for c, u in stale))
+
 async def _publish_all_discoveries():
     """Publish HA MQTT discovery and availability for all configured devices,
     then re-publish cached states.
@@ -434,6 +477,10 @@ async def _publish_all_discoveries():
         return
 
     logger.info("Publishing HA discovery for all devices...")
+
+    # Every config published now, to tell stale ones apart afterwards.
+    published = set()
+    publish_failed = False
 
     for device in device_manager.devices.values():
         try:
@@ -456,6 +503,7 @@ async def _publish_all_discoveries():
                     unique_id=item["unique_id"],
                     config=item["config"]
                 )
+                published.add((item["component"], item["unique_id"]))
 
             # Publish device availability (online)
             await mqtt_handler.publish_device_availability(device.name, available=True)
@@ -463,9 +511,19 @@ async def _publish_all_discoveries():
             logger.debug(f"Published discovery for {device.name}")
 
         except Exception as e:
+            publish_failed = True
             logger.error(f"Failed to publish discovery for {device.name}: {e}")
 
     logger.info(f"Published HA discovery for {device_manager.device_count} devices")
+
+    if publish_failed:
+        # A device whose configs were not built would look entirely stale.
+        logger.warning("Skipping stale discovery cleanup, a device failed to publish")
+    else:
+        try:
+            await _clear_stale_discovery(published)
+        except Exception as e:
+            logger.error(f"Stale discovery cleanup failed: {e}")
 
     # The add-on's own gateway device, opt-in via the gateway_diagnostics
     # option (#38). When it is switched off the configs are actively removed,
@@ -619,6 +677,38 @@ async def _echo_light_state(device_name: str, command: str, brightness: int = No
     elif brightness is not None:
         state["brightness"] = brightness
     await mqtt_handler.publish_state(device_name, state)
+
+
+def _cover_press_hold(device) -> float:
+    """Seconds an F6 cover's Open/Close press is held. ADR-0019."""
+    if device.press_time and device.press_time > 0:
+        return device.press_time / 1000.0
+    return RPS_HOLD_SECONDS
+
+
+def _command_extra_time(device_name: str) -> float:
+    """Time a command may need beyond the queue's normal deadline.
+
+    A long press is held in full before the release goes out, so the
+    command legitimately takes that long. Without this the queue would
+    report every Open/Close of such a cover as timed out. A device that
+    shares its sender ID with such a cover waits for that press to be
+    released first (ADR-0019), so it gets the same allowance.
+    """
+    device = device_manager.get_device(device_name) if device_manager else None
+    if not device:
+        return 0.0
+    own = device.press_time if device.actuator_type == "cover" else 0
+    own = max(own or 0, 0)
+    sender = (device.sender_id or "").lower().replace("0x", "")
+    waited = 0
+    if sender:
+        for other in device_manager.devices.values():
+            if (other is not device and other.actuator_type == "cover"
+                    and (other.press_time or 0) > 0
+                    and (other.sender_id or "").lower().replace("0x", "") == sender):
+                waited = max(waited, other.press_time)
+    return (own + waited) / 1000.0
 
 
 async def _handle_device_command(device_name: str, payload: str, entity: str = None):
@@ -936,9 +1026,13 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             rocker = 0x50 if rocker == 0x70 else 0x70
         if rocker is not None:
             _last_cover_rocker[device_name] = rocker
+            # A configured press time is for actuators that only travel on a
+            # long press (Flextron ALADIN, ADR-0019). Stop below stays a tap,
+            # which halts a running shutter on those as well.
             sent = await serial_handler.send_rps_press_release(
                 sender_id=sender_id, press_data=rocker,
-                destination=broadcast, label=device_name
+                destination=broadcast, label=device_name,
+                hold=_cover_press_hold(device)
             )
         elif command == "STOP":
             # A short tap stops a running shutter: "Kurzes Tippen unterbricht
@@ -996,10 +1090,12 @@ app.include_router(gateway.router, prefix="/api/gateway", tags=["gateway"])
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     """Serve the main UI"""
+    # Never cache the page: it names the script versions to load, and a
+    # cached copy kept a browser on the previous version's scripts.
     return templates.TemplateResponse("index.html", {
         "request": request,
         "version": VERSION
-    })
+    }, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/health")

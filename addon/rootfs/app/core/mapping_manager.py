@@ -49,6 +49,52 @@ def _rocker_button_binary_sensors() -> Dict[str, Any]:
 
 
 # Default mappings for common EEP profiles
+
+# Occupancy: EEP.xml calls the field PIRS in every A5-07/A5-08 profile, and
+# its meaning differs per profile. The mapping key stays PIR so the entity
+# keeps its unique_id (ADR-0022). An empty render skips telegrams that carry
+# no PIRS (teach-in), the way the plain template did.
+_PIRS_A5_07_01 = "{{ ('1' if value_json.PIRS >= 128 else '0') if value_json.PIRS is defined else '' }}"
+_PIRS_A5_07_0X = "{{ value_json.PIRS if value_json.PIRS is defined else '' }}"
+_PIRS_A5_08 = "{{ (1 - value_json.PIRS) if value_json.PIRS is defined else '' }}"
+
+# D5-00-01: EEP.xml says CO 0 = open, 1 = closed; a door binary_sensor is on
+# when open. Under the old CO key, so the entity keeps its unique_id.
+_CO_OPEN = "{{ (1 - value_json.CO) if value_json.CO is defined else '' }}"
+
+# A5-14-09/0A window handle: CT 0 closed, 1 tilt, 3 open (2 reserved). The
+# window counts as open when tilted too.
+_CT_OPEN = "{{ ('0' if value_json.CT == 0 else '1') if value_json.CT is defined else '' }}"
+_CT_STATE = ("{{ {0: 'closed', 1: 'tilted', 3: 'open'}.get(value_json.CT, '') "
+             "if value_json.CT is defined else '' }}")
+
+# Mappings below that once read fields their profile does not have were
+# corrected against EEP.xml in beta10 (ADR-0025). The keys stay, so each
+# entity keeps its unique_id; the value_template reads the real field.
+# Profiles without a definition in EEP.xml are left alone: nothing decodes
+# them without a custom profile.
+
+# A5-06-01: RS picks which of the two ranges the telegram uses.
+_ILL_A5_06_01 = ("{{ (value_json.ILL2 if value_json.RS == 1 else value_json.ILL1) "
+                 "if value_json.RS is defined else '' }}")
+# A5-09-04: the sensor flags whether temperature and humidity are fitted.
+_TMP_A5_09_04 = "{{ value_json.TMP if value_json.TSN == 1 else '' }}"
+_HUM_A5_09_04 = "{{ value_json.HUM if value_json.HSN == 1 else '' }}"
+# A5-12-01: MR is either the cumulative kWh (DT 0) or the current W (DT 1),
+# divided by 1/10/100/1000 (DIV). The other kind renders empty, which keeps
+# the entity's last value.
+_MR_DIV = "[1, 10, 100, 1000][value_json.DIV | int]"
+_ENERGY_A5_12_01 = ("{{ (value_json.MR / " + _MR_DIV + ") | round(3) "
+                    "if value_json.DT == 0 else '' }}")
+_POWER_A5_12_01 = ("{{ (value_json.MR / " + _MR_DIV + ") | round(3) "
+                   "if value_json.DT == 1 else '' }}")
+# D2-01 in sensor mode: OV is 0-100 %, 127 means not valid. Any level counts
+# as on, so a dimmer at 40 % is on, not "no matching payload".
+_OV_ON = ("{% set v = value_json.OV | int(-1) %}"
+          "{{ '' if v < 0 or v == 127 else ('1' if v > 0 else '0') }}")
+_OV_CH1_ON = ("{% set v = value_json.OV_CH1 | int(-1) %}"
+              "{{ '' if v < 0 or v == 127 else ('1' if v > 0 else '0') }}")
+
 DEFAULT_MAPPINGS = {
     # 4BS Temperature Sensors (A5-02-xx)
     "A5-02-05": {
@@ -80,7 +126,9 @@ DEFAULT_MAPPINGS = {
         "PIR": {
             "component": "binary_sensor",
             "name": "Occupancy",
-            "device_class": "occupancy"
+            "device_class": "occupancy",
+            # PIRS 0-255, 128 and up means motion
+            "value_template": _PIRS_A5_07_01
         },
         "SVC": {
             "component": "sensor",
@@ -117,7 +165,9 @@ DEFAULT_MAPPINGS = {
         "CO": {
             "component": "binary_sensor",
             "name": "Contact",
-            "device_class": "door"
+            "device_class": "door",
+            # CO 1 means closed, and HA's door class reads on as open (ADR-0023)
+            "value_template": _CO_OPEN
         }
     },
     # RPS Rocker Switch, 2 Rockers (F6-02-01)
@@ -415,7 +465,8 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Illuminance",
             "device_class": "illuminance",
-            "unit_of_measurement": "lx"
+            "unit_of_measurement": "lx",
+            "value_template": _ILL_A5_06_01
         },
         "SVC": {
             "component": "sensor",
@@ -429,7 +480,9 @@ DEFAULT_MAPPINGS = {
         "PIR": {
             "component": "binary_sensor",
             "name": "Occupancy",
-            "device_class": "occupancy"
+            "device_class": "occupancy",
+            # PIRS 1 means motion
+            "value_template": _PIRS_A5_07_0X
         },
         "SVC": {
             "component": "sensor",
@@ -442,7 +495,9 @@ DEFAULT_MAPPINGS = {
         "PIR": {
             "component": "binary_sensor",
             "name": "Occupancy",
-            "device_class": "occupancy"
+            "device_class": "occupancy",
+            # PIRS 1 means motion
+            "value_template": _PIRS_A5_07_0X
         },
         "ILL": {
             "component": "sensor",
@@ -474,7 +529,9 @@ DEFAULT_MAPPINGS = {
         "PIR": {
             "component": "binary_sensor",
             "name": "Occupancy",
-            "device_class": "occupancy"
+            "device_class": "occupancy",
+            # PIRS 0 means PIR on
+            "value_template": _PIRS_A5_08
         },
         "SVC": {
             "component": "sensor",
@@ -499,7 +556,9 @@ DEFAULT_MAPPINGS = {
         "PIR": {
             "component": "binary_sensor",
             "name": "Occupancy",
-            "device_class": "occupancy"
+            "device_class": "occupancy",
+            # PIRS 0 means PIR on
+            "value_template": _PIRS_A5_08
         },
         "SVC": {
             "component": "sensor",
@@ -524,7 +583,9 @@ DEFAULT_MAPPINGS = {
         "PIR": {
             "component": "binary_sensor",
             "name": "Occupancy",
-            "device_class": "occupancy"
+            "device_class": "occupancy",
+            # PIRS 0 means PIR on
+            "value_template": _PIRS_A5_08
         },
         "SVC": {
             "component": "sensor",
@@ -553,39 +614,38 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "CO2",
             "device_class": "carbon_dioxide",
-            "unit_of_measurement": "ppm"
+            "unit_of_measurement": "ppm",
+            "value_template": "{{ value_json.Conc }}"
         },
         "TMP": {
             "component": "sensor",
             "name": "Temperature",
             "device_class": "temperature",
-            "unit_of_measurement": "°C"
+            "unit_of_measurement": "°C",
+            "value_template": _TMP_A5_09_04
         },
         "HUM": {
             "component": "sensor",
             "name": "Humidity",
             "device_class": "humidity",
-            "unit_of_measurement": "%"
+            "unit_of_measurement": "%",
+            "value_template": _HUM_A5_09_04
         }
     },
     "A5-09-05": {
+        # ppb is the "_parts" class; the plain one is µg/m³ only.
         "VOC": {
             "component": "sensor",
             "name": "VOC",
-            "device_class": "volatile_organic_compounds",
-            "unit_of_measurement": "ppb"
+            "device_class": "volatile_organic_compounds_parts",
+            "unit_of_measurement": "ppb",
+            "value_template": "{{ value_json.Conc }}"
         },
-        "TMP": {
+        "VOC_ID": {
             "component": "sensor",
-            "name": "Temperature",
-            "device_class": "temperature",
-            "unit_of_measurement": "°C"
-        },
-        "HUM": {
-            "component": "sensor",
-            "name": "Humidity",
-            "device_class": "humidity",
-            "unit_of_measurement": "%"
+            "name": "VOC Type",
+            "icon": "mdi:molecule",
+            "value_template": "{{ value_json.VOC_ID_text }}"
         }
     },
     # 4BS HVAC / Room Panels (A5-10), from arno0392 fork
@@ -628,14 +688,17 @@ DEFAULT_MAPPINGS = {
             "component": "sensor",
             "name": "Energy",
             "device_class": "energy",
-            "unit_of_measurement": "Wh",
-            "state_class": "total_increasing"
+            "unit_of_measurement": "kWh",
+            "state_class": "total_increasing",
+            "value_template": _ENERGY_A5_12_01
         },
         "TMP": {
             "component": "sensor",
             "name": "Current Power",
             "device_class": "power",
-            "unit_of_measurement": "W"
+            "unit_of_measurement": "W",
+            "state_class": "measurement",
+            "value_template": _POWER_A5_12_01
         }
     },
     "A5-12-02": {
@@ -658,10 +721,11 @@ DEFAULT_MAPPINGS = {
     },
     # 4BS Multi-sensors: vibration/window/lux (A5-14), from arno0392 fork
     "A5-14-01": {
-        "VIB": {
+        # EEP.xml: CT 1 open, 0 closed; there is no VIB.
+        "CT": {
             "component": "binary_sensor",
-            "name": "Vibration",
-            "device_class": "vibration"
+            "name": "Contact",
+            "device_class": "window"
         },
         "SVC": {
             "component": "sensor",
@@ -689,16 +753,20 @@ DEFAULT_MAPPINGS = {
         }
     },
     "A5-14-09": {
+        # Window handle: EEP.xml has CT (0 closed, 1 tilt, 3 open) and SVC,
+        # no OC and no ILL. OC stays the key of the window entity so it keeps
+        # its unique_id; ILL is gone; its old entity is cleared at startup (ADR-0026).
         "OC": {
             "component": "binary_sensor",
             "name": "Contact",
-            "device_class": "window"
+            "device_class": "window",
+            "value_template": _CT_OPEN
         },
-        "ILL": {
+        "CT": {
             "component": "sensor",
-            "name": "Illuminance",
-            "device_class": "illuminance",
-            "unit_of_measurement": "lx"
+            "name": "Handle",
+            "icon": "mdi:window-open-variant",
+            "value_template": _CT_STATE
         },
         "SVC": {
             "component": "sensor",
@@ -711,18 +779,19 @@ DEFAULT_MAPPINGS = {
         "OC": {
             "component": "binary_sensor",
             "name": "Contact",
-            "device_class": "window"
+            "device_class": "window",
+            "value_template": _CT_OPEN
+        },
+        "CT": {
+            "component": "sensor",
+            "name": "Handle",
+            "icon": "mdi:window-open-variant",
+            "value_template": _CT_STATE
         },
         "VIB": {
             "component": "binary_sensor",
             "name": "Vibration",
             "device_class": "vibration"
-        },
-        "ILL": {
-            "component": "sensor",
-            "name": "Illuminance",
-            "device_class": "illuminance",
-            "unit_of_measurement": "lx"
         },
         "SVC": {
             "component": "sensor",
@@ -746,10 +815,12 @@ DEFAULT_MAPPINGS = {
         }
     },
     "A5-30-02": {
+        # EEP.xml: a single IPS bit, 1 = contact open.
         "DI0": {
             "component": "binary_sensor",
             "name": "Input 0",
-            "device_class": "power"
+            "device_class": "power",
+            "value_template": "{{ value_json.IPS }}"
         }
     },
     # VLD Electronic Switches and Dimmers (D2-01), from arno0392 fork
@@ -758,9 +829,7 @@ DEFAULT_MAPPINGS = {
             "component": "binary_sensor",
             "name": "Output",
             "device_class": "power",
-            "payload_on": "100",
-            "payload_off": "0",
-            "value_template": "{{ value_json.OV }}"
+            "value_template": _OV_ON
         }
     },
     "D2-01-02": {
@@ -768,9 +837,7 @@ DEFAULT_MAPPINGS = {
             "component": "binary_sensor",
             "name": "Output",
             "device_class": "power",
-            "payload_on": "100",
-            "payload_off": "0",
-            "value_template": "{{ value_json.OV }}"
+            "value_template": _OV_ON
         }
     },
     "D2-01-06": {
@@ -778,9 +845,7 @@ DEFAULT_MAPPINGS = {
             "component": "binary_sensor",
             "name": "Output",
             "device_class": "power",
-            "payload_on": "100",
-            "payload_off": "0",
-            "value_template": "{{ value_json.OV }}"
+            "value_template": _OV_ON
         }
     },
     "D2-01-08": {
@@ -833,9 +898,7 @@ DEFAULT_MAPPINGS = {
             "component": "binary_sensor",
             "name": "Output",
             "device_class": "power",
-            "payload_on": "100",
-            "payload_off": "0",
-            "value_template": "{{ value_json.OV }}"
+            "value_template": _OV_ON
         }
     },
     "D2-01-0E": {
@@ -843,9 +906,7 @@ DEFAULT_MAPPINGS = {
             "component": "binary_sensor",
             "name": "Output",
             "device_class": "power",
-            "payload_on": "100",
-            "payload_off": "0",
-            "value_template": "{{ value_json.OV }}"
+            "value_template": _OV_ON
         }
     },
     "D2-01-11": {
@@ -869,17 +930,13 @@ DEFAULT_MAPPINGS = {
             "component": "binary_sensor",
             "name": "Channel 0",
             "device_class": "light",
-            "payload_on": "100",
-            "payload_off": "0",
-            "value_template": "{{ value_json.OV | string }}"
+            "value_template": _OV_ON
         },
         "OV_CH1": {
             "component": "binary_sensor",
             "name": "Channel 1",
             "device_class": "light",
-            "payload_on": "100",
-            "payload_off": "0",
-            "value_template": "{{ value_json.OV_CH1 | string }}"
+            "value_template": _OV_CH1_ON
         }
     },
     # VLD Blinds Control variants (D2-05), from arno0392 fork
@@ -1270,10 +1327,12 @@ class MappingManager:
                     if key not in _INTERNAL_KEYS and key not in config:
                         config[key] = value
 
-                # Binary sensor: HA expects "ON"/"OFF" by default, but EEP values are 0/1
+                # Binary sensor: HA expects "ON"/"OFF" by default, but EEP values are 0/1.
+                # `invert` swaps them for one device, for a contact mounted the
+                # other way or a profile whose meaning we got wrong (ADR-0023).
                 if component == "binary_sensor":
-                    config["payload_on"] = "1"
-                    config["payload_off"] = "0"
+                    config["payload_on"] = "0" if invert else "1"
+                    config["payload_off"] = "1" if invert else "0"
 
                 # Add device info
                 config["device"] = device_info
@@ -1309,7 +1368,9 @@ class MappingManager:
                 "unique_id": rssi_uid,
                 "object_id": f"{device_name}_rssi".lower().replace(" ", "_"),
                 "state_topic": state_topic,
-                "value_template": "{{ value_json.rssi }}",
+                # 0 means the transceiver sent no level; "None" makes HA
+                # show unknown instead of a misleading 0 dBm.
+                "value_template": "{{ value_json.rssi if value_json.rssi else None }}",
                 "device_class": "signal_strength",
                 "unit_of_measurement": "dBm",
                 "icon": "mdi:wifi",

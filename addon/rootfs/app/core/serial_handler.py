@@ -47,6 +47,11 @@ COMMAND_RESPONSE_TIMEOUT = 1.0
 # press we simulate, 250 ms the point where the meaning starts to shift.
 RPS_HOLD_SECONDS = 0.1
 RPS_HOLD_WARN_SECONDS = 0.25
+# Some actuators want the opposite: a Flextron ALADIN shutter receiver reads a
+# short press as a slat step and travels only on a long one (ADR-0019). A hold
+# that long is not kept inside one transmit slot, every other command would
+# time out waiting for it, and stretching a long press changes nothing.
+RPS_RELEASE_ATTEMPTS = 3
 
 
 class TransceiverError(Exception):
@@ -180,6 +185,10 @@ class SerialHandler:
         # transmit queue. _last_tx carries the gap across slots.
         self._tx_lock = asyncio.Lock()
         self._last_tx: float = 0.0
+        # One rocker press at a time per sender ID. An actuator only knows
+        # the sender, so while a long press is held, a release from another
+        # device on the same sender would end it early. See ADR-0019.
+        self._rps_sender_locks: Dict[int, asyncio.Lock] = {}
         # Position control only: what the last A5-3F-7F travel per device was
         # measured against, and whether anything has answered it yet. See
         # track_cover_travel.
@@ -612,11 +621,14 @@ class SerialHandler:
         payload = data[1:-5]
 
         # Get signal strength from optional data
-        # ESP3: optional[4] = dBm value (negated). 0xFF = not available (USB300).
+        # ESP3 RADIO_ERP1 optional data: SubTelNum (1), Destination ID (4),
+        # dBm (1, negated), Security Level (1). 0xFF = not available.
+        # Index 4 was read until beta9, the last byte of the destination ID,
+        # which is 0xFF for every broadcast, so RSSI was never set.
         # Valid EnOcean RSSI: roughly -20 to -120 dBm.
         dbm = 0
-        if len(optional) >= 5:
-            raw_dbm = optional[4]
+        if len(optional) >= 6:
+            raw_dbm = optional[5]
             if 20 <= raw_dbm <= 120:
                 dbm = -raw_dbm
             # else: 0 = not available (0xFF, 0x00, or out-of-range)
@@ -1938,6 +1950,16 @@ class SerialHandler:
 
     async def _send_rps_pair(self, sender_id: int, press_data: int, destination: int,
                              hold: float, label: str) -> bool:
+        lock = self._rps_sender_locks.setdefault(sender_id, asyncio.Lock())
+        async with lock:
+            return await self._send_rps_pair_unlocked(sender_id, press_data,
+                                                      destination, hold, label)
+
+    async def _send_rps_pair_unlocked(self, sender_id: int, press_data: int,
+                                      destination: int, hold: float, label: str) -> bool:
+        if hold > RPS_HOLD_WARN_SECONDS:
+            return await self._send_rps_long_press(sender_id, press_data, destination,
+                                                   hold, label)
         press = self._build_radio_packet(sender_id, 0xF6, bytes([press_data]),
                                          destination, 0x30)
         release = self._build_radio_packet(sender_id, 0xF6, bytes([0x00]),
@@ -1971,4 +1993,49 @@ class SerialHandler:
             logger.error(f"Cannot send RPS pair for {name}: {e}")
             return False
 
+        return press_ok and release_ok
+
+    async def _send_rps_long_press(self, sender_id: int, press_data: int,
+                                   destination: int, hold: float, label: str) -> bool:
+        """A deliberate long press: press, wait, release, each in its own slot.
+
+        The transmit slot is free while the button is "held", so other
+        devices are not blocked for seconds. Only the minimum matters to the
+        actuator, a few extra milliseconds before the release are harmless.
+        Once the press is out, the release must follow even if the slot is
+        briefly busy, otherwise an actuator that moves "while held" never
+        hears the end of the press.
+        """
+        press = self._build_radio_packet(sender_id, 0xF6, bytes([press_data]),
+                                         destination, 0x30)
+        release = self._build_radio_packet(sender_id, 0xF6, bytes([0x00]),
+                                          destination, 0x20)
+        press_line = _radio_log_line(0xF6, bytes([press_data]), destination)
+        release_line = _radio_log_line(0xF6, bytes([0x00]), destination)
+        name = label or f"{sender_id:08X}"
+
+        try:
+            async with self._tx_slot():
+                press_ok = await self._send_radio_packet(press, f"{name} press", press_line)
+        except TransceiverBusyError as e:
+            logger.error(f"Cannot send long press for {name}: {e}")
+            return False
+
+        release_ok = False
+        try:
+            await asyncio.sleep(hold)
+        finally:
+            for attempt in range(1, RPS_RELEASE_ATTEMPTS + 1):
+                try:
+                    async with self._tx_slot():
+                        release_ok = await self._send_radio_packet(
+                            release, f"{name} release", release_line
+                        )
+                    break
+                except TransceiverBusyError as e:
+                    logger.warning(
+                        f"Release for {name} not sent (attempt {attempt}/"
+                        f"{RPS_RELEASE_ATTEMPTS}): {e}"
+                    )
+        logger.debug(f"Long press for {name}: held {hold * 1000:.0f} ms")
         return press_ok and release_ok

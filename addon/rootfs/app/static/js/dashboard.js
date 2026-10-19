@@ -10,6 +10,7 @@ async function loadStatus() {
     try {
         const response = await fetch(getApiUrl('/api/system/status'));
         const data = await response.json();
+        noteServerVersion(data.version);
 
         // Update MQTT status
         const mqttBadge = document.getElementById('mqtt-status');

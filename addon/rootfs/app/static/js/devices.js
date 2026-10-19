@@ -110,7 +110,7 @@ function resetDeviceForm() {
     const roleField = form.querySelector('[name="actuator_type"]');
     if (roleField) {
         roleField.value = '';
-        toggleSenderIdField(roleField);   // hides sender + invert groups
+        toggleSenderIdField(roleField);   // back to sensor: hides sender, resets invert
     }
     const channelGroup = document.getElementById('channel-group');
     if (channelGroup) channelGroup.style.display = 'none';
@@ -167,12 +167,13 @@ function toggleSenderIdField(select) {
             if (input) input.value = '';
         }
     }
-    // Invert applies to covers (Open/Close direction) and to switches
+    // Invert applies to covers (Open/Close direction), to switches
     // (ON/OFF meaning of Eltako status reports, which rocker side
-    // means ON depends on how the actuator was taught in).
+    // means ON depends on how the actuator was taught in), and to sensors,
+    // where it swaps on/off of every binary sensor (ADR-0023).
     const invertGroup = document.getElementById('invert-group');
     if (invertGroup) {
-        const showInvert = select.value === 'cover' || select.value === 'switch';
+        const showInvert = !select.value || select.value === 'cover' || select.value === 'switch';
         invertGroup.style.display = showInvert ? '' : 'none';
         if (!showInvert) {
             const cb = invertGroup.querySelector('input[name="invert"]');
@@ -180,7 +181,9 @@ function toggleSenderIdField(select) {
         }
         const label = invertGroup.querySelector('.form-check-label');
         if (label) {
-            label.textContent = select.value === 'switch'
+            label.textContent = !select.value
+                ? t('teach_in.invert_label_sensor', 'Invert binary sensors (on/off swapped)')
+                : select.value === 'switch'
                 ? t('teach_in.invert_label_switch', 'Invert reported state (ON/OFF swapped)')
                 : t('teach_in.invert_label', 'Reverse direction (Open/Close inverted)');
         }
@@ -193,6 +196,17 @@ function toggleSenderIdField(select) {
         travelGroup.style.display = showTravel ? '' : 'none';
         if (!showTravel) {
             const input = travelGroup.querySelector('input[name="travel_time"]');
+            if (input) input.value = '';
+        }
+    }
+    // The press duration is a cover setting too: some shutter receivers only
+    // travel on a long press (Flextron ALADIN, ADR-0019).
+    const pressGroup = document.getElementById('press-time-group');
+    if (pressGroup) {
+        const showPress = select.value === 'cover';
+        pressGroup.style.display = showPress ? '' : 'none';
+        if (!showPress) {
+            const input = pressGroup.querySelector('input[name="press_time"]');
             if (input) input.value = '';
         }
     }
@@ -256,6 +270,7 @@ async function saveDevice(e) {
     // An empty travel time field means "no position", which the backend
     // stores as 0. Sending "" instead would fail validation.
     device.travel_time = Math.max(0, parseInt(device.travel_time, 10) || 0);
+    device.press_time = Math.min(5000, Math.max(0, parseInt(device.press_time, 10) || 0));
     const posCb = form.querySelector('input[name="position_control"]');
     device.position_control = !!(posCb && posCb.checked);
     // The watchdog is one number on the wire: minutes, 0 meaning never. The
@@ -348,7 +363,7 @@ async function performSaveDevice(device, editMode, form) {
             let errorMsg = t('device.save_failed', 'Failed to save device');
             try {
                 const error = await response.json();
-                errorMsg = error.detail || errorMsg;
+                errorMsg = apiErrorText(error.detail, errorMsg);
             } catch (parseError) {
                 errorMsg = `Server error: ${response.status} ${response.statusText}`;
             }
@@ -420,6 +435,8 @@ async function editDevice(name) {
         if (invertCb) invertCb.checked = !!device.invert;
         const travelField = document.querySelector('[name="travel_time"]');
         if (travelField) travelField.value = device.travel_time || '';
+        const pressField = document.querySelector('[name="press_time"]');
+        if (pressField) pressField.value = device.press_time || '';
         const posCb = document.querySelector('[name="position_control"]');
         if (posCb) posCb.checked = !!device.position_control;
 

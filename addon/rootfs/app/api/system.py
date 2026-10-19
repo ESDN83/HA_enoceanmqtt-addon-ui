@@ -4,10 +4,11 @@ System API - System status and configuration
 
 import os
 import logging
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse, StreamingResponse
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Tuple
 import json
+import re
 import yaml
 import aiofiles
 import zipfile
@@ -468,6 +469,25 @@ async def download_backup(filename: str, request: Request):
     return FileResponse(filepath, filename=filename, media_type="application/zip")
 
 
+def _set_aside_custom_profiles(config_path: str) -> int:
+    """Move the user's profile files (and the removed-bundled marks) into
+    custom_eep/.pre_restore/, replacing what an earlier restore left there.
+    Returns how many files were moved."""
+    import shutil
+    custom_path = os.path.join(config_path, "custom_eep")
+    if not os.path.isdir(custom_path):
+        return 0
+    aside = os.path.join(custom_path, ".pre_restore")
+    shutil.rmtree(aside, ignore_errors=True)
+    moved = 0
+    for fname in os.listdir(custom_path):
+        if fname.endswith((".yaml", ".yml")):
+            os.makedirs(aside, exist_ok=True)
+            shutil.move(os.path.join(custom_path, fname), os.path.join(aside, fname))
+            moved += 1
+    return moved
+
+
 @router.post("/backup/restore/{filename}")
 async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
     """Restore from a backup file"""
@@ -490,6 +510,13 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
 
     try:
         with zipfile.ZipFile(filepath, 'r') as zf:
+            # A backup holds the complete set of the user's profiles and the
+            # removed-bundled marks, so a restore replaces them rather than
+            # adding to them: a profile created after the backup, or a mark
+            # an older backup does not have, would otherwise survive it
+            # (ADR-0027). The replaced files are kept in .pre_restore/.
+            profiles_replaced = _set_aside_custom_profiles(config_path)
+
             for name in zf.namelist():
                 if name in ("devices.json", "devices.yaml"):
                     # Restore devices (support both old JSON and new YAML backups)
@@ -539,7 +566,8 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
                     imported["mapping_overrides"] = True
 
         # Reinitialize EEP manager if any EEP-related data was restored
-        if eep_manager and (imported.get("eep_xml") or imported.get("custom_profiles", 0) > 0):
+        if eep_manager and (imported.get("eep_xml") or imported.get("custom_profiles", 0) > 0
+                            or profiles_replaced):
             eep_manager.profiles.clear()
             await eep_manager.initialize()
 
@@ -783,3 +811,269 @@ async def _supervisor_self_restart() -> bool:
         return await loop.run_in_executor(None, _call)
     except Exception:
         return False
+
+
+# === Import from another EnOcean add-on (ADR-0020) ===
+
+def _supervisor_get_json(path_or_url: str, timeout: float = 10):
+    """GET JSON from the Supervisor (a path) or from another add-on (a URL)."""
+    import urllib.request
+    url = path_or_url if path_or_url.startswith("http") else f"http://supervisor{path_or_url}"
+    headers = {}
+    if not path_or_url.startswith("http"):
+        headers["Authorization"] = f"Bearer {os.getenv('SUPERVISOR_TOKEN', '')}"
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read())
+
+
+async def _find_slim_addon() -> Dict[str, Any]:
+    """The installed Slim add-on, or {} if there is none or no Supervisor."""
+    import asyncio
+    import urllib.error
+    from core.legacy_import import SLIM_SLUGS
+    if not os.getenv("SUPERVISOR_TOKEN"):
+        return {}
+
+    def _call():
+        for slug in SLIM_SLUGS:
+            try:
+                info = _supervisor_get_json(f"/addons/{slug}/info").get("data", {})
+            except urllib.error.HTTPError:
+                continue  # not installed under this slug
+            return {"slug": slug, "state": info.get("state", ""),
+                    "ip": info.get("ip_address", ""), "port": info.get("ingress_port") or 8099}
+        return {}
+
+    try:
+        return await asyncio.get_event_loop().run_in_executor(None, _call)
+    except Exception as e:
+        logger.warning(f"Slim lookup via Supervisor failed: {e}")
+        return {}
+
+
+@router.get("/legacy-import/sources")
+async def legacy_import_sources() -> Dict[str, Any]:
+    """Which old add-on configurations can be read without an upload."""
+    from core.legacy_import import CHRISTOPHEHD_DEFAULT_FILE
+    slim = await _find_slim_addon()
+    return {
+        "christophehd": {"available": os.path.isfile(CHRISTOPHEHD_DEFAULT_FILE),
+                         "path": CHRISTOPHEHD_DEFAULT_FILE},
+        "slim": {"installed": bool(slim), "available": slim.get("state") == "started",
+                 "slug": slim.get("slug", "")},
+    }
+
+
+@router.post("/legacy-import/preview")
+async def legacy_import_preview(request: Request, source: str = Form(""),
+                                file: Optional[UploadFile] = File(None)) -> Dict[str, Any]:
+    """Read an old device list and return the candidates; creates nothing.
+
+    source = christophehd: /config/enoceanmqtt.devices
+    source = slim: fetched from the running Slim add-on
+    or an uploaded file (enoceanmqtt.devices, Slim devices.json or /api/devices)
+    """
+    import asyncio
+    from core import legacy_import as li
+
+    try:
+        if file is not None:
+            fmt, devices, skipped = li.detect_and_parse(await file.read())
+        elif source == "christophehd":
+            async with aiofiles.open(li.CHRISTOPHEHD_DEFAULT_FILE, "r") as f:
+                text = await f.read()
+            fmt = "christophehd"
+            devices, skipped = li.parse_christophehd(text)
+        elif source == "slim":
+            slim = await _find_slim_addon()
+            if slim.get("state") != "started" or not slim.get("ip"):
+                raise HTTPException(status_code=409, detail="The Slim app is not running. Start it, then try again.")
+            url = f"http://{slim['ip']}:{slim['port']}/api/devices"
+            data = await asyncio.get_event_loop().run_in_executor(None, _supervisor_get_json, url)
+            fmt = "slim"
+            devices, skipped = li.parse_slim(data)
+        else:
+            raise HTTPException(status_code=400, detail="Choose a source or upload a file")
+    except HTTPException:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found")
+    except Exception as e:
+        logger.warning(f"Legacy import preview failed: {e}")
+        raise HTTPException(status_code=400, detail=f"Could not read the device list: {e}")
+
+    li.annotate(devices, request.app.state.device_manager, getattr(request.app.state, "eep_manager", None))
+    logger.info(f"Legacy import preview ({fmt}): {len(devices)} devices, {len(skipped)} skipped")
+    return {"format": fmt, "devices": devices, "skipped": skipped}
+
+
+def _scan_retained_discovery(mqtt_handler, seconds: float = 3.0) -> list:
+    """The retained discovery configs of the old apps (`<prefix>/+/+/config`)
+    and of this one (`<prefix>/+/enocean/+/config`), read with a short-lived
+    client of its own so the main connection's subscriptions stay untouched."""
+    import time
+    import uuid
+    import paho.mqtt.client as mqtt
+
+    found = []
+    dp = mqtt_handler.discovery_prefix
+    client = mqtt.Client(client_id=f"enocean_legacy_scan_{uuid.uuid4().hex[:6]}")
+    if mqtt_handler.username:
+        client.username_pw_set(mqtt_handler.username, mqtt_handler.password)
+    client.on_connect = lambda c, u, f, rc: c.subscribe(
+        [(f"{dp}/+/+/config", 0), (f"{dp}/+/enocean/+/config", 0)])
+    client.on_message = lambda c, u, m: found.append((m.topic, m.payload)) if m.retain else None
+    client.connect(mqtt_handler.host, mqtt_handler.port, keepalive=30)
+    client.loop_start()
+    try:
+        time.sleep(seconds)
+    finally:
+        client.loop_stop()
+        client.disconnect()
+    return found
+
+
+async def _ha_ws(messages: list) -> list:
+    """Send each message to Home Assistant's WebSocket API (through the
+    Supervisor, needs homeassistant_api) and return the results in order.
+    Raises if Home Assistant cannot be reached or a call fails."""
+    import websockets
+    token = os.getenv("SUPERVISOR_TOKEN", "")
+    if not token:
+        raise RuntimeError("no Supervisor token")
+    results = []
+    async with websockets.connect("ws://supervisor/core/websocket", max_size=None,
+                                  open_timeout=10) as ws:
+        await ws.recv()  # auth_required
+        await ws.send(json.dumps({"type": "auth", "access_token": token}))
+        if json.loads(await ws.recv()).get("type") != "auth_ok":
+            raise RuntimeError("Home Assistant refused the Supervisor token")
+        for i, msg in enumerate(messages, start=1):
+            await ws.send(json.dumps(dict(msg, id=i)))
+            while True:
+                reply = json.loads(await ws.recv())
+                if reply.get("id") == i and reply.get("type") == "result":
+                    break
+            if not reply.get("success"):
+                raise RuntimeError(str((reply.get("error") or {}).get("message") or reply))
+            results.append(reply.get("result"))
+    return results
+
+
+async def _mqtt_entity_ids() -> Dict[Tuple[str, str], str]:
+    """(domain, unique_id) -> entity_id of every MQTT entity in Home Assistant.
+
+    A unique_id is only unique within one domain: an entity that was once
+    published as a sensor and later as a binary_sensor leaves two registry
+    entries with the same unique_id, and only the one in the component the
+    discovery config names is the live one.
+    """
+    (entries,) = await _ha_ws([{"type": "config/entity_registry/list"}])
+    return {(e["entity_id"].split(".", 1)[0], e["unique_id"]): e["entity_id"]
+            for e in entries
+            if e.get("platform") == "mqtt" and e.get("unique_id") and e.get("entity_id")}
+
+
+async def _find_old_entities(request: Request) -> Dict[str, Any]:
+    import asyncio
+    from core.legacy_import import match_old_entity, match_own_entity, pair_entities
+    mqtt_handler = request.app.state.mqtt_handler
+    device_manager = request.app.state.device_manager
+    if not mqtt_handler or not mqtt_handler.is_connected:
+        raise HTTPException(status_code=503, detail="MQTT not connected")
+    # Only devices configured here: an old entity is removed only once its
+    # device exists in this app.
+    addresses = {d.address.strip().lower().replace("0x", "").zfill(8)
+                 for d in device_manager.devices.values() if d.address}
+    messages = await asyncio.get_event_loop().run_in_executor(
+        None, _scan_retained_discovery, mqtt_handler)
+    dp = mqtt_handler.discovery_prefix
+    old = [h for h in (match_old_entity(t, p, dp, addresses) for t, p in messages) if h]
+    own = [h for h in (match_own_entity(t, p, dp, addresses) for t, p in messages) if h]
+    pair_entities(old, own)
+
+    # Entity IDs live only in Home Assistant's registry. Without it the old
+    # entities can still be removed, the IDs then have to be renamed by hand.
+    registry = True
+    try:
+        ids = await _mqtt_entity_ids()
+    except Exception as e:
+        logger.warning(f"Legacy cleanup: entity registry not readable: {e}")
+        ids, registry = {}, False
+    for o in old:
+        # A pair always shares the component (pair_entities), so both IDs
+        # are looked up in the old entity's domain.
+        o["old_entity_id"] = ids.get((o["component"], o["unique_id"]), "")
+        o["new_entity_id"] = (ids.get((o["component"], o["new_unique_id"]), "")
+                              if o["new_unique_id"] else "")
+        # The new entity already took the ID in an earlier run, and the old
+        # app came back as `<id>_2`. Renaming now would hand ours the suffix.
+        if (o["new_entity_id"] and o["old_entity_id"]
+                and re.fullmatch(re.escape(o["new_entity_id"]) + r"_\d+", o["old_entity_id"])):
+            o["new_entity_id"], o["pair_note"] = "", "already"
+    old.sort(key=lambda h: (h["address"], h["topic"]))
+    return {"entities": old, "registry": registry}
+
+
+@router.post("/legacy-import/old-entities")
+async def legacy_old_entities(request: Request) -> Dict[str, Any]:
+    """List the old add-ons' entities of devices that are configured here,
+    each with the new entity that would take over its entity ID."""
+    slim = await _find_slim_addon()
+    found = await _find_old_entities(request)
+    return dict(found, slim_running=slim.get("state") == "started")
+
+
+@router.post("/legacy-import/old-entities/remove")
+async def legacy_old_entities_remove(request: Request) -> Dict[str, Any]:
+    """Clear the retained discovery config of the chosen old entities, then
+    (`keep_ids`) give each paired new entity the old entity ID.
+
+    Home Assistant removes an entity whose config is cleared; the device keeps
+    every other entity. Only topics that still pass the same check as the
+    listing are cleared, whatever the client sends. The old ID is free only
+    once Home Assistant has dropped the old entity, so the rename waits for
+    that.
+    """
+    import asyncio
+    body = await request.json()
+    wanted = set(body.get("topics") or [])
+    keep_ids = bool(body.get("keep_ids"))
+    slim = await _find_slim_addon()
+    if slim.get("state") == "started":
+        raise HTTPException(status_code=409, detail="Stop the Slim app first, it would publish its entities again.")
+    found = await _find_old_entities(request)
+    chosen = [o for o in found["entities"] if o["topic"] in wanted]
+    allowed = {o["topic"] for o in found["entities"]}
+    mqtt_handler = request.app.state.mqtt_handler
+    for o in chosen:
+        await mqtt_handler.publish(o["topic"], "", retain=True)
+    logger.info(f"Legacy cleanup: cleared {len(chosen)} old discovery configs")
+
+    renamed, rename_failed = [], []
+    pairs = [o for o in chosen if keep_ids and o["old_entity_id"] and o["new_entity_id"]
+             and o["old_entity_id"] != o["new_entity_id"]]
+    if pairs:
+        gone = {(o["component"], o["unique_id"]) for o in pairs}
+        for _ in range(30):  # up to 15 s for Home Assistant to drop them
+            try:
+                ids = await _mqtt_entity_ids()
+            except Exception as e:
+                ids = {}
+                logger.warning(f"Legacy cleanup: registry not readable: {e}")
+            if ids and not gone & ids.keys():
+                break
+            await asyncio.sleep(0.5)
+        for o in pairs:
+            try:
+                await _ha_ws([{"type": "config/entity_registry/update",
+                               "entity_id": o["new_entity_id"],
+                               "new_entity_id": o["old_entity_id"]}])
+                renamed.append({"from": o["new_entity_id"], "to": o["old_entity_id"]})
+            except Exception as e:
+                rename_failed.append({"from": o["new_entity_id"], "to": o["old_entity_id"],
+                                      "error": str(e)})
+        logger.info(f"Legacy cleanup: renamed {len(renamed)} entities, {len(rename_failed)} failed")
+    return {"removed": [o["topic"] for o in chosen], "refused": sorted(wanted - allowed),
+            "renamed": renamed, "rename_failed": rename_failed}

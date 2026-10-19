@@ -41,6 +41,12 @@ class Device:
     # only knows the gateway as a directional pushbutton, and the teach-in
     # cannot be detected from here. Needs travel_time. See ADR-0015 and #40.
     position_control: bool = False
+    # Cover only, rocker (F6) path: how long Open and Close are held, in ms.
+    # 0 = the short press Eltako expects, where a tap runs the full way. Some
+    # actuators read it the other way round: a Flextron ALADIN shutter
+    # receiver turns a tap into a slat step and only travels on a press of
+    # about 2 s or more. See ADR-0019.
+    press_time: int = 0
     # Minutes of silence after which the device is reported unavailable to Home
     # Assistant. 0 means never, which is the old behaviour and the default: a
     # switch actuator only transmits when it is switched, so a watchdog would
@@ -80,6 +86,7 @@ class Device:
             invert=bool(data.get("invert", False)),
             travel_time=int(data.get("travel_time", 0) or 0),
             position_control=bool(data.get("position_control", False)),
+            press_time=int(data.get("press_time", 0) or 0),
             channel=int(data.get("channel", 0) or 0),
             availability_timeout=int(data.get("availability_timeout", 0) or 0)
         )

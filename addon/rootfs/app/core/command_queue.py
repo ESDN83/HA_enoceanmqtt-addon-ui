@@ -68,8 +68,12 @@ class CommandQueue:
                  workers: int = WORKERS,
                  maxsize: int = MAX_PENDING,
                  timeout: float = COMMAND_TIMEOUT,
-                 on_change: Callable[[], Awaitable[None]] = None):
+                 on_change: Callable[[], Awaitable[None]] = None,
+                 extra_time: Callable[[str], float] = None):
         self._handler = handler
+        # Per device, seconds a command may take beyond the deadline: a long
+        # rocker press is held in full before it is done (ADR-0019).
+        self._extra_time = extra_time
         self._worker_count = workers
         self._timeout = timeout
         # Called whenever busy/pending changes. Home Assistant has no way of
@@ -210,7 +214,10 @@ class CommandQueue:
             command = await self._queue.get()
             self._in_flight += 1
             await self._notify()
+            timeout = self._timeout
             try:
+                if self._extra_time:
+                    timeout += self._extra_time(command.device)
                 lock = self._locks.setdefault(command.device, asyncio.Lock())
                 async with lock:
                     waited = time.monotonic() - command.queued_at
@@ -218,12 +225,12 @@ class CommandQueue:
                         logger.debug(f"Command {command} waited {waited * 1000:.0f} ms in queue")
                     await asyncio.wait_for(
                         self._handler(command.device, command.payload, command.entity),
-                        timeout=self._timeout
+                        timeout=timeout
                     )
             except asyncio.TimeoutError:
                 self._timed_out += 1
                 logger.error(
-                    f"Command {command} timed out after {self._timeout:.0f}s, "
+                    f"Command {command} timed out after {timeout:.0f}s, "
                     f"giving up on it and continuing with the queue"
                 )
             except asyncio.CancelledError:

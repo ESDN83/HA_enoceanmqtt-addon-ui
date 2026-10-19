@@ -28,6 +28,12 @@ class EEPProfile:
         self.fields: List[Dict[str, Any]] = []
         self.ha_mapping: Dict[str, Dict[str, Any]] = {}  # EEP field → HA entity mapping
         self.is_custom = False
+        # Where the profile comes from (ADR-0027): "eep_xml", "bundled" (ships
+        # with the app), "bundled_modified" (the user's edit of a bundled one)
+        # or "custom" (the user's own).
+        self.source = "eep_xml"
+        # A bundled profile changed after the user edited their copy of it.
+        self.bundled_newer = False
 
     @property
     def eep_id(self) -> str:
@@ -44,7 +50,9 @@ class EEPProfile:
             "description": self.description,
             "fields": self.fields,
             "ha_mapping": self.ha_mapping,
-            "is_custom": self.is_custom
+            "is_custom": self.is_custom,
+            "source": self.source,
+            "bundled_newer": self.bundled_newer
         }
 
 
@@ -57,6 +65,14 @@ class EEPManager:
         self.profiles: Dict[str, EEPProfile] = {}
         self._xml_root = None
         self._override_cache: Dict[str, Any] = {}
+        # Overlay model (ADR-0027): bundled profiles are read from the app
+        # image and never copied to /data. A user file in /data overrides one,
+        # a hidden mark removes it. EEP.xml stays underneath both.
+        self.base_profiles: Dict[str, EEPProfile] = {}
+        self.bundled: Dict[str, Dict[str, Any]] = {}
+        self.user_data: Dict[str, Dict[str, Any]] = {}
+        self.user_files: Dict[str, str] = {}  # eep_id -> file name in /data
+        self.hidden_bundled: set = set()
 
     @property
     def profile_count(self) -> int:
@@ -87,15 +103,23 @@ class EEPManager:
 
     async def initialize(self):
         """Initialize EEP manager - load base and custom profiles"""
+        # Also runs again after a config restore: start from scratch, or the
+        # previous custom profiles would be taken for EEP.xml ones below.
+        self.profiles = {}
         # Load base EEP.xml
         await self._load_base_eep()
 
-        # Seed bundled custom profiles to persistent storage
-        # (copies manufacturer profiles shipped with addon, updates if bundled has more fields)
-        await self._seed_bundled_profiles()
+        self.base_profiles = dict(self.profiles)
 
-        # Load custom overrides from persistent storage
+        # Bundled profiles, the user's hidden marks, then the user's own files
+        # (ADR-0027). Until beta11 bundled profiles were copied into /data and
+        # overwritten on every start; _drop_seeded_copies retires those copies.
+        await self._load_bundled_profiles()
+        await self._load_hidden()
         await self._load_custom_profiles()
+        await self._drop_seeded_copies()
+        for eep_id in set(self.bundled) | set(self.user_data):
+            self._apply(eep_id)
 
         # Load mapping overrides into sync cache (used by mapping_manager)
         await self._load_overrides()
@@ -264,121 +288,164 @@ class EEPManager:
             profile = EEPProfile(rorg, func, type_, desc)
             self.profiles[profile.eep_id] = profile
 
+    BUNDLED_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "custom_eep")
+    HIDDEN_FILE = ".hidden_bundled.yaml"
+
     @staticmethod
-    def _profile_content_hash(data: dict) -> str:
-        """Create a comparable string from profile fields and ha_mapping.
+    def _content_hash(data: dict) -> str:
+        """Comparable digest of a profile file's content, without our own
+        bookkeeping key. Identifies which bundled version a user edit is
+        based on."""
+        import hashlib
+        clean = {k: v for k, v in (data or {}).items() if k != "based_on_bundled"}
+        return hashlib.sha256(json.dumps(clean, sort_keys=True).encode()).hexdigest()[:16]
 
-        Used to detect when bundled profiles have changed content
-        (e.g., corrected bit offsets) even if field count is the same.
-        """
-        import json
-        profile = data.get("profile", {})
-        fields = profile.get("fields", [])
-        ha_mapping = data.get("ha_mapping", {})
-        # Sort keys for deterministic comparison
-        return json.dumps({"fields": fields, "ha_mapping": ha_mapping}, sort_keys=True)
+    @staticmethod
+    def _eep_id_of(data: dict) -> Optional[str]:
+        pd = (data or {}).get("profile") or {}
+        rorg = str(pd.get("rorg", "")).upper()
+        func = str(pd.get("func", "")).upper().zfill(2)
+        type_ = str(pd.get("type", "")).upper().zfill(2)
+        return f"{rorg}-{func}-{type_}" if rorg else None
 
-    async def _seed_bundled_profiles(self):
-        """Seed bundled custom profiles to persistent storage.
+    @staticmethod
+    def _profile_from_data(data: dict) -> EEPProfile:
+        pd = data["profile"]
+        profile = EEPProfile(str(pd.get("rorg", "")).upper(),
+                             str(pd.get("func", "")).upper().zfill(2),
+                             str(pd.get("type", "")).upper().zfill(2),
+                             pd.get("description", "Custom Profile"))
+        profile.fields = pd.get("fields", [])
+        profile.is_custom = True
+        # HA mapping either top-level or inside the profile
+        profile.ha_mapping = data.get("ha_mapping") or pd.get("ha_mapping") or {}
+        return profile
 
-        Copies manufacturer profiles shipped with the addon (e.g., Kessel Staufix)
-        to /data/custom_eep/. Updates existing profiles if the bundled version
-        has different content (fields, offsets, ha_mapping).
-        """
-        bundled_path = os.path.join(os.path.dirname(__file__), "..", "data", "custom_eep")
-        if not os.path.exists(bundled_path):
-            return
-
-        os.makedirs(self.custom_eep_path, exist_ok=True)
-
-        for filename in os.listdir(bundled_path):
-            if not (filename.endswith(".yaml") or filename.endswith(".yml")):
+    async def _read_yaml_dir(self, path: str) -> Dict[str, Dict[str, Any]]:
+        found = {}
+        if not os.path.isdir(path):
+            return found
+        for filename in sorted(os.listdir(path)):
+            if not filename.endswith((".yaml", ".yml")) or filename.startswith("."):
                 continue
-
-            bundled_file = os.path.join(bundled_path, filename)
             try:
-                async with aiofiles.open(bundled_file, 'r') as f:
-                    bundled_content = await f.read()
-                    bundled_data = yaml.safe_load(bundled_content)
-
-                if not bundled_data or "profile" not in bundled_data:
-                    continue
-
-                profile_data = bundled_data["profile"]
-                rorg = profile_data.get("rorg", "").upper()
-                func = profile_data.get("func", "").upper().zfill(2)
-                type_ = profile_data.get("type", "").upper().zfill(2)
-
-                # Target filename in persistent storage (canonical name)
-                target_file = os.path.join(self.custom_eep_path, f"{rorg}-{func}-{type_}.yaml")
-
-                should_copy = False
-
-                if os.path.exists(target_file):
-                    # Check if bundled profile differs from existing
-                    async with aiofiles.open(target_file, 'r') as f:
-                        existing_content = await f.read()
-                        existing_data = yaml.safe_load(existing_content)
-
-                    bundled_hash = self._profile_content_hash(bundled_data)
-                    existing_hash = self._profile_content_hash(existing_data)
-
-                    if bundled_hash != existing_hash:
-                        logger.info(
-                            f"Updating custom profile {rorg}-{func}-{type_}: "
-                            f"bundled content differs from existing (fields/offsets/mapping changed)"
-                        )
-                        should_copy = True
-                    else:
-                        logger.debug(f"Bundled profile {rorg}-{func}-{type_} unchanged, skipping")
-                else:
-                    logger.info(f"Seeding bundled custom profile: {rorg}-{func}-{type_}")
-                    should_copy = True
-
-                if should_copy:
-                    async with aiofiles.open(target_file, 'w') as f:
-                        await f.write(bundled_content)
-
+                async with aiofiles.open(os.path.join(path, filename), 'r') as f:
+                    data = yaml.safe_load(await f.read())
+                eep_id = self._eep_id_of(data)
+                if eep_id:
+                    data["_file"] = filename
+                    found[eep_id] = data
             except Exception as e:
-                logger.error(f"Failed to seed bundled profile {filename}: {e}")
+                logger.error(f"Failed to load profile {filename}: {e}")
+        return found
+
+    async def _load_bundled_profiles(self):
+        self.bundled = await self._read_yaml_dir(self.BUNDLED_PATH)
+        for data in self.bundled.values():
+            data.pop("_file", None)
+
+    async def _load_hidden(self):
+        path = os.path.join(self.custom_eep_path, self.HIDDEN_FILE)
+        try:
+            async with aiofiles.open(path, 'r') as f:
+                self.hidden_bundled = set((yaml.safe_load(await f.read()) or {}).get("hidden", []))
+        except FileNotFoundError:
+            self.hidden_bundled = set()
+        except Exception as e:
+            logger.error(f"Failed to read {path}: {e}")
+            self.hidden_bundled = set()
+
+    async def _save_hidden(self):
+        os.makedirs(self.custom_eep_path, exist_ok=True)
+        path = os.path.join(self.custom_eep_path, self.HIDDEN_FILE)
+        async with aiofiles.open(path, 'w') as f:
+            await f.write(yaml.dump({"hidden": sorted(self.hidden_bundled)}, default_flow_style=False))
 
     async def _load_custom_profiles(self):
-        """Load custom EEP profile overrides from persistent storage"""
-        if not os.path.exists(self.custom_eep_path):
-            os.makedirs(self.custom_eep_path, exist_ok=True)
-            return
+        """Read the user's profile files from persistent storage."""
+        os.makedirs(self.custom_eep_path, exist_ok=True)
+        self.user_data = await self._read_yaml_dir(self.custom_eep_path)
+        self.user_files = {e: d.pop("_file") for e, d in self.user_data.items()}
 
-        for filename in os.listdir(self.custom_eep_path):
-            if filename.endswith(".yaml") or filename.endswith(".yml"):
-                filepath = os.path.join(self.custom_eep_path, filename)
+    async def _drop_seeded_copies(self):
+        """Retire the copies the old seeding wrote into /data.
+
+        A copy that equals the bundled profile is just that copy: removing it
+        lets the bundled one apply, and future versions of it arrive with the
+        update. A copy that differs is the user's edit (made since the last
+        start, the old seeding overwrote anything older): it stays, marked
+        with the bundled version it was based on.
+        """
+        for eep_id, bundled in self.bundled.items():
+            data = self.user_data.get(eep_id)
+            if not data:
+                continue
+            path = os.path.join(self.custom_eep_path, self._user_file(eep_id))
+            if self._content_hash(data) == self._content_hash(bundled):
                 try:
-                    async with aiofiles.open(filepath, 'r') as f:
-                        content = await f.read()
-                        data = yaml.safe_load(content)
+                    os.remove(path)
+                    logger.info(f"Profile {eep_id}: copy of the bundled version removed, bundled applies")
+                except OSError as e:
+                    logger.error(f"Failed to remove {path}: {e}")
+                del self.user_data[eep_id]
+                self.user_files.pop(eep_id, None)
+            elif "based_on_bundled" not in data:
+                data["based_on_bundled"] = self._content_hash(bundled)
+                await self._write_user_file(eep_id, data)
+                logger.info(f"Profile {eep_id}: your edit of the bundled profile is kept")
 
-                        if data and "profile" in data:
-                            profile_data = data["profile"]
-                            rorg = profile_data.get("rorg", "").upper()
-                            func = profile_data.get("func", "").upper().zfill(2)
-                            type_ = profile_data.get("type", "").upper().zfill(2)
-                            desc = profile_data.get("description", "Custom Profile")
+    def _user_file(self, eep_id: str) -> str:
+        return self.user_files.get(eep_id, f"{eep_id}.yaml")
 
-                            profile = EEPProfile(rorg, func, type_, desc)
-                            profile.fields = profile_data.get("fields", [])
-                            profile.is_custom = True
+    async def _write_user_file(self, eep_id: str, data: Dict[str, Any]):
+        os.makedirs(self.custom_eep_path, exist_ok=True)
+        filename = self._user_file(eep_id)
+        async with aiofiles.open(os.path.join(self.custom_eep_path, filename), 'w') as f:
+            await f.write(yaml.dump(data, default_flow_style=False, allow_unicode=True))
+        self.user_files[eep_id] = filename
 
-                            # Load HA mapping if present (either in profile or top-level)
-                            ha_mapping = data.get("ha_mapping", {})
-                            if not ha_mapping:
-                                ha_mapping = profile_data.get("ha_mapping", {})
-                            profile.ha_mapping = ha_mapping
+    def _apply(self, eep_id: str):
+        """Put the effective profile for eep_id into self.profiles:
+        the user's file, else the bundled one unless hidden, else EEP.xml."""
+        eep_id = eep_id.upper()
+        if eep_id in self.user_data:
+            data = self.user_data[eep_id]
+            profile = self._profile_from_data(data)
+            if eep_id in self.bundled:
+                profile.source = "bundled_modified"
+                based_on = data.get("based_on_bundled")
+                # As text: a hand-edited, all-digit value would load as a number.
+                profile.bundled_newer = (based_on not in (None, "")
+                                         and str(based_on) != self._content_hash(self.bundled[eep_id]))
+            else:
+                profile.source = "custom"
+        elif eep_id in self.bundled and eep_id not in self.hidden_bundled:
+            profile = self._profile_from_data(self.bundled[eep_id])
+            profile.source = "bundled"
+        elif eep_id in self.base_profiles:
+            self.profiles[eep_id] = self.base_profiles[eep_id]
+            return
+        else:
+            self.profiles.pop(eep_id, None)
+            return
+        self.profiles[eep_id] = profile
+        logger.info(f"Loaded {profile.source.replace('_', ' ')} profile: {eep_id}"
+                    f"{' with ha_mapping' if profile.ha_mapping else ''}")
 
-                            self.profiles[profile.eep_id] = profile
-                            logger.info(f"Loaded custom profile: {profile.eep_id}"
-                                        f"{' with ha_mapping' if ha_mapping else ''}")
+    def get_hidden_bundled(self) -> List[Dict[str, str]]:
+        """Bundled profiles the user removed, for the restore list."""
+        return [{"eep_id": e, "description": self.bundled[e]["profile"].get("description", "")}
+                for e in sorted(self.hidden_bundled) if e in self.bundled]
 
-                except Exception as e:
-                    logger.error(f"Failed to load custom profile {filename}: {e}")
+    async def restore_bundled_profile(self, eep_id: str) -> bool:
+        eep_id = eep_id.upper()
+        if eep_id not in self.hidden_bundled:
+            return False
+        self.hidden_bundled.discard(eep_id)
+        await self._save_hidden()
+        self._apply(eep_id)
+        logger.info(f"Restored bundled profile: {eep_id}")
+        return True
 
     def get_profile(self, eep_id: str) -> Optional[EEPProfile]:
         """Get a profile by EEP ID"""
@@ -415,27 +482,26 @@ class EEPManager:
             func = profile_data.get("func", "").upper().zfill(2)
             type_ = profile_data.get("type", "").upper().zfill(2)
 
-            filename = f"{rorg}-{func}-{type_}.yaml"
-            filepath = os.path.join(self.custom_eep_path, filename)
-
-            os.makedirs(self.custom_eep_path, exist_ok=True)
+            eep_id = f"{rorg}-{func}-{type_}"
 
             # Build YAML structure
             save_data = {"profile": profile_data}
             if ha_mapping:
                 save_data["ha_mapping"] = ha_mapping
+            if eep_id in self.bundled:
+                # Remember which bundled version this edit started from, so a
+                # later bundled change can be pointed out instead of applied.
+                previous = self.user_data.get(eep_id, {}).get("based_on_bundled")
+                save_data["based_on_bundled"] = previous or self._content_hash(self.bundled[eep_id])
 
-            async with aiofiles.open(filepath, 'w') as f:
-                await f.write(yaml.dump(save_data, default_flow_style=False, allow_unicode=True))
+            await self._write_user_file(eep_id, save_data)
+            self.user_data[eep_id] = save_data
+            if eep_id in self.hidden_bundled:
+                self.hidden_bundled.discard(eep_id)
+                await self._save_hidden()
+            self._apply(eep_id)
 
-            # Reload the profile
-            profile = EEPProfile(rorg, func, type_, profile_data.get("description", ""))
-            profile.fields = profile_data.get("fields", [])
-            profile.ha_mapping = ha_mapping or {}
-            profile.is_custom = True
-            self.profiles[profile.eep_id] = profile
-
-            logger.info(f"Saved custom profile: {profile.eep_id}"
+            logger.info(f"Saved custom profile: {eep_id}"
                         f"{' with ha_mapping' if ha_mapping else ''}")
             return True
 
@@ -443,26 +509,41 @@ class EEPManager:
             logger.error(f"Failed to save custom profile: {e}")
             return False
 
-    async def delete_custom_profile(self, eep_id: str) -> bool:
-        """Delete a custom profile"""
+    async def delete_custom_profile(self, eep_id: str) -> Optional[str]:
+        """Remove the user's say over a profile; returns what happened.
+
+        - "deleted": the user's own profile is gone (EEP.xml applies again,
+          if it has the profile)
+        - "reset": the user's edit of a bundled profile is gone, the bundled
+          version applies again; the edit is kept as <id>.yaml.bak
+        - "hidden": a bundled profile the user never edited is removed and
+          stays removed until restored
+        None if there is nothing to delete or it failed.
+        """
+        eep_id = eep_id.upper()
         try:
-            profile = self.profiles.get(eep_id.upper())
-            if not profile or not profile.is_custom:
-                return False
-
-            filename = f"{eep_id.upper()}.yaml"
-            filepath = os.path.join(self.custom_eep_path, filename)
-
-            if os.path.exists(filepath):
-                os.remove(filepath)
-
-            del self.profiles[eep_id.upper()]
-            logger.info(f"Deleted custom profile: {eep_id}")
-            return True
-
+            if eep_id in self.user_data:
+                path = os.path.join(self.custom_eep_path, self._user_file(eep_id))
+                if os.path.exists(path):
+                    if eep_id in self.bundled:
+                        os.replace(path, path + ".bak")
+                    else:
+                        os.remove(path)
+                del self.user_data[eep_id]
+                self.user_files.pop(eep_id, None)
+                result = "reset" if eep_id in self.bundled else "deleted"
+            elif eep_id in self.bundled and eep_id not in self.hidden_bundled:
+                self.hidden_bundled.add(eep_id)
+                await self._save_hidden()
+                result = "hidden"
+            else:
+                return None
+            self._apply(eep_id)
+            logger.info(f"Profile {eep_id}: {result}")
+            return result
         except Exception as e:
-            logger.error(f"Failed to delete custom profile: {e}")
-            return False
+            logger.error(f"Failed to delete custom profile {eep_id}: {e}")
+            return None
 
     # === Mapping Overrides ===
 

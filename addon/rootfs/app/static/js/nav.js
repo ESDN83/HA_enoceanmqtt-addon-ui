@@ -17,6 +17,9 @@ function closeSidebar() {
     backdrop.classList.remove('show');
 }
 function navigateTo(page) {
+    // A page switch is a safe moment to pick up a new version: no form is
+    // half filled in (see noteServerVersion).
+    if (_serverVersion && reloadForNewVersion()) return;
     // Hide all pages
     document.querySelectorAll('.page-content').forEach(p => p.style.display = 'none');
     // Show selected page
@@ -49,6 +52,6 @@ function navigateTo(page) {
     // Load page-specific data
     if (page === 'devices') loadDevices();
     if (page === 'profiles') loadProfiles();
-    if (page === 'settings') { loadBackups(); loadEepInfo(); loadMqttConfig(); }
+    if (page === 'settings') { loadBackups(); loadEepInfo(); loadMqttConfig(); loadLegacySources(); }
     if (page === 'teach-in') resetTeachInPage();
 }

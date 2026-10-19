@@ -1,5 +1,56 @@
 # Changelog
 
+## [1.8.4] - 2026-10-19
+
+Moving over from EnOcean MQTT Slim or ChristopheHD enocean-mqtt, long-press
+covers, and a check of every default mapping against the profile database.
+Eleven beta builds, field tested on the forum.
+
+### Check after updating
+
+- **Window and door contacts (D5-00-01) showed open when closed.** They now
+  show the right state. Check automations that relied on the swapped state.
+- **Some entities are removed** because their profile has no such value:
+  Illuminance on window handles (A5-14-09, A5-14-0A), Vibration on A5-14-01,
+  Temperature and Humidity on A5-09-05. At every start the app now also
+  removes its own entities it no longer creates, for configured devices only.
+- **A5-12-01 energy is in kWh** (was Wh). Home Assistant may ask once to fix
+  the unit of the statistics.
+- **Restoring a backup replaces your custom profiles** with the ones in the
+  backup. The previous files are kept in `custom_eep/.pre_restore/`.
+
+### Added
+
+- **Switch from EnOcean MQTT Slim or ChristopheHD enocean-mqtt.** Settings →
+  *Switch from another EnOcean app* reads the old device list (from
+  `/config/enoceanmqtt.devices`, the running Slim app, or an uploaded file),
+  adds the devices you pick, then removes the old entities and gives the new
+  ones their entity IDs, so automations, dashboards and history carry on.
+  *How it works* in the card and DOCS explain every step. Back up first.
+- **Press duration for Open/Close** on covers driven as a pushbutton (F6),
+  for receivers that only travel on a long press (e.g. Flextron ALADIN,
+  about 2500 ms). Empty or 0 keeps the short press, nothing changes for
+  Eltako. ADR-0019.
+- **Invert for sensors:** swaps on and off of a sensor's binary entities.
+- **Window handles** get a *Handle* entity: closed, tilted or open.
+- **The page reloads itself after an update**, instead of running the old
+  scripts against the new app.
+- Bundled profiles (A5-3F-7F) stay in the app instead of being copied: a
+  removed one stays removed (restore button under *Removed bundled
+  profiles*), an edited one is never overwritten and can be reset.
+
+### Fixed
+
+- **RSSI was missing for every device** (read from the wrong byte).
+- **Motion sensors (A5-07, A5-08) never showed occupancy.**
+- **Window handles (A5-14-09, A5-14-0A) stayed unknown.**
+- These profiles now show values: A5-06-01, A5-09-04, A5-09-05, A5-12-01,
+  A5-14-01, A5-30-02, D2-01 without an actuator role. Entity IDs stay.
+- Saving a device could fail with "[object Object]" when a number field was
+  empty; save errors now name the field.
+- A long press is no longer cut short by another device on the same sender ID.
+- Deleting a custom profile brings back the standard one at once.
+
 ## [1.8.4-beta11] - 2026-10-11 (beta channel)
 
 ### Fixed
