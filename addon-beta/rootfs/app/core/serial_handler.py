@@ -805,11 +805,14 @@ class SerialHandler:
             if response_sender is None:
                 logger.warning("UTE teach-in: base ID not read yet, cannot send response")
             else:
-                await self.send_ute_response(
-                    destination=telegram.sender_id,
-                    response_sender=response_sender,
-                    query_data=d,
-                )
+                # In a task of its own: this runs inside the read loop, which
+                # has to stay free to read the transceiver's acknowledgement
+                # of this very response. Awaited here, the acknowledgement was
+                # read only after the 300 ms wait had run out, so every UTE
+                # response was logged as unacknowledged and the read loop and
+                # the teach-in dialog stalled for that long (ADR-0029).
+                asyncio.create_task(self._send_ute_response_task(
+                    telegram.sender_id, response_sender, d))
 
         if self._teach_in_callback:
             await self._teach_in_callback({
@@ -827,6 +830,15 @@ class SerialHandler:
                 # configured with exactly this value for commands to reach it.
                 "response_sender": f"0x{response_sender:08X}" if response_sender else None,
             })
+
+    async def _send_ute_response_task(self, destination: int, response_sender: int,
+                                      query_data: bytes):
+        try:
+            await self.send_ute_response(destination=destination,
+                                         response_sender=response_sender,
+                                         query_data=query_data)
+        except Exception as e:
+            logger.error(f"UTE teach-in response to 0x{destination:08X} not sent: {e}")
 
     async def send_4bs_addressed(self, sender_id: int, data: bytes, destination: int,
                                  label: str = "") -> bool:

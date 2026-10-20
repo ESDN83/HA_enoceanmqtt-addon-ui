@@ -1,6 +1,6 @@
 # 0029. Radiator valves are answered on receive
 
-Status: proposed (v1.8.5-beta2).
+Status: proposed (v1.8.5-beta2, amended in v1.8.5-beta3).
 
 ## Context
 
@@ -54,3 +54,12 @@ app answered neither (forum post 73, log of a real MVA004 on a USB300).
 - The simulator logs each received telegram's destination and can send a raw
   telegram from any address, so teach-in and answers are testable without a
   valve.
+
+## Amendment (v1.8.5-beta3): the rule holds for every send on receive
+
+The UTE teach-in response (NodOn, D2-05/D2-01) was awaited inside the read
+loop and ran into exactly this: the transceiver acknowledged after 12 ms, the
+loop read it only after the 300 ms wait, logged "No transceiver ack" and held
+the teach-in dialog for that long. It now goes out in its own task too. A
+static check of `_process_radio_telegram` (every awaited call followed into
+`_send_radio_packet`) finds no other send on that path.

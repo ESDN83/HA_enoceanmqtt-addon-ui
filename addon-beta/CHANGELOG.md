@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.8.5-beta3] - 2026-10-21 (beta channel)
+
+### Fixed
+
+- **Pairing a UTE device (e.g. NodOn) stalled the receiver for 300 ms** and
+  logged "No transceiver ack" although the response went out. The response
+  was sent from inside the receive loop, which then could not read the
+  transceiver's acknowledgement until its wait had run out. It is now sent
+  on its own, like the valve answers.
+
 ## [1.8.5-beta2] - 2026-10-21 (beta channel)
 
 ### Added
