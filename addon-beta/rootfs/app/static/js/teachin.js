@@ -363,8 +363,9 @@ function applyTeachInData(d) {
         markDetected(roleField, !!role);
     }
 
-    // UTE binds a specific Sender ID, the device must use exactly it.
-    if (d.teach_method === 'UTE' && d.response_sender) {
+    // UTE and a valve's 4BS teach-in bind a specific Sender ID, the device
+    // must use exactly it.
+    if ((d.teach_method === 'UTE' || d.teach_method === '4BS') && d.response_sender) {
         const senderField = document.querySelector('[name="sender_id"]');
         if (senderField) {
             senderField.value = d.response_sender;

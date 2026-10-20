@@ -157,12 +157,20 @@ function isTwoChannelEep(rorg, func, type) {
     const ty = String(type || '').toUpperCase().padStart(2, '0');
     return r === 'D2' && f === '01' && (ty === '11' || ty === '12');
 }
+// A radiator valve (A5-20-01) stays a sensor in the role dropdown but is
+// answered from a sender ID of the gateway, set at teach-in (ADR-0029).
+function isValveForm() {
+    const v = n => ((document.querySelector(`[name="${n}"]`) || {}).value || '').toUpperCase().replace('0X', '');
+    return v('rorg') === 'A5' && v('func').padStart(2, '0') === '20' && v('type').padStart(2, '0') === '01';
+}
+
 function toggleSenderIdField(select) {
     const senderGroup = document.getElementById('sender-id-group');
+    const valve = isValveForm();
     if (senderGroup) {
-        senderGroup.style.display = select.value ? '' : 'none';
+        senderGroup.style.display = (select.value || valve) ? '' : 'none';
         // Clear sender_id when switching back to sensor
-        if (!select.value) {
+        if (!select.value && !valve) {
             const input = senderGroup.querySelector('input[name="sender_id"]');
             if (input) input.value = '';
         }

@@ -335,6 +335,9 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
             # first so the entity does not fall back to unknown (#36).
             if old_name != name:
                 await mqtt_handler.rename_cached_state(old_name, name)
+                valve_control = getattr(request.app.state, "valve_control", None)
+                if valve_control is not None:
+                    valve_control.rename(old_name, name)
                 await mqtt_handler.clear_device_topics(old_name)
         except Exception as e:
             import logging

@@ -1222,6 +1222,14 @@ class MappingManager:
         If actuator_type is set (light/switch/cover), generates a controllable entity
         instead of sensor entities from the EEP profile.
         """
+        # A valve (A5-20-01) gets its sender ID only at teach-in, and that ID
+        # is the gateway's, not the valve's. Keeping it out of the unique_id
+        # keeps the entities when it is assigned (ADR-0029).
+        is_valve = str(eep_id).upper() == "A5-20-01" and not actuator_type
+        valve_controllable = is_valve and bool(device_sender)
+        if is_valve:
+            device_sender = ""
+
         configs = []
 
         avail_config = {
@@ -1416,6 +1424,10 @@ class MappingManager:
                     "unique_id": unique_id,
                     "config": config
                 })
+
+        if valve_controllable:
+            configs.extend(self._valve_control_configs(
+                eep_id, device_address, device_name, mqtt_prefix, device_info, avail_config))
 
         # Auto-add diagnostic entities for every device: RSSI + Last Seen
         state_topic = f"{mqtt_prefix}/{device_name}/state"
@@ -1630,6 +1642,45 @@ class MappingManager:
         })
 
         return [connected, base_id, devices, last_telegram, busy, pending, duration]
+
+    def _valve_control_configs(self, eep_id, device_address, device_name, mqtt_prefix,
+                               device_info, avail_config) -> List[Dict[str, Any]]:
+        """Setpoint, target temperature, mode and summer mode of a valve.
+
+        A command is stored and goes out in the reply to the valve's next
+        telegram (ADR-0029), so the state shows what was set, not what the
+        valve has already taken.
+        """
+        state_topic = f"{mqtt_prefix}/{device_name}/state"
+        entities = [
+            ("number", "SET_VALVE", "valve_setpoint", {
+                "name": "Valve Setpoint", "min": 0, "max": 100, "step": 1,
+                "unit_of_measurement": "%", "mode": "slider", "icon": "mdi:valve"}),
+            ("number", "SET_TEMP", "target_temperature", {
+                "name": "Target Temperature", "min": 0, "max": 40, "step": 0.5,
+                "unit_of_measurement": "°C", "device_class": "temperature", "mode": "box"}),
+            ("select", "SET_MODE", "mode", {
+                "name": "Control Mode", "options": ["valve", "temperature"],
+                "icon": "mdi:tune-variant"}),
+            ("switch", "SET_SUMMER", "summer_mode", {
+                "name": "Summer Mode", "payload_on": "ON", "payload_off": "OFF",
+                "icon": "mdi:white-balance-sunny", "entity_category": "config"}),
+        ]
+        out = []
+        for component, field, command, extra in entities:
+            uid = self.build_unique_id(eep_id, device_address, "", field)
+            config = {
+                "unique_id": uid,
+                "object_id": f"{device_name}_{command}".lower().replace(" ", "_"),
+                "state_topic": state_topic,
+                "value_template": f"{{{{ value_json.{field} }}}}",
+                "command_topic": f"{mqtt_prefix}/{device_name}/set/{command}",
+                "device": device_info,
+                "availability": avail_config,
+            }
+            config.update(extra)
+            out.append({"component": component, "unique_id": uid, "config": config})
+        return out
 
     def build_discovery_for_device(self, device, mqtt_prefix: str,
                                    devices_on_address) -> List[Dict[str, Any]]:

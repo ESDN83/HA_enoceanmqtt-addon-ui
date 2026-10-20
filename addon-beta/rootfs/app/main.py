@@ -27,6 +27,7 @@ from core.serial_handler import SerialHandler, RPS_HOLD_SECONDS
 from core.device_manager import DeviceManager
 from core.eep_manager import EEPManager
 from core.mapping_manager import MappingManager
+from core.valve_control import ValveControl, is_valve
 from core.telegram_buffer import TelegramBuffer
 from core.command_queue import CommandQueue
 
@@ -75,6 +76,7 @@ eep_manager: EEPManager = None
 mapping_manager: MappingManager = None
 telegram_buffer: TelegramBuffer = None
 command_queue: CommandQueue = None
+valve_control: "ValveControl" = None
 availability_task: asyncio.Task = None
 # Last availability the watchdog published per device, so the retained topic is
 # only rewritten on a change, plus the moment the add-on came up (#37).
@@ -91,7 +93,7 @@ _queue_last_busy: Optional[bool] = None
 async def lifespan(app: FastAPI):
     """Application lifespan - startup and shutdown"""
     global mqtt_handler, serial_handler, device_manager, eep_manager, mapping_manager, telegram_buffer
-    global availability_task, command_queue
+    global availability_task, command_queue, valve_control
 
     logger.info("Starting EnOcean MQTT Add-on...")
 
@@ -166,6 +168,16 @@ async def lifespan(app: FastAPI):
         if GATEWAY_DIAGNOSTICS:
             serial_handler.register_telegram_callback(_on_telegram_for_diagnostics)
 
+        # Valves that only listen right after they transmit (ADR-0029).
+        valve_control = ValveControl(CONFIG_PATH, serial_handler, device_manager, mqtt_handler)
+        await valve_control.load()
+        serial_handler.valve_control = valve_control
+
+        async def _valve_discovery(device):
+            from api.devices import _publish_discovery
+            await _publish_discovery(device, mqtt_handler, mapping_manager, device_manager)
+        valve_control.on_sender_assigned = _valve_discovery
+
         try:
             # connect() logs the same sentence itself. Logging it twice from
             # two places reads like two connections, which is exactly the
@@ -203,6 +215,7 @@ async def lifespan(app: FastAPI):
     # Store instances in app state for access in routes
     app.state.mqtt_handler = mqtt_handler
     app.state.serial_handler = serial_handler
+    app.state.valve_control = valve_control
     app.state.device_manager = device_manager
     app.state.eep_manager = eep_manager
     app.state.mapping_manager = mapping_manager
@@ -722,6 +735,15 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
     convention (0x70 = ON), see the switch branch in serial_handler.
     """
     global serial_handler, device_manager, mqtt_handler
+
+    # A valve (A5-20-01) is not commanded now: the value is stored and goes
+    # out in the reply to its next telegram, the only moment it listens
+    # (ADR-0029). So no transceiver is needed here.
+    if valve_control is not None and device_manager is not None:
+        valve = device_manager.get_device(device_name)
+        if is_valve(valve):
+            await valve_control.handle_command(valve, payload, entity)
+            return
 
     if not serial_handler or not serial_handler.is_connected:
         logger.warning(f"Cannot send command for {device_name}: serial not connected")

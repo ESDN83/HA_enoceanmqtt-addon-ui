@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.8.5-beta2] - 2026-10-21 (beta channel)
+
+### Added
+
+- **Radiator valves (A5-20-01) can be controlled**, e.g. Micropelt MVA004 /
+  SAM. The app answers the valve's teach-in (start Teach-In, hold the valve's
+  button 5 s) and every telegram it sends, the only moment it listens. New
+  entities: valve setpoint in %, target temperature, control mode and summer
+  mode. A value set in Home Assistant goes out with the next answer. Until
+  something is set the valve regulates itself to 21 °C. See DOCS.
+
+### Fixed
+
+- A valve's teach-in request was read as a measurement (valve at 128 %).
+
 ## [1.8.5-beta1] - 2026-10-20 (beta channel)
 
 Radiator valves (A5-20-01, e.g. Micropelt MVA004), after forum post 71.

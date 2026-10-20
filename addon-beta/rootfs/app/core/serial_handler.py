@@ -177,6 +177,9 @@ class SerialHandler:
         # are addressed (destination = actuator), so one gateway sender can
         # drive many covers, a single offset is fine. Set per teach-in session.
         self._ute_response_offset: int = 1
+        # Radiator valves that only listen right after they transmit
+        # (A5-20-01, ADR-0029); set by main once everything exists.
+        self.valve_control = None
         self._base_id: Optional[int] = None
         self._response_future: Optional[asyncio.Future] = None
         # Guards every conversation with the transceiver, radio telegrams and
@@ -652,7 +655,28 @@ class SerialHandler:
             self.device_manager is not None
             and self.device_manager.get_device_by_address(telegram.sender_hex) is not None
         )
-        if telegram.rorg == 0xD4:
+        # A valve (A5-20-01) answered at once, its teach-in query included:
+        # the valve listens for about a second after it transmits.
+        valve_teach = None
+        if telegram.rorg == 0xA5 and self.valve_control is not None:
+            valve_teach = self.valve_control.handle_rx(
+                telegram, teach_in_active=self._teach_in_callback is not None)
+
+        if valve_teach is not None:
+            is_teach_in = True
+            if self._teach_in_callback is not None:
+                d = telegram.data
+                await self._teach_in_callback({
+                    "sender_id": telegram.sender_hex,
+                    "rorg": telegram.rorg_hex,
+                    "func": f"{(d[0] >> 2) & 0x3F:02X}",
+                    "type": f"{((d[0] & 0x03) << 5) | ((d[1] >> 3) & 0x1F):02X}",
+                    "dbm": telegram.dbm,
+                    "teach_method": "4BS",
+                    # The valve now only takes commands from this sender ID.
+                    "response_sender": valve_teach["response_sender"],
+                })
+        elif telegram.rorg == 0xD4:
             # UTE (RORG 0xD4) teach-in queries, e.g. NodOn D2-05-00 in
             # bidirectional learn mode, must be answered with a UTE response
             # to complete pairing. This is handled independently of
@@ -667,8 +691,12 @@ class SerialHandler:
             if is_teach_in:
                 await self._handle_teach_in(telegram)
 
-        # Find matching device and process
-        device_name, eep_id, decoded = await self._process_telegram(telegram)
+        # Find matching device and process. A valve's teach-in query is not
+        # data: its DB3 read as a valve position gave 128 %.
+        if valve_teach is not None:
+            device_name, eep_id, decoded = None, None, None
+        else:
+            device_name, eep_id, decoded = await self._process_telegram(telegram)
 
         # Store in telegram buffer
         if self.telegram_buffer:
@@ -799,6 +827,17 @@ class SerialHandler:
                 # configured with exactly this value for commands to reach it.
                 "response_sender": f"0x{response_sender:08X}" if response_sender else None,
             })
+
+    async def send_4bs_addressed(self, sender_id: int, data: bytes, destination: int,
+                                 label: str = "") -> bool:
+        """One 4BS telegram to one device, e.g. a valve's reply (ADR-0029)."""
+        packet = self._build_radio_packet(sender_id, 0xA5, data, destination, 0x00)
+        line = _radio_log_line(0xA5, data, destination)
+        async with self._tx_slot():
+            ok = await self._send_radio_packet(packet, label or "4BS", line)
+        logger.info(f"Sent {label}: {data.hex().upper()} to 0x{destination:08X} "
+                    f"from 0x{sender_id:08X}")
+        return ok
 
     async def send_ute_response(self, destination: int, response_sender: int,
                                 query_data: bytes) -> bool:
@@ -957,6 +996,8 @@ class SerialHandler:
 
             for target in targets:
                 payload = dict(decoded)
+                if self.valve_control is not None and str(target.eep_id).upper() == "A5-20-01":
+                    payload.update(self.valve_control.state_fields(target.name))
                 if d2_01_status:
                     io = decoded.get("IO")
                     ch = int(getattr(target, "channel", 0) or 0)

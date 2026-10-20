@@ -33,3 +33,4 @@ Rules:
 - [0026](0026-clear-stale-discovery-configs.md) Stale discovery configs are cleared at startup
 - [0027](0027-bundled-profiles-overlay.md) Bundled profiles overlay, they are not copied
 - [0028](0028-decode-direction-one-only.md) Received telegrams are decoded with direction 1 only
+- [0029](0029-valves-answered-on-receive.md) Radiator valves are answered on receive

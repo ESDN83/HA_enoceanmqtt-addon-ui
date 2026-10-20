@@ -261,6 +261,23 @@ Teach-In" has to be clicked several times in a row:
   number of seconds for a full run, and the position is synchronised whenever
   the shutter reaches an end position. The position is read-only for now.
 
+
+### Radiator Valves (A5-20-01, e.g. Micropelt MVA004 / SAM)
+- The valve only listens for about a second after it transmits, so the app
+  answers every telegram from it at once. A value you set in Home Assistant is
+  stored and goes out with the next answer, after at most one radio interval
+  (10 s in the first minutes after a reset, then every few minutes).
+- Pairing: start **Teach-In** in the app, then press the valve's button for
+  5 s. The app answers the valve's request (green flash) and fills in the
+  Sender ID; save the device with it. A valve that is already set up is
+  answered too, with the Sender ID it has.
+- Entities: **Valve Setpoint** (0-100 %), **Target Temperature** (0-40 °C),
+  **Control Mode** (valve / temperature) and **Summer Mode**. Setting the
+  setpoint or the temperature switches the mode to match. Until you set
+  anything the valve regulates itself to 21 °C.
+- The valve uses its own temperature sensor. Summer mode makes it report only
+  every few hours.
+
 ## Support
 
 - Report issues on [GitHub](https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/issues)
