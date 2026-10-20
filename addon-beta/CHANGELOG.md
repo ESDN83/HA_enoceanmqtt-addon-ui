@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.8.5-beta1] - 2026-10-20 (beta channel)
+
+Radiator valves (A5-20-01, e.g. Micropelt MVA004), after forum post 71.
+Reading only; controlling the valve comes later.
+
+### Fixed
+
+- **A5-20-01, A5-20-04 and A5-20-06 mixed up what the valve sends with what
+  the gateway sends back.** The temperature showed a status byte (e.g.
+  32.47 instead of 19.1 °C), and fields like SP, SB or SPS appeared that the
+  valve never sends. Only the valve's own fields are read now.
+
+### Added
+
+- **Default entities for A5-20-01:** valve position in %, temperature,
+  window open, actuator obstructed, and the remaining status bits as
+  diagnostics.
+
 ## [1.8.4] - 2026-10-19
 
 Moving over from EnOcean MQTT Slim or ChristopheHD enocean-mqtt, long-press

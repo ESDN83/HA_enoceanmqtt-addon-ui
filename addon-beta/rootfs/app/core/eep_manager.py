@@ -207,6 +207,15 @@ class EEPManager:
             return fields
 
         for data_element in data_elements:
+            # A bidirectional profile (A5-20-01, -04, -06 radiator valves) has
+            # a direction="1" block for what the device sends and a
+            # direction="2" block for what the gateway sends back. Only the
+            # first describes a received telegram; merging both put the reply
+            # fields over the real ones (direction 2's TMP replaced the
+            # ambient temperature). The reply side is not decoded at all.
+            if data_element.get("direction") == "2":
+                continue
+
             # Track which command this data block belongs to
             command_id = data_element.get("command", None)
 

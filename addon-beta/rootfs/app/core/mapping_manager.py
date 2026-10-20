@@ -800,6 +800,68 @@ DEFAULT_MAPPINGS = {
             "unit_of_measurement": "V"
         }
     },
+    # HVAC radiator valve (A5-20-01, e.g. Micropelt MVA004), what it reports
+    # (EEP.xml direction 1). Status bits as EEP.xml names them; BCAP's meaning
+    # differs between the EEP text and device datasheets, so it gets no
+    # battery class. Forum post 71.
+    "A5-20-01": {
+        "CV": {
+            "component": "sensor",
+            "name": "Valve Position",
+            "unit_of_measurement": "%",
+            "state_class": "measurement",
+            "icon": "mdi:valve"
+        },
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "°C",
+            "state_class": "measurement"
+        },
+        "DWO": {
+            "component": "binary_sensor",
+            "name": "Window Open",
+            "device_class": "window"
+        },
+        "ACO": {
+            "component": "binary_sensor",
+            "name": "Actuator Obstructed",
+            "device_class": "problem"
+        },
+        "FTS": {
+            "component": "binary_sensor",
+            "name": "Temperature Sensor Failure",
+            "device_class": "problem",
+            "entity_category": "diagnostic"
+        },
+        "CCO": {
+            "component": "binary_sensor",
+            "name": "Cover Open",
+            "device_class": "opening",
+            "entity_category": "diagnostic"
+        },
+        "ES": {
+            "component": "binary_sensor",
+            "name": "Energy Storage Charged",
+            "entity_category": "diagnostic"
+        },
+        "ENIE": {
+            "component": "binary_sensor",
+            "name": "Energy Input",
+            "entity_category": "diagnostic"
+        },
+        "BCAP": {
+            "component": "binary_sensor",
+            "name": "Battery Capacity",
+            "entity_category": "diagnostic"
+        },
+        "SO": {
+            "component": "binary_sensor",
+            "name": "Service On",
+            "entity_category": "diagnostic"
+        }
+    },
     # 4BS Digital Input (A5-30), from arno0392 fork
     "A5-30-01": {
         "DI0": {
