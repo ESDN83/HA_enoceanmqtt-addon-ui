@@ -5,6 +5,7 @@ Supports official EEP.xml and custom overrides
 The EEP.xml is bundled with the addon - no external downloads required.
 """
 
+import copy
 import os
 import json
 import logging
@@ -108,6 +109,7 @@ class EEPManager:
         self.profiles = {}
         # Load base EEP.xml
         await self._load_base_eep()
+        self._add_family_types()
 
         self.base_profiles = dict(self.profiles)
 
@@ -125,6 +127,36 @@ class EEPManager:
         await self._load_overrides()
 
         logger.info(f"EEP Manager initialized with {self.profile_count} profiles")
+
+    # EEP families whose types all share one telegram layout; the types only
+    # differ in what the device supports. EEP.xml lists some of them, and a
+    # device of a missing type had no profile at all, so every status it sent
+    # was dropped (OPUS 563.076 dimmer = D2-01-03, 563.010 switch = D2-01-00,
+    # forum thread 1026367). The missing types get the layout of a listed one.
+    # ADR-0030.
+    _FAMILY_TYPES = {
+        "D2-01": ("D2-01-01", range(0x00, 0x13)),
+        "D2-05": ("D2-05-00", range(0x00, 0x06)),
+    }
+
+    def _add_family_types(self):
+        for family, (template_id, types) in self._FAMILY_TYPES.items():
+            template = self.profiles.get(template_id)
+            if template is None:
+                continue
+            rorg, func = family.split("-")
+            added = []
+            for t in types:
+                eep_id = f"{family}-{t:02X}"
+                if eep_id in self.profiles:
+                    continue
+                profile = EEPProfile(rorg, func, f"{t:02X}",
+                                     f"{template.description} (layout of {template_id})")
+                profile.fields = copy.deepcopy(template.fields)
+                self.profiles[eep_id] = profile
+                added.append(eep_id)
+            if added:
+                logger.info(f"Added {', '.join(added)} with the layout of {template_id}")
 
     async def _load_base_eep(self):
         """Load and parse the base EEP.xml file

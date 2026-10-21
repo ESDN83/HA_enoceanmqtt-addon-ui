@@ -915,15 +915,21 @@ class SerialHandler:
         # Either way the telegram still appeared in the device's telegram list
         # while the HA entity stayed "unknown" forever. Forum report on an
         # Eltako FL62NP.
-        rps_state = self._rps_actuator_state(telegram, device)
+        # A VLD actuator (D2-01, D2-05: OPUS, NodOn) reports its state in a D2
+        # status telegram of its own. A rocker telegram from its address is
+        # its local button, not a confirmation: read as one, an OPUS blind's
+        # button press set it open or closed until the real status followed
+        # (forum thread 1026367). The Eltako rules below are for non-D2 EEPs.
+        vld_actuator = str(device.rorg).upper().replace("0X", "") == "D2"
+        rps_state = None if vld_actuator else self._rps_actuator_state(telegram, device)
 
         # The same holds for an Eltako shutter actuator, which confirms with a
         # rocker telegram (end position, travel started) and reports the time
         # it ran in a 4BS telegram. Both come from the actuator's own address
         # whatever EEP it is configured under, so they are read before the
         # RORG guard can drop them (issue #39, ADR-0014).
-        cover_state = self._eltako_cover_state(telegram, device)
-        cover_travel = self._eltako_cover_travel(telegram, device)
+        cover_state = None if vld_actuator else self._eltako_cover_state(telegram, device)
+        cover_travel = None if vld_actuator else self._eltako_cover_travel(telegram, device)
 
         # Check RORG matches the EEP profile, FD62NPN sends F6+A5+D1 but
         # only A5 matches A5-38-08. Decoding F6/D1 with A5 profile = garbage.

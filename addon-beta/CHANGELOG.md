@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.8.5-beta5] - 2026-10-21 (beta channel)
+
+OPUS actuators, after a forum thread listing an OPUS + Eltako installation.
+
+### Fixed
+
+- **D2-01 dimmers and switches of a type missing from the profile database
+  never showed their state** (e.g. OPUS 563.076 dimmer = D2-01-03, 563.010 =
+  D2-01-00). Commands worked, but every status they sent was dropped, so a
+  change at the wall switch never reached Home Assistant. All D2-01 types
+  (00 to 12) and D2-05 types (00 to 05) now exist; they share one telegram
+  layout.
+- **A D2 blind (e.g. OPUS 563.031) jumped to open or closed when its own
+  button was pressed.** The actuator's local button telegram was read like an
+  Eltako confirmation until the real position followed. D2 actuators report
+  their own status, so that telegram is ignored now.
+
 ## [1.8.5-beta4] - 2026-10-21 (beta channel)
 
 ### Added
