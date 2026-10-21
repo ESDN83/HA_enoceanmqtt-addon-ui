@@ -1,6 +1,6 @@
 # 0029. Radiator valves are answered on receive
 
-Status: proposed (v1.8.5-beta2, amended in v1.8.5-beta3).
+Status: proposed (v1.8.5-beta2, amended in v1.8.5-beta3 and v1.8.5-beta4).
 
 ## Context
 
@@ -63,3 +63,19 @@ loop read it only after the 300 ms wait, logged "No transceiver ack" and held
 the teach-in dialog for that long. It now goes out in its own task too. A
 static check of `_process_radio_telegram` (every awaited call followed into
 `_send_radio_packet`) finds no other send on that path.
+
+## Amendment (v1.8.5-beta4): a set value is pending until the valve has it
+
+The setpoint entities show what was set, which can take a radio interval (up
+to about ten minutes) to reach the valve, so a command looked ignored (forum
+post 75). FHEM solves this for the same profile with a `waitingCmds` reading
+that a set adds and the answer in the receive path removes.
+
+- `Command Pending` (binary_sensor) goes on with every command and off only
+  when the transceiver has acknowledged an answer that carried it. A failed
+  answer stays pending.
+- A per-device version counter guards the race: a command that arrives while
+  an answer is on its way keeps it pending, that answer still carried the
+  previous value.
+- `Last Answer` (timestamp) records the acknowledged answer. Both persist in
+  `valve_setpoints.yaml`, so a restart does not lose a pending command.

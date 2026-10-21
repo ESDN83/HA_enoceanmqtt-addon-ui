@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.8.5-beta4] - 2026-10-21 (beta channel)
+
+### Added
+
+- **Valves show whether a command is still on its way.** A value set in Home
+  Assistant reaches the valve only with its next telegram, up to about ten
+  minutes later. *Command Pending* is on from the moment you set a value until
+  the valve has been answered with it, and *Last Answer* shows when that
+  happened. A failed answer stays pending. Forum post 75.
+
 ## [1.8.5-beta3] - 2026-10-21 (beta channel)
 
 ### Fixed

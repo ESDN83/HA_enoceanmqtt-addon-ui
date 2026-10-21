@@ -275,6 +275,9 @@ Teach-In" has to be clicked several times in a row:
   **Control Mode** (valve / temperature) and **Summer Mode**. Setting the
   setpoint or the temperature switches the mode to match. Until you set
   anything the valve regulates itself to 21 °C.
+- **Command Pending** is on while a value you set waits for the valve's next
+  telegram, and goes off once the valve has been answered with it. **Last
+  Answer** shows when the valve was last answered.
 - The valve uses its own temperature sensor. Summer mode makes it report only
   every few hours.
 

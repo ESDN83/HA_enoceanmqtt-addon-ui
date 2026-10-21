@@ -1666,7 +1666,30 @@ class MappingManager:
                 "name": "Summer Mode", "payload_on": "ON", "payload_off": "OFF",
                 "icon": "mdi:white-balance-sunny", "entity_category": "config"}),
         ]
+        # Read-only: whether a set value still waits for the valve's next
+        # telegram, and when the valve last got an answer (forum post 75).
+        status = [
+            ("binary_sensor", "SET_PENDING", "command_pending", {
+                "name": "Command Pending", "payload_on": "ON", "payload_off": "OFF",
+                "icon": "mdi:timer-sand"}),
+            ("sensor", "LAST_ANSWER", "last_answer", {
+                "name": "Last Answer", "device_class": "timestamp",
+                "entity_category": "diagnostic",
+                "value_template": "{{ value_json.LAST_ANSWER if value_json.LAST_ANSWER else None }}"}),
+        ]
         out = []
+        for component, field, object_suffix, extra in status:
+            uid = self.build_unique_id(eep_id, device_address, "", field)
+            config = {
+                "unique_id": uid,
+                "object_id": f"{device_name}_{object_suffix}".lower().replace(" ", "_"),
+                "state_topic": state_topic,
+                "value_template": f"{{{{ value_json.{field} }}}}",
+                "device": device_info,
+                "availability": avail_config,
+            }
+            config.update(extra)
+            out.append({"component": component, "unique_id": uid, "config": config})
         for component, field, command, extra in entities:
             uid = self.build_unique_id(eep_id, device_address, "", field)
             config = {

@@ -22,6 +22,7 @@ implementations (FHEM 10_EnOcean.pm, embyt enocean-mqtt):
 import asyncio
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import aiofiles
@@ -89,6 +90,10 @@ class ValveControl:
         self.mqtt_handler = mqtt_handler
         self._file = os.path.join(config_path, "valve_setpoints.yaml")
         self._values: Dict[str, Dict[str, Any]] = {}
+        # Per device, bumped by every command. A reply clears "pending" only
+        # if no command came in while it was on its way: that reply still
+        # carried the previous value.
+        self._version: Dict[str, int] = {}
         # Called with the device once teach-in gave it a sender ID: its
         # control entities exist only with one, so discovery is re-published.
         self.on_sender_assigned = None
@@ -120,6 +125,11 @@ class ValveControl:
             "SET_VALVE": int(v["valve"]),
             "SET_TEMP": round(float(v["temperature"]), 1),
             "SET_SUMMER": "ON" if v["summer"] else "OFF",
+            # Set in Home Assistant but not yet acknowledged in a reply to the
+            # valve, which can take one radio interval (forum post 75). Same
+            # idea as FHEM's waitingCmds reading for this profile.
+            "SET_PENDING": "ON" if v.get("pending") else "OFF",
+            "LAST_ANSWER": v.get("last_answer"),
         }
 
     def rename(self, old: str, new: str):
@@ -161,7 +171,8 @@ class ValveControl:
         if is_valve(device) and device.sender_id and (data[3] & 0x08):
             sender = int(device.sender_id.replace("0x", "").replace("0X", ""), 16)
             payload = reply_payload(self.values(device.name))
-            asyncio.create_task(self._send(sender, payload, telegram.sender_id, f"{device.name} reply"))
+            version = self._version.get(device.name, 0)
+            asyncio.create_task(self._reply(device.name, sender, payload, telegram.sender_id, version))
         return None
 
     def _sender_for(self, device) -> Optional[int]:
@@ -200,11 +211,23 @@ class ValveControl:
             state.update(self.state_fields(device_name))
             await self.mqtt_handler.publish_state(device_name, state)
 
-    async def _send(self, sender: int, data: bytes, destination: int, label: str):
+    async def _send(self, sender: int, data: bytes, destination: int, label: str) -> bool:
         try:
-            await self.serial_handler.send_4bs_addressed(sender, data, destination, label)
+            return bool(await self.serial_handler.send_4bs_addressed(sender, data, destination, label))
         except Exception as e:
             logger.error(f"Valve {label} not sent: {e}")
+            return False
+
+    async def _reply(self, name: str, sender: int, data: bytes, destination: int, version: int):
+        """Answer the valve; once the transceiver took it, it is no longer pending."""
+        if not await self._send(sender, data, destination, f"{name} reply"):
+            return  # stays pending, the next telegram gets another try
+        v = self._values.setdefault(name, {})
+        v["last_answer"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        if self._version.get(name, 0) == version:
+            v["pending"] = False
+        await self._save()
+        await self._publish_set_values(name)
 
     # --- Home Assistant side ------------------------------------------------
 
@@ -231,6 +254,8 @@ class ValveControl:
         except ValueError:
             logger.warning(f"Valve {device.name}: invalid value {payload!r} for {entity}")
             return
+        v["pending"] = True
+        self._version[device.name] = self._version.get(device.name, 0) + 1
         await self._save()
         logger.info(f"Valve {device.name}: {entity} = {p}, sent with the next reply")
         await self._publish_set_values(device.name)
