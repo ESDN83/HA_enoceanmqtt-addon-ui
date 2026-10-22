@@ -14,7 +14,7 @@ jobs:
     name: Dockerfile lint (hadolint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Lint all Dockerfiles
@@ -30,7 +30,7 @@ jobs:
     name: Shell lint (shellcheck)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ludeeus/action-shellcheck@2.0.0
@@ -41,7 +41,7 @@ jobs:
     name: YAML, JSON and Python checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -70,7 +70,7 @@ jobs:
       matrix:
         addon: [addon, addon-beta]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Build ${{ matrix.addon }} for amd64
