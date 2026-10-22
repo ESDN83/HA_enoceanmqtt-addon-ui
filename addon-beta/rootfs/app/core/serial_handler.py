@@ -355,7 +355,7 @@ class SerialHandler:
         in a zombie state, /health still reported connected, but no data
         flowed and nothing in the log said why.
         """
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         packet_count = 0
         backoff = 1.0
         skipped_bytes = 0
@@ -1383,7 +1383,7 @@ class SerialHandler:
         if gap > 0:
             await asyncio.sleep(gap)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         if self._serial:
             write = loop.run_in_executor(None, self._serial.write, packet)
         elif self._socket:
@@ -1422,7 +1422,7 @@ class SerialHandler:
         (switches and covers) silent and made a field log readable only by
         counting response packets.
         """
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         self._response_future = loop.create_future()
         try:
             await self._write_packet(packet)
@@ -1473,7 +1473,7 @@ class SerialHandler:
         packet = bytes([SYNC_BYTE]) + header + bytes([header_crc]) + packet_data + bytes([data_crc])
 
         async with self._tx_slot():
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             self._response_future = loop.create_future()
 
             try:

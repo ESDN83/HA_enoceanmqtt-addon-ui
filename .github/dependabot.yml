@@ -1,0 +1,16 @@
+# Dependency updates. pip watches only the beta tree: changes land in
+# addon-beta first and reach addon/ by promotion (see CLAUDE.md, ADR-0004),
+# so a Dependabot PR never skips the beta channel. The base image is set in
+# build.yaml as a build argument, which Dependabot cannot follow; it is
+# reviewed by hand (ADR-0031).
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/addon-beta/rootfs/app"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

@@ -449,7 +449,7 @@ async def _clear_stale_discovery(published: set):
     addresses = {_normalize_address(d.address) for d in device_manager.devices.values() if d.address}
     if not addresses:
         return
-    messages = await asyncio.get_event_loop().run_in_executor(
+    messages = await asyncio.get_running_loop().run_in_executor(
         None, _scan_retained_discovery, mqtt_handler)
     prefix = mqtt_handler.discovery_prefix + "/"
     stale = []
@@ -1114,8 +1114,7 @@ async def root(request: Request):
     """Serve the main UI"""
     # Never cache the page: it names the script versions to load, and a
     # cached copy kept a browser on the previous version's scripts.
-    return templates.TemplateResponse("index.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "index.html", {
         "version": VERSION
     }, headers={"Cache-Control": "no-store"})
 

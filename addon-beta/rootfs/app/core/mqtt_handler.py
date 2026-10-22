@@ -115,9 +115,11 @@ class MQTTHandler:
 
     async def connect(self):
         """Connect to MQTT broker with LWT (Last Will and Testament)"""
-        self._loop = asyncio.get_event_loop()
+        self._loop = asyncio.get_running_loop()
 
-        self._client = mqtt.Client(client_id=self.client_id)
+        # paho-mqtt 2.x: the callback API version is explicit. VERSION2 hands
+        # the callbacks a ReasonCode and MQTT v5 properties.
+        self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=self.client_id)
 
         if self.username:
             self._client.username_pw_set(self.username, self.password)
@@ -179,9 +181,9 @@ class MQTTHandler:
             self._connected = False
             logger.info("Disconnected from MQTT broker (published offline status)")
 
-    def _on_connect(self, client, userdata, flags, rc):
+    def _on_connect(self, client, userdata, flags, reason_code, properties=None):
         """MQTT connect callback - called on initial connect and reconnects"""
-        if rc == 0:
+        if not reason_code.is_failure:
             self._connected = True
             logger.info(f"Connected to MQTT broker at {self.host}:{self.port}")
 
@@ -213,13 +215,13 @@ class MQTTHandler:
                 asyncio.run_coroutine_threadsafe(self._on_ha_birth(), self._loop)
 
         else:
-            logger.error(f"MQTT connection failed with code {rc}")
+            logger.error(f"MQTT connection failed: {reason_code}")
 
-    def _on_disconnect(self, client, userdata, rc):
+    def _on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties=None):
         """MQTT disconnect callback"""
         self._connected = False
-        if rc != 0:
-            logger.warning(f"MQTT connection lost (rc={rc}), will reconnect")
+        if reason_code.is_failure:
+            logger.warning(f"MQTT connection lost ({reason_code}), will reconnect")
 
     def _on_message(self, client, userdata, message):
         """MQTT message callback"""

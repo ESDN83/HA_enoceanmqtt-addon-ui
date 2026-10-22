@@ -46,7 +46,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.14"
       - name: Install check deps
         run: python -m pip install --quiet pyyaml
       - name: Validate add-on config and build YAML

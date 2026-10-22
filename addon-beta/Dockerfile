@@ -36,9 +36,16 @@ COPY config.yaml /app/config.yaml
 # requirements install in 17 seconds this way, with only paho-mqtt built from
 # its sdist (pure python, no compiler needed).
 #
-# The fallback keeps the mirror for what it is actually for: an architecture
-# where PyPI has no musllinux wheel, armv7 lxml being the likely case. It then
-# either finds one there or compiles, which is why the toolchain above stays.
+# The fallback keeps the mirror for what it is actually for: a package with no
+# musllinux wheel on PyPI. It then either finds one there or compiles, which is
+# why the toolchain above stays. On amd64 and aarch64 every package currently
+# has a wheel (ADR-0031).
+#
+# From Alpine 3.19 on the system Python is marked externally managed (PEP 668)
+# and pip refuses to install into it. The app has the container to itself and
+# installs nothing from apk that pip could clash with, so the system
+# interpreter is used on purpose.
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
 RUN PIP_CONFIG_FILE=/dev/null pip3 install --no-cache-dir \
       --index-url https://pypi.org/simple --prefer-binary \
       --timeout=120 --retries=5 -r /app/requirements.txt \

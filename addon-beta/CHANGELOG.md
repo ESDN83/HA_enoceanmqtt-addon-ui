@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.8.5-beta6] - 2026-10-22 (beta channel)
+
+Maintenance: current base image and libraries. No change in behaviour.
+
+### Changed
+
+- **64-bit only (amd64, aarch64).** Home Assistant has not released 32-bit
+  versions since 2025.11; an existing 32-bit installation keeps the version it
+  has.
+- **Base image Alpine 3.24** (was 3.18, out of support since May 2025),
+  Python 3.14 (was 3.11).
+- **Libraries updated**, closing known security issues in python-multipart,
+  Starlette (via FastAPI) and Jinja2: FastAPI 0.160, Starlette 1.9, uvicorn
+  0.54, Jinja2 3.1.6, python-multipart 0.0.32, lxml 6.1, PyYAML 6.0.3,
+  aiofiles 25.1, paho-mqtt 2.1.
+- uvicorn without its optional extras, and the unused aiosqlite removed:
+  fewer packages to build, none of them used.
+
 ## [1.8.5-beta5] - 2026-10-21 (beta channel)
 
 OPUS actuators, after a forum thread listing an OPUS + Eltako installation.

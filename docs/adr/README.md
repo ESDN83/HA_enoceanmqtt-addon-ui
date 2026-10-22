@@ -35,3 +35,4 @@ Rules:
 - [0028](0028-decode-direction-one-only.md) Received telegrams are decoded with direction 1 only
 - [0029](0029-valves-answered-on-receive.md) Radiator valves are answered on receive
 - [0030](0030-eep-families-share-a-layout.md) Missing D2-01 / D2-05 types use their family's layout; D2 actuators ignore rocker telegrams
+- [0031](0031-base-image-and-dependencies.md) 64-bit only, base image Alpine 3.24, current libraries, paho-mqtt 2
