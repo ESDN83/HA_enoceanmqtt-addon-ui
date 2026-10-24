@@ -281,6 +281,16 @@ Teach-In" has to be clicked several times in a row:
 - The valve uses its own temperature sensor. Summer mode makes it report only
   every few hours.
 
+
+### Pilot Wire Heating Modules (D2-01-0C, e.g. NodOn SIN-2-FP-21)
+- Pair the module with **Teach-In**; it needs a Sender ID, which the teach-in
+  fills in.
+- **Pilot Wire Mode** sets Off, Comfort, Eco, Anti-freeze, Comfort-1 or
+  Comfort-2. A mode chosen at the module's own button is shown as well.
+- **Power** (W) and **Energy** (kWh) are read from the module after every
+  mode change and every five minutes; the module does not send them by
+  itself. Energy works with the Home Assistant energy dashboard.
+
 ## Support
 
 - Report issues on [GitHub](https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/issues)

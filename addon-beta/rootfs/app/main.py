@@ -28,6 +28,7 @@ from core.device_manager import DeviceManager
 from core.eep_manager import EEPManager
 from core.mapping_manager import MappingManager
 from core.valve_control import ValveControl, is_valve
+from core.pilot_wire import PilotWire, is_pilot, ENTITY_MODE as PILOT_ENTITY_MODE
 from core.telegram_buffer import TelegramBuffer
 from core.command_queue import CommandQueue
 
@@ -77,6 +78,7 @@ mapping_manager: MappingManager = None
 telegram_buffer: TelegramBuffer = None
 command_queue: CommandQueue = None
 valve_control: "ValveControl" = None
+pilot_wire: "PilotWire" = None
 availability_task: asyncio.Task = None
 # Last availability the watchdog published per device, so the retained topic is
 # only rewritten on a change, plus the moment the add-on came up (#37).
@@ -93,7 +95,7 @@ _queue_last_busy: Optional[bool] = None
 async def lifespan(app: FastAPI):
     """Application lifespan - startup and shutdown"""
     global mqtt_handler, serial_handler, device_manager, eep_manager, mapping_manager, telegram_buffer
-    global availability_task, command_queue, valve_control
+    global availability_task, command_queue, valve_control, pilot_wire
 
     logger.info("Starting EnOcean MQTT Add-on...")
 
@@ -177,6 +179,11 @@ async def lifespan(app: FastAPI):
             from api.devices import _publish_discovery
             await _publish_discovery(device, mqtt_handler, mapping_manager, device_manager)
         valve_control.on_sender_assigned = _valve_discovery
+
+        # Pilot wire modules: mode commands and measurement queries (ADR-0032).
+        pilot_wire = PilotWire(serial_handler, device_manager, mqtt_handler)
+        serial_handler.pilot_wire = pilot_wire
+        pilot_wire.start()
 
         try:
             # connect() logs the same sentence itself. Logging it twice from
@@ -743,6 +750,14 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
         valve = device_manager.get_device(device_name)
         if is_valve(valve):
             await valve_control.handle_command(valve, payload, entity)
+            return
+
+    # A pilot wire module's mode is its own command (CMD 8), whatever role
+    # the device has for its output (ADR-0032).
+    if pilot_wire is not None and entity == PILOT_ENTITY_MODE and device_manager is not None:
+        module = device_manager.get_device(device_name)
+        if is_pilot(module):
+            await pilot_wire.set_mode(module, payload)
             return
 
     if not serial_handler or not serial_handler.is_connected:

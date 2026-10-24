@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.8.5-beta7] - 2026-10-25 (beta channel)
+
+### Added
+
+- **Pilot wire heating modules (D2-01-0C, e.g. NodOn SIN-2-FP-21).** New
+  entities: *Pilot Wire Mode* (Off, Comfort, Eco, Anti-freeze, Comfort-1,
+  Comfort-2), *Power* (W) and *Energy* (kWh). Setting the mode sends it to
+  the module; a mode chosen at the module's button shows up too. Power and
+  energy are read from the module after a mode change and every five minutes.
+  Forum post 78.
+
+### Fixed
+
+- **D2 telegrams were decoded with the fields of every command at once.** A
+  pilot wire mode reply came out as output values and error levels, and a
+  measurement reply mixed in fields it does not have. Each telegram is now
+  read with the layout of its own command (status, measurement, mode).
+
 ## [1.8.5-beta6] - 2026-10-22 (beta channel)
 
 Maintenance: current base image and libraries. No change in behaviour.

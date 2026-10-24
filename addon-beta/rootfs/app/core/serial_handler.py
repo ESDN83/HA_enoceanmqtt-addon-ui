@@ -180,6 +180,8 @@ class SerialHandler:
         # Radiator valves that only listen right after they transmit
         # (A5-20-01, ADR-0029); set by main once everything exists.
         self.valve_control = None
+        # Pilot wire modules (D2-01-0C, ADR-0032); set by main.
+        self.pilot_wire = None
         self._base_id: Optional[int] = None
         self._response_future: Optional[asyncio.Future] = None
         # Guards every conversation with the transceiver, radio telegrams and
@@ -840,6 +842,17 @@ class SerialHandler:
         except Exception as e:
             logger.error(f"UTE teach-in response to 0x{destination:08X} not sent: {e}")
 
+    async def send_vld_addressed(self, sender_id: int, data: bytes, destination: int,
+                                 label: str = "") -> bool:
+        """One VLD (D2) telegram to one device, e.g. a pilot wire command."""
+        packet = self._build_radio_packet(sender_id, 0xD2, data, destination, 0x00)
+        line = _radio_log_line(0xD2, data, destination)
+        async with self._tx_slot():
+            ok = await self._send_radio_packet(packet, label or "VLD", line)
+        logger.info(f"Sent {label}: {data.hex().upper()} to 0x{destination:08X} "
+                    f"from 0x{sender_id:08X}")
+        return ok
+
     async def send_4bs_addressed(self, sender_id: int, data: bytes, destination: int,
                                  label: str = "") -> bool:
         """One 4BS telegram to one device, e.g. a valve's reply (ADR-0029)."""
@@ -1016,6 +1029,8 @@ class SerialHandler:
                 payload = dict(decoded)
                 if self.valve_control is not None and str(target.eep_id).upper() == "A5-20-01":
                     payload.update(self.valve_control.state_fields(target.name))
+                if self.pilot_wire is not None and str(target.eep_id).upper() == "D2-01-0C":
+                    payload = self.pilot_wire.merge_state(target.name, payload)
                 if d2_01_status:
                     io = decoded.get("IO")
                     ch = int(getattr(target, "channel", 0) or 0)
@@ -1285,6 +1300,41 @@ class SerialHandler:
             "last_seen": datetime.now(timezone.utc).isoformat()
         }
 
+    @staticmethod
+    def _fields_for_command(fields, data_int: int, data_bits: int):
+        """Only the fields of the command this telegram carries.
+
+        A VLD profile (D2-01, D2-05) describes one telegram layout per
+        command ID, and EEP.xml tags each field with it. Decoded together,
+        the layouts overwrote each other: a D2-01-0C pilot wire reply (CMD 10,
+        "0A 02" = Eco) came out as output values and error levels (forum post
+        78). A group applies when its own CMD field, read where that layout
+        puts it, holds its ID. Fields without a command tag always apply, and
+        if no group matches everything is decoded as before. ADR-0032.
+        """
+        groups: Dict[str, list] = {}
+        untagged = []
+        for f in fields:
+            cmd = f.get("command")
+            (groups.setdefault(cmd, []) if cmd is not None else untagged).append(f)
+        if not groups:
+            return fields
+        matched = []
+        for cmd, group in groups.items():
+            cmd_field = next((f for f in group if f.get("shortcut") == "CMD"), None)
+            if cmd_field is None:
+                continue
+            shift = data_bits - cmd_field.get("offset", 0) - cmd_field.get("size", 4)
+            if shift < 0:
+                continue
+            value = (data_int >> shift) & ((1 << cmd_field.get("size", 4)) - 1)
+            try:
+                if value == int(cmd):
+                    matched.extend(group)
+            except (TypeError, ValueError):
+                continue
+        return untagged + matched if matched else fields
+
     def _decode_telegram(self, telegram: RadioTelegram, profile) -> Dict[str, Any]:
         """Decode telegram data using EEP profile"""
         decoded = self._telegram_meta(telegram)
@@ -1298,7 +1348,7 @@ class SerialHandler:
         data_int = int.from_bytes(telegram.data, 'big')
         data_bits = len(telegram.data) * 8
 
-        for field in profile.fields:
+        for field in self._fields_for_command(profile.fields, data_int, data_bits):
             shortcut = field.get("shortcut", "")
             offset = field.get("offset", 0)
             size = field.get("size", 8)
