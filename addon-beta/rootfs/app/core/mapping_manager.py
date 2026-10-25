@@ -1360,11 +1360,16 @@ class MappingManager:
                         # actuator reports at all (ADR-0015).
                         config["optimistic"] = False
 
-            configs.append({
-                "component": actuator_type,
-                "unique_id": unique_id,
-                "config": config
-            })
+            # A pilot wire module (D2-01-0C) is driven by its Pilot Wire Mode
+            # select. The generic D2-01 output switch teach-in gives it only
+            # meant Off / Comfort next to it, and read as a leftover (forum
+            # post 80). ADR-0032.
+            if str(eep_id).upper() != "D2-01-0C":
+                configs.append({
+                    "component": actuator_type,
+                    "unique_id": unique_id,
+                    "config": config
+                })
 
             # Return early, actuators don't need sensor entities from EEP profile
             # Still add diagnostic entities below

@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.8.5-beta8] - 2026-10-25 (beta channel)
+
+### Changed
+
+- **Pilot wire modules no longer get an on/off switch.** Teach-in makes every
+  D2-01 module a switch, and on a pilot wire module that only meant Off /
+  Comfort next to the *Pilot Wire Mode* select. The switch is removed at the
+  next start, the select covers both. Forum post 80.
+
 ## [1.8.5-beta7] - 2026-10-25 (beta channel)
 
 ### Added

@@ -1,6 +1,6 @@
 # 0032. VLD telegrams decode by command; pilot wire modules are queried
 
-Status: proposed (v1.8.5-beta7).
+Status: proposed (v1.8.5-beta7, amended in v1.8.5-beta8).
 
 ## Context
 
@@ -45,3 +45,11 @@ Formats checked against two implementations: Jeedom's D2-01-0C profile (EEP
   confirmations on 1.8.4 and this build.
 - One query cycle is three telegrams per module every five minutes.
 - The fake TCM plays a pilot wire module (mode set/query, power/energy).
+
+## Amendment (v1.8.5-beta8): no output switch for a pilot wire module
+
+Teach-in gives every D2-01 the switch role, so a pilot wire module also got
+the generic output switch (CMD 1: 0 % Off, 100 % Comfort) next to the mode
+select, which a tester took for a leftover (forum post 80). For D2-01-0C the
+actuator entity is no longer published; the startup cleanup (ADR-0026)
+removes the existing one. Other D2-01 switches are unchanged.
