@@ -291,6 +291,13 @@ Teach-In" has to be clicked several times in a row:
   mode change and every five minutes; the module does not send them by
   itself. Energy works with the Home Assistant energy dashboard.
 
+## AI Assistants
+
+An AI assistant connected to Home Assistant through an MCP server that can
+call app APIs (e.g. ha-mcp) can read a setup guide from the running app at
+`/api/ai/guide`: the steps to add and teach in devices and the pitfalls of
+specific devices. It is told to ask you before changing anything.
+
 ## Support
 
 - Report issues on [GitHub](https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/issues)

@@ -36,7 +36,7 @@ The real test path is a running Home Assistant, not local mocks. See `docs/testi
 - The store reads `config.yaml` `version:` on the **default branch (`main`)**. A change is invisible until merged.
 - Versions move **forward only**. You cannot fix a bad release with a lower version; HA never offers a downgrade. Deleting a GitHub release does not downgrade installed instances.
 - `app_version.py` reads the version from `config.yaml` at runtime, so do not hardcode a version in `main.py`/`api`.
-- Flow: land in `addon-beta/` (bump `addon-beta/config.yaml` and its `CHANGELOG.md`), field test, then promote by copying the changed files to `addon/`, bump `addon/config.yaml` + `CHANGELOG.md`, cut a `vX.Y.Z` GitHub release. Bump both trees together when touching stable.
+- Flow: land in `addon-beta/` (bump `addon-beta/config.yaml` and its `CHANGELOG.md`, update `ai_guide.md` if behaviour changed), field test, then promote by copying the changed files to `addon/`, bump `addon/config.yaml` + `CHANGELOG.md`, cut a `vX.Y.Z` GitHub release. Bump both trees together when touching stable.
 
 ## Key decisions (see docs/adr)
 
@@ -52,3 +52,4 @@ The real test path is a running Home Assistant, not local mocks. See `docs/testi
 - Beta first. Do not change stable `addon/` behavior without a beta and confirmation.
 - Validate UI and protocol changes before release. Do not assume; check against the spec or a second implementation, and test on a real HA. ADR-0002 and ADR-0003 both came from wrong assumptions.
 - Record every non-trivial decision as a short ADR in the same change (`docs/adr/`).
+- Keep the AI assistant guide current in the same change: `rootfs/app/data/ai_guide.md` (served at `/api/ai/guide`, ADR-0033). Any change to device behaviour, teach-in, entities, endpoints, migration or debugging updates it together with `DOCS.md`. Check every statement in it against the code; assistants act on it.

@@ -16,7 +16,7 @@ from typing import Dict, Optional
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 
 # Import API routers
 from api import devices, eep, mappings, system, gateway
@@ -1105,7 +1105,14 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
 # Create FastAPI app
 app = FastAPI(
     title="EnOcean MQTT UI",
-    description="All-in-One EnOcean to MQTT bridge with web UI",
+    # An AI assistant that reads this schema through an MCP server lands
+    # here first, so it points to the guide (ADR-0033).
+    description=(
+        "EnOcean to MQTT bridge for Home Assistant with a web UI. "
+        "AI assistants: read GET /api/ai/guide first. It explains how to add "
+        "and teach in devices and lists device-specific pitfalls. Ask the "
+        "user before any write."
+    ),
     version=VERSION,
     lifespan=lifespan
 )
@@ -1132,6 +1139,20 @@ async def root(request: Request):
     return templates.TemplateResponse(request, "index.html", {
         "version": VERSION
     }, headers={"Cache-Control": "no-store"})
+
+
+AI_GUIDE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "ai_guide.md")
+
+
+@app.get("/api/ai/guide", response_class=PlainTextResponse, tags=["ai"],
+         summary="Setup guide for AI assistants (Markdown)")
+async def ai_guide():
+    """How to add, teach in and diagnose devices, with the pitfalls of
+    specific devices (Eltako, radiator valves, pilot wire, D2 modules) and
+    the migration from other EnOcean apps. Read this before configuring
+    anything. ADR-0033."""
+    with open(AI_GUIDE, encoding="utf-8") as f:
+        return PlainTextResponse(f.read(), media_type="text/markdown; charset=utf-8")
 
 
 @app.get("/health")

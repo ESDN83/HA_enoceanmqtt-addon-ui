@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.8.5-beta9] - 2026-10-25 (beta channel)
+
+### Added
+
+- **A setup guide for AI assistants.** An assistant connected to Home
+  Assistant through an MCP server that can call app APIs (e.g. ha-mcp) finds
+  it at `/api/ai/guide`: how to add and teach in devices, and what we learned
+  about Eltako actuators, radiator valves, pilot wire and D2 modules, how to
+  debug, and how to report an issue. The app description and the API schema
+  point to it. Nothing to install.
+
 ## [1.8.5-beta8] - 2026-10-25 (beta channel)
 
 ### Changed

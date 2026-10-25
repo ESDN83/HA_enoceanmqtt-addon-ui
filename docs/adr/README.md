@@ -37,3 +37,4 @@ Rules:
 - [0030](0030-eep-families-share-a-layout.md) Missing D2-01 / D2-05 types use their family's layout; D2 actuators ignore rocker telegrams
 - [0031](0031-base-image-and-dependencies.md) 64-bit only, base image Alpine 3.24, current libraries, paho-mqtt 2
 - [0032](0032-vld-decode-by-command-pilot-wire.md) VLD telegrams decode by command; pilot wire modules are queried
+- [0033](0033-ai-assistant-guide.md) AI assistants get a setup guide from the app itself

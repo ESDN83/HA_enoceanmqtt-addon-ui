@@ -1,0 +1,16 @@
+# EnOcean MQTT UI
+
+> Home Assistant app (add-on) that bridges EnOcean radio devices to MQTT, with a web UI for device setup, teach-in, EEP profiles and HA MQTT discovery.
+
+A running app serves the same guide at `GET /api/ai/guide` (through HA Ingress, e.g. ha-mcp `ha_manage_addon` proxy mode) and its full API at `/openapi.json`.
+
+## Docs
+
+- [AI setup guide](addon-beta/rootfs/app/data/ai_guide.md): adding and teaching in devices, device pitfalls, diagnosis
+- [User documentation](addon/DOCS.md): configuration, migration from Slim / ChristopheHD, troubleshooting
+- [Decision records](docs/adr/README.md): why devices are handled the way they are
+- [Changelog](addon/CHANGELOG.md)
+
+## Optional
+
+- [Beta channel](addon-beta/CHANGELOG.md): features in field test
