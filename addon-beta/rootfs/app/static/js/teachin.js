@@ -7,15 +7,19 @@
 let teachInSocket = null;
 let teachInTimer = null;
 let _testActuatorBusy = false;
+// The last successful actuator teach-in, for "Save device".
+let _lastActuatorTeachIn = null;
 
 function showActuatorTeachIn() {
     // Cancel any running automatic teach-in first
     cancelTeachIn();
     document.getElementById('actuator-teach-in-panel').style.display = 'block';
+    syncTeachGuide();
     readBaseId();
 }
 function hideActuatorTeachIn() {
     document.getElementById('actuator-teach-in-panel').style.display = 'none';
+    syncTeachGuide();
 }
 async function readBaseId() {
     const input = document.getElementById('gateway-base-id');
@@ -127,6 +131,7 @@ async function sendActuatorTeachIn() {
                 <small class="text-muted">${data.message}</small><br><br>
                 <strong>${t('teach_in.next_step', 'Next')}:</strong> ${t('teach_in.next_step_desc', 'Use "Manual Entry" to add this device with sender ID')} <code>${data.sender_id}</code>
                 ${t('teach_in.and_actuator_type', 'and actuator type')} <code>${actuatorType === 'cover_gfvs' ? 'cover' : actuatorType}</code>
+                ${teachInSaveHtml(address, data.sender_id, actuatorType)}
             </div>`;
         } else {
             resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${data.detail || t('common.unknown_error', 'Unknown error')}</div>`;
@@ -134,6 +139,32 @@ async function sendActuatorTeachIn() {
     } catch (e) {
         resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${e.message}</div>`;
     }
+}
+// Remember a successful teach-in and offer to save it as a device. A GFVS
+// teach-in is the second one of an existing cover: that cover gets Position
+// control, no new device.
+function teachInSaveHtml(address, senderId, actuatorType) {
+    _lastActuatorTeachIn = { address, sender_id: senderId, actuator_type: actuatorType };
+    if (actuatorType === 'cover_gfvs') {
+        return `<br><small>${t('teach_in.gfvs_after', 'Now tick Position control on the existing cover device.')}</small>`;
+    }
+    return `<br><button class="btn btn-success btn-sm mt-2" onclick="saveActuatorAsDevice()"><i class="bi bi-plus-circle"></i> ${t('teach_in.save_device', 'Save device')}</button>`;
+}
+// Step 2, pre-filled from the teach-in just sent: the actuator learned
+// this sender ID, and the address links its confirmations (forum post 82).
+function saveActuatorAsDevice() {
+    const a = _lastActuatorTeachIn;
+    if (!a) return;
+    const picked = (_catalogDevice && _catalogDevice.method === 'actuator') ? _catalogDevice : null;
+    showManualEntry();
+    prefillDeviceForm({
+        address: a.address,
+        sender_id: a.sender_id,
+        actuator_type: a.actuator_type,
+        eep: picked ? picked.eep : (a.actuator_type === 'light' ? 'A5-38-08' : 'F6-02-01'),
+        manufacturer: picked ? picked.manufacturer : 'Eltako',
+        description: picked ? (picked.models || [])[0] : '',
+    });
 }
 async function sendRepeatTeachIn() {
     const address = document.getElementById('actuator-address').value.trim();
@@ -174,6 +205,7 @@ async function sendRepeatTeachIn() {
                 <i class="bi bi-check-circle"></i> <strong>${data.rounds_sent} teach-in rounds sent!</strong> (${data.teach_type})<br>
                 Sender ID: <code>${data.sender_id}</code><br>
                 <small>${data.message}</small>
+                ${teachInSaveHtml(address, data.sender_id, actuatorType)}
             </div>`;
         } else {
             resultDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${data.detail || 'Error'}</div>`;
@@ -231,6 +263,9 @@ function startTeachIn() {
 
     const status = document.getElementById('teach-in-status');
     status.style.display = 'block';
+    status.querySelector('.teach-in-indicator').style.display = '';
+    document.getElementById('teach-in-error').style.display = 'none';
+    syncTeachGuide();
 
     // Start 60-second countdown
     let remaining = 60;
@@ -272,8 +307,11 @@ function startTeachIn() {
     teachInSocket.onerror = function() {
         cancelTeachIn();
         status.style.display = 'block';
-        status.querySelector('.alert').className = 'alert alert-danger';
-        status.querySelector('.alert').innerHTML = '<i class="bi bi-x-circle"></i> Connection failed. EnOcean gateway may not be connected.';
+        syncTeachGuide();
+        // Its own element: writing the error into the waiting indicator
+        // deleted the countdown, and the next Start Teach-In then failed.
+        document.querySelector('#teach-in-status .teach-in-indicator').style.display = 'none';
+        document.getElementById('teach-in-error').style.display = '';
     };
 }
 // Backwards-compatible alias (old name, same behaviour)
@@ -391,14 +429,20 @@ function cancelTeachIn() {
         teachInTimer = null;
     }
     if (teachInSocket) {
+        // A socket closed while still connecting fires onerror afterwards,
+        // which showed a connection error for a teach-in already ended.
+        teachInSocket.onerror = null;
+        teachInSocket.onmessage = null;
         teachInSocket.close();
         teachInSocket = null;
     }
     document.getElementById('teach-in-status').style.display = 'none';
+    syncTeachGuide();
 }
 function resetTeachInPage() {
     cancelTeachIn();
     document.getElementById('actuator-teach-in-panel').style.display = 'none';
+    initTeachHelp();
     // Reset wizard to step 1
     document.querySelectorAll('.wizard-step').forEach((step, i) => {
         step.classList.toggle('active', i === 0);

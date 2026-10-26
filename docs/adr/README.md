@@ -38,3 +38,4 @@ Rules:
 - [0031](0031-base-image-and-dependencies.md) 64-bit only, base image Alpine 3.24, current libraries, paho-mqtt 2
 - [0032](0032-vld-decode-by-command-pilot-wire.md) VLD telegrams decode by command; pilot wire modules are queried
 - [0033](0033-ai-assistant-guide.md) AI assistants get a setup guide from the app itself
+- [0034](0034-add-device-help-and-catalogue.md) The Add Device page explains itself, with a catalogue of verified devices

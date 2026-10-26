@@ -53,3 +53,4 @@ The real test path is a running Home Assistant, not local mocks. See `docs/testi
 - Validate UI and protocol changes before release. Do not assume; check against the spec or a second implementation, and test on a real HA. ADR-0002 and ADR-0003 both came from wrong assumptions.
 - Record every non-trivial decision as a short ADR in the same change (`docs/adr/`).
 - Keep the AI assistant guide current in the same change: `rootfs/app/data/ai_guide.md` (served at `/api/ai/guide`, ADR-0033). Any change to device behaviour, teach-in, entities, endpoints, migration or debugging updates it together with `DOCS.md`. Check every statement in it against the code; assistants act on it.
+- A device confirmed working by a user or a test gets an entry in `rootfs/app/data/device_catalog.json` with its source (ADR-0034). Never add a device or a teach-in step without one.

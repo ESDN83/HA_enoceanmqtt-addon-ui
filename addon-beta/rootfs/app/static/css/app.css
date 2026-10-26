@@ -332,3 +332,64 @@ textarea.form-control::placeholder {
 .device-card .device-actions {
     flex-shrink: 0;
 }
+
+/* Add Device help and device catalogue (ADR-0034). The illustrations carry
+   their own light background, so they read the same in both themes. */
+.teach-figs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+}
+.teach-fig {
+    margin: 0;
+}
+.teach-fig img {
+    width: 100%;
+    max-width: 360px;
+    height: auto;
+    display: block;
+}
+.teach-fig figcaption {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+.teach-choice {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--bg-card);
+}
+.teach-details > summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+.catalog-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 8px;
+}
+.catalog-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+    padding: 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-color);
+}
+.catalog-item:hover {
+    background: var(--hover-bg);
+}
+.catalog-item.active {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 1px var(--primary-color);
+}
+.catalog-item img {
+    width: 64px;
+    height: 40px;
+    object-fit: contain;
+    flex-shrink: 0;
+}

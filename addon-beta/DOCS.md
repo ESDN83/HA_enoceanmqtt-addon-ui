@@ -101,7 +101,12 @@ Home Assistant at the next start of the app.
 ![Custom Profile](https://github.com/user-attachments/assets/8da98b5c-14cf-4e4e-a26a-cc31aac98e67)
 
 ### Add Device
-Wizard for adding new devices via Teach-In (automatic) or manual entry.
+Wizard for adding new devices: Teach-In (the device announces itself),
+Actuator Teach-In (the app teaches an Eltako actuator) or Manual Entry. The
+page starts with a short guide: which way fits your device, where the ID is,
+what the profile is, and a searchable list of verified devices with their
+steps. Rocker switches send no teach-in: press one, take its ID from the
+Dashboard and use Manual Entry.
 
 ### Settings
 Export/import full configuration as YAML, upload custom EEP.xml, local backups
@@ -244,6 +249,15 @@ Teach-In" has to be clicked several times in a row:
 | Directional pushbutton (use this for a cover) | 4 |
 | Central control up | 5 |
 | Central control down | 6 |
+
+### Eltako Series 14 (FSR14, FSB14 on a FAM14)
+- One device in this app per channel, each with its own sender offset: an
+  FSR14-4x is four devices.
+- The channels have no printed radio ID. Connect PCT14 to the FAM14,
+  refresh the device list: it shows each channel's ID. Use it as *Actuator
+  Address*. Disconnect PCT14 afterwards.
+- No state in Home Assistant: the FAM14 sends confirmation telegrams only
+  with its top rotary switch on 2, 4 or 5.
 
 ### Eltako Shutter Actuators (FJ62, FSB)
 - Open and close are short rocker taps, and so is stop: a tap while the shutter

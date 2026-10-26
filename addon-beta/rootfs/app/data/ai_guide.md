@@ -24,6 +24,9 @@ add-on APIs (e.g. ha-mcp `ha_manage_addon` in proxy mode), use the slug from
 the add-on list (`..._enocean-mqtt-ui`, beta `..._enocean-mqtt-ui-beta`):
 
 - `GET /api/ai/guide` this guide
+- `GET /api/help/devices` verified devices: profile, which way to add them,
+  teach-in steps, where the ID is, pitfalls. Check it first for the user's
+  device
 - `GET /openapi.json` every endpoint with its fields
 - `GET /health` MQTT and transceiver connected, device and profile count
 - `GET /api/gateway/info` base ID of the transceiver
@@ -61,6 +64,11 @@ saved. State topic `enoceanmqtt/<device name>/state`, commands on
 5. Device names are a key, an MQTT topic and part of every entity ID. No
    `/`, `#`, `+`. Renaming later changes the entity IDs.
 
+Interactive teach-in (web UI, Start Teach-In) detects 4BS and 1BS teach-in
+telegrams and D2 modules (UTE). Rocker switches and F6 window handles send no
+teach-in and are never detected there: they are added with Manual Entry, the
+ID taken from the telegram list after one press.
+
 ## Teach-in of actuators
 
 - **Interactive teach-in** (web UI, Teach-In): the app listens and answers
@@ -75,6 +83,19 @@ saved. State topic `enoceanmqtt/<device name>/state`, commands on
   number of teach-in telegrams decides what is learned: 3 universal
   pushbutton, 4 directional pushbutton (use for covers), 5 central up, 6
   central down. Send them in a row within the learn window.
+- After a successful send the web UI offers *Save device*, with address,
+  sender ID, actuator type and profile filled in. Over the API: create the
+  device with `POST /api/devices` and the `sender_id` from the teach-in
+  response.
+- The actuator address is the ID the actuator sends its state from. The
+  teach-in itself works with any address; the address links the actuator's
+  confirmations to its entity.
+- **Eltako Series 14 (FSR14, FSB14) behind a FAM14**: one device per
+  channel, each with its own sender offset. The channel IDs have no label:
+  PCT14 shows the base ID and every channel's ID (device list, refresh). No
+  state in Home Assistant means the FAM14's top rotary switch is not on 2, 4
+  or 5 (only those send confirmation telegrams). Disconnect PCT14 afterwards;
+  while connected, the FAM14 executes no radio commands.
 - Eltako actuators react to a sender ID whatever the destination, so two
   actuators must never share one sender offset. D2 two-channel modules are
   the exception (below).

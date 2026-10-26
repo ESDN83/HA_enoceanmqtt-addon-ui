@@ -5,6 +5,7 @@ Main application entry point
 Compatible with ChristopheHD/HA_enoceanmqtt-addon MQTT patterns.
 """
 
+import json
 import os
 import time
 import asyncio
@@ -1153,6 +1154,19 @@ async def ai_guide():
     anything. ADR-0033."""
     with open(AI_GUIDE, encoding="utf-8") as f:
         return PlainTextResponse(f.read(), media_type="text/markdown; charset=utf-8")
+
+
+DEVICE_CATALOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "device_catalog.json")
+
+
+@app.get("/api/help/devices", tags=["ai"],
+         summary="Catalogue of verified devices with setup steps")
+async def device_catalog():
+    """Devices whose setup was verified by users or in tests: profile,
+    which way to add them (auto, actuator, manual), teach-in steps, where
+    the ID is, and pitfalls. Used by the Add Device page. ADR-0034."""
+    with open(DEVICE_CATALOG, encoding="utf-8") as f:
+        return json.load(f)
 
 
 @app.get("/health")

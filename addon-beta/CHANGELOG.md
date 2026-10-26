@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.8.5-beta10] - 2026-10-26 (beta channel)
+
+### Added
+
+- **Add Device explains itself.** Below Step 1 a start page shows which way
+  fits which device, where to find the ID and what the profile is, with
+  drawings. Each of the three ways has its own how-to: what to press while
+  Teach-In waits, how actuator teach-in works and what the actuator address
+  is, where the values of the manual form come from.
+- **Find your device.** A searchable list of devices whose setup was
+  verified by users or in tests (Eltako 61, 62 and 14 series, Micropelt
+  valve, NodOn, OPUS, generic sensors and switches), each with its steps,
+  where the ID is and what to watch out for. *Start with this device* opens
+  the right way with the profile filled in.
+- **Save device after an actuator teach-in.** The form opens with address,
+  sender ID, actuator type and profile filled in. Forum post 82.
+
+### Changed
+
+- The actuator teach-in explains Eltako Series 14 on a FAM14: one device per
+  channel, the channel IDs come from PCT14, and the FAM14 only sends states
+  with its top rotary switch on 2, 4 or 5. FSR61 learn mode is the LRN dial.
+
 ## [1.8.5-beta9] - 2026-10-25 (beta channel)
 
 ### Added

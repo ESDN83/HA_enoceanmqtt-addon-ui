@@ -1,0 +1,431 @@
+{
+  "_about": "Devices whose setup was verified in tests or by users (ADR-0034). Only add a device with a source. method: auto = Teach-In button, actuator = Actuator Teach-In, manual = Manual Entry. art: illustration static/img/teach/<art>.svg, one per device type.",
+  "devices": [
+    {
+      "id": "eltako-fsr61",
+      "name": "Eltako FSR61 switch actuator",
+      "manufacturer": "Eltako",
+      "models": [
+        "FSR61NP-230V",
+        "FSR61-230V"
+      ],
+      "category": "Switch actuator (flush-mounted)",
+      "method": "actuator",
+      "eep": "F6-02-01",
+      "actuator_type": "switch",
+      "teach": [
+        "Upper rotary switch to LRN, the LED flashes.",
+        "Lower rotary switch to the pushbutton function you want (see its manual).",
+        "Actuator Teach-In: type Switch, a free sender offset, Send Teach-In. The LED stops flashing: learned.",
+        "Turn the upper rotary switch back to its operating position.",
+        "Click Save device under the teach-in result."
+      ],
+      "id_where": "The NP types send a confirmation every time they switch. Switch it by hand or with a learned pushbutton: its ID appears in the telegram list on the Dashboard. The address is only needed for the state in Home Assistant.",
+      "notes": [
+        "ON and OFF shown the wrong way round: tick Invert reported state on the device."
+      ],
+      "source": "Test devices, ADR-0008, ADR-0013",
+      "art": "flush"
+    },
+    {
+      "id": "eltako-fud61",
+      "name": "Eltako FUD61 universal dimmer",
+      "manufacturer": "Eltako",
+      "models": [
+        "FUD61NPN-230V"
+      ],
+      "category": "Dimmer (flush-mounted)",
+      "method": "actuator",
+      "eep": "A5-38-08",
+      "actuator_type": "light",
+      "teach": [
+        "Upper rotary switch to LRN, the LED flashes.",
+        "Actuator Teach-In: type Dimmer, a free sender offset, Send Teach-In. The LED stops flashing: learned.",
+        "Turn the upper rotary switch back to its operating position.",
+        "Click Save device under the teach-in result."
+      ],
+      "id_where": "It reports its state after every change; dim it by hand and its ID appears in the telegram list.",
+      "notes": [
+        "Brightness works because the dimmer is taught the A5-38-08 dimming telegram, not a rocker."
+      ],
+      "source": "Test devices",
+      "art": "flush"
+    },
+    {
+      "id": "eltako-fd62npn",
+      "name": "Eltako FD62NPN dimmer",
+      "manufacturer": "Eltako",
+      "models": [
+        "FD62NPN-230V"
+      ],
+      "category": "Dimmer (62 series, flush-mounted)",
+      "method": "actuator",
+      "eep": "A5-38-08",
+      "actuator_type": "light",
+      "teach": [
+        "Place it right next to the USB stick: its receiver is weak while learning.",
+        "Press the rotary knob 4 times short and once long (over 2 s). The lamp flickers: learn mode.",
+        "Actuator Teach-In: type Dimmer, a free sender offset, Send Teach-In within 30 s. The lamp flickers again: learned.",
+        "Click Save device under the teach-in result."
+      ],
+      "id_where": "Dim it by hand: its confirmation shows its ID in the telegram list.",
+      "notes": [],
+      "source": "Maintainer's own installation",
+      "art": "knob62"
+    },
+    {
+      "id": "eltako-fl62",
+      "name": "Eltako FL62 switching relay",
+      "manufacturer": "Eltako",
+      "models": [
+        "FL62NP-230V",
+        "FL62-230V"
+      ],
+      "category": "Switch actuator (62 series)",
+      "method": "actuator",
+      "eep": "F6-02-01",
+      "actuator_type": "switch",
+      "teach": [
+        "Switch learn mode on as its manual describes (62 series: learn mode on or off, no learn positions).",
+        "Actuator Teach-In: type Switch, a free sender offset. Click Send Teach-In 3 times in a row: that teaches a universal pushbutton.",
+        "Click Save device under the teach-in result."
+      ],
+      "id_where": "The NP type confirms every switching; its ID appears in the telegram list.",
+      "notes": [
+        "The number of telegrams decides what is learned: 3 universal pushbutton, 4 directional pushbutton, 5 central on, 6 central off."
+      ],
+      "source": "Forum thread 1026367, test devices",
+      "art": "knob62"
+    },
+    {
+      "id": "eltako-fsb61",
+      "name": "Eltako FSB61 shutter actuator",
+      "manufacturer": "Eltako",
+      "models": [
+        "FSB61NP-230V"
+      ],
+      "category": "Shutter / blind actuator (flush-mounted)",
+      "method": "actuator",
+      "eep": "F6-02-01",
+      "actuator_type": "cover",
+      "teach": [
+        "Upper rotary switch to LRN, the LED flashes.",
+        "Actuator Teach-In: type Blind, a free sender offset, Send Teach-In. The LED stops flashing: learned.",
+        "Turn the upper rotary switch back to its operating position.",
+        "Click Save device and enter the travel time (seconds for a full run)."
+      ],
+      "id_where": "It reports end positions and run times; run it once by hand and its ID appears in the telegram list.",
+      "notes": [
+        "Runs the wrong way: tick Reverse direction.",
+        "With a travel time set, Home Assistant shows a position."
+      ],
+      "source": "Issue #39, ADR-0014",
+      "art": "flush"
+    },
+    {
+      "id": "eltako-fj62",
+      "name": "Eltako FJ62 shutter actuator",
+      "manufacturer": "Eltako",
+      "models": [
+        "FJ62NP-230V",
+        "FJ62/12-36V DC"
+      ],
+      "category": "Shutter / blind actuator (62 series)",
+      "method": "actuator",
+      "eep": "F6-02-01",
+      "actuator_type": "cover",
+      "teach": [
+        "Switch learn mode on as its manual describes (62 series: learn mode on or off, no learn positions).",
+        "Actuator Teach-In: type Blind, a free sender offset. Click Send Teach-In 4 times in a row: that teaches a directional pushbutton.",
+        "Click Save device and enter the travel time.",
+        "For moving to a position: a second teach-in with type Blind position (GFVS), sent ONCE, then tick Position control on the device."
+      ],
+      "id_where": "It reports end positions and run times; run it once and its ID appears in the telegram list.",
+      "notes": [
+        "Never send the GFVS teach-in repeatedly: it locks the learn mode.",
+        "Runs the wrong way: tick Reverse direction."
+      ],
+      "source": "Issue #39, ADR-0015, forum thread 1026367",
+      "art": "knob62"
+    },
+    {
+      "id": "eltako-series14",
+      "name": "Eltako Series 14 on FAM14 (DIN rail)",
+      "manufacturer": "Eltako",
+      "models": [
+        "FSR14-4x",
+        "FSR14-2x",
+        "FSB14"
+      ],
+      "category": "DIN rail actuators behind a FAM14 radio module",
+      "method": "actuator",
+      "eep": "F6-02-01",
+      "actuator_type": "switch",
+      "teach": [
+        "One device in this app per channel: an FSR14-4x is four devices, each with its own sender offset.",
+        "Put the channel into learn mode as the actuator's manual describes; the LED flashes.",
+        "Actuator Teach-In: Actuator address = the channel's ID from PCT14, type Switch (FSB14: Blind), Send Teach-In. The LED stops flashing: learned.",
+        "Click Save device under the teach-in result. Repeat for the next channel with the next offset."
+      ],
+      "id_where": "The bus actuators have no printed radio ID. Connect PCT14 to the FAM14, right-click the device list, refresh it: it shows the base ID and the ID of every channel.",
+      "notes": [
+        "No state in Home Assistant: the FAM14 only sends confirmation telegrams with its top rotary switch on 2, 4 or 5 (FAM14 manual).",
+        "Disconnect PCT14 from the FAM14 afterwards; while it is connected the FAM14 executes no radio commands."
+      ],
+      "source": "Forum post 82, Eltako FAM14 manual",
+      "art": "din14"
+    },
+    {
+      "id": "micropelt-mva004",
+      "name": "Micropelt radiator valve",
+      "manufacturer": "Micropelt",
+      "models": [
+        "MVA004",
+        "SAM"
+      ],
+      "category": "Radiator valve (battery-free)",
+      "method": "auto",
+      "eep": "A5-20-01",
+      "actuator_type": "",
+      "teach": [
+        "Click Start Teach-In.",
+        "Hold the valve's button for 5 s. The app answers (green flash on the valve) and fills in the sender ID.",
+        "Save the device with that sender ID."
+      ],
+      "id_where": "The teach-in fills it in. It is also on the valve's label.",
+      "notes": [
+        "The valve only listens for a second after it sends. A value set in Home Assistant goes out with the next answer, after up to a few minutes. Command Pending shows it is waiting.",
+        "Until something is set it regulates to 21 °C."
+      ],
+      "source": "Forum posts 71-77, ADR-0029",
+      "art": "valve"
+    },
+    {
+      "id": "nodon-sin-2-fp-21",
+      "name": "NodOn pilot wire heating module",
+      "manufacturer": "NodOn",
+      "models": [
+        "SIN-2-FP-21"
+      ],
+      "category": "Pilot wire heating module (D2)",
+      "method": "auto",
+      "eep": "D2-01-0C",
+      "actuator_type": "switch",
+      "teach": [
+        "Click Start Teach-In.",
+        "Put the module into pairing mode with its button as its manual describes. The app answers and fills in profile and sender ID.",
+        "Save the device."
+      ],
+      "id_where": "The teach-in fills it in. It is also on the module's label.",
+      "notes": [
+        "Entities: Pilot Wire Mode, Power, Energy. Power and energy are read every five minutes."
+      ],
+      "source": "Forum posts 76-81, ADR-0032",
+      "art": "module"
+    },
+    {
+      "id": "nodon-sin-2-2-01",
+      "name": "NodOn 2-channel relay switch",
+      "manufacturer": "NodOn",
+      "models": [
+        "SIN-2-2-01"
+      ],
+      "category": "Switch module, two outputs (D2)",
+      "method": "auto",
+      "eep": "D2-01-12",
+      "actuator_type": "switch",
+      "teach": [
+        "Click Start Teach-In.",
+        "Put the module into pairing mode with its button as its manual describes. The app fills in profile and sender ID.",
+        "Save the first channel; the app then offers the second channel, pre-filled."
+      ],
+      "id_where": "The teach-in fills it in. It is also on the module's label.",
+      "notes": [
+        "Both channels share one address and one sender ID; that is correct here."
+      ],
+      "source": "Maintainer's test module, ADR-0005",
+      "art": "module"
+    },
+    {
+      "id": "nodon-sin-2-rs-01",
+      "name": "NodOn roller shutter module",
+      "manufacturer": "NodOn",
+      "models": [
+        "SIN-2-RS-01"
+      ],
+      "category": "Shutter module (D2)",
+      "method": "auto",
+      "eep": "D2-05-00",
+      "actuator_type": "cover",
+      "teach": [
+        "Click Start Teach-In.",
+        "Put the module into pairing mode with its button as its manual describes. The app fills in profile and sender ID.",
+        "Save the device."
+      ],
+      "id_where": "The teach-in fills it in. It is also on the module's label.",
+      "notes": [
+        "Position is set and reported by the module itself."
+      ],
+      "source": "Test devices",
+      "art": "module"
+    },
+    {
+      "id": "nodon-sdo-2-1-05",
+      "name": "NodOn door and window contact",
+      "manufacturer": "NodOn",
+      "models": [
+        "SDO-2-1-05"
+      ],
+      "category": "Door / window contact",
+      "method": "auto",
+      "eep": "D5-00-01",
+      "actuator_type": "",
+      "teach": [
+        "Click Start Teach-In.",
+        "Press the contact's button (LRN). The app fills in address and profile.",
+        "Save the device."
+      ],
+      "id_where": "The teach-in fills it in. It is also on the label.",
+      "notes": [
+        "On = open. Mounted the other way round: tick Invert on the device."
+      ],
+      "source": "Forum thread 1026367, ADR-0023",
+      "art": "contact"
+    },
+    {
+      "id": "opus-563-031",
+      "name": "OPUS greenNet blind actuator",
+      "manufacturer": "OPUS",
+      "models": [
+        "563.031"
+      ],
+      "category": "Blind actuator (D2)",
+      "method": "manual",
+      "eep": "D2-05-02",
+      "actuator_type": "cover",
+      "teach": [
+        "Pairing with OPUS actuators is not confirmed yet. Try Start Teach-In with the actuator in learn mode; if nothing is detected, enter it manually and report how it went.",
+        "Manual Entry: address from its label or from the telegram list, profile D2-05-02, type Blind, a free sender ID."
+      ],
+      "id_where": "Run it once with its own button: its status telegram shows its ID in the telegram list.",
+      "notes": [
+        "Open, close, stop and position work; the tilt angle is not supported yet."
+      ],
+      "source": "Forum thread 1026367 (telegrams of a real device)",
+      "art": "module"
+    },
+    {
+      "id": "opus-563-076",
+      "name": "OPUS greenNet dimmer",
+      "manufacturer": "OPUS",
+      "models": [
+        "563.076"
+      ],
+      "category": "Dimmer (D2)",
+      "method": "manual",
+      "eep": "D2-01-03",
+      "actuator_type": "light",
+      "teach": [
+        "Pairing with OPUS actuators is not confirmed yet. Try Start Teach-In with the actuator in learn mode; if nothing is detected, enter it manually and report how it went.",
+        "Manual Entry: address from its label or from the telegram list, profile D2-01-03, type Light, a free sender ID."
+      ],
+      "id_where": "Switch it with its own button: its status telegram shows its ID in the telegram list.",
+      "notes": [],
+      "source": "Forum thread 1026367 (telegrams of a real device)",
+      "art": "module"
+    },
+    {
+      "id": "opus-563-010",
+      "name": "OPUS greenNet switch actuator",
+      "manufacturer": "OPUS",
+      "models": [
+        "563.010"
+      ],
+      "category": "Switch actuator (D2)",
+      "method": "manual",
+      "eep": "D2-01-00",
+      "actuator_type": "switch",
+      "teach": [
+        "Pairing with OPUS actuators is not confirmed yet. Try Start Teach-In with the actuator in learn mode; if nothing is detected, enter it manually and report how it went.",
+        "Manual Entry: address from its label or from the telegram list, profile D2-01-00, type Switch, a free sender ID."
+      ],
+      "id_where": "Switch it with its own button: its status telegram shows its ID in the telegram list.",
+      "notes": [],
+      "source": "Forum thread 1026367 (telegrams of a real device)",
+      "art": "module"
+    },
+    {
+      "id": "generic-rocker",
+      "name": "Wall switch / pushbutton (rocker)",
+      "manufacturer": "Any (Eltako, PEHA, OPUS, NodOn, ...)",
+      "models": [
+        "PTM 210/215 based",
+        "Eltako FT55",
+        "2 or 4 buttons"
+      ],
+      "category": "Battery-free wall switch",
+      "method": "manual",
+      "eep": "F6-02-01",
+      "actuator_type": "",
+      "teach": [
+        "Rocker switches send no teach-in telegram, so Start Teach-In does not detect them.",
+        "Press a rocker: the switch appears in the telegram list on the Dashboard with its ID.",
+        "Manual Entry: that ID as address, profile F6-02-01, no actuator type."
+      ],
+      "id_where": "Telegram list after one press, or the label on the back of the switch module.",
+      "notes": [
+        "A switch that should control an Eltako actuator directly is taught into the actuator, not into this app."
+      ],
+      "source": "Test devices",
+      "art": "rocker"
+    },
+    {
+      "id": "generic-window-handle",
+      "name": "Window handle (rocker type)",
+      "manufacturer": "Any (e.g. Hoppe)",
+      "models": [
+        "F6-10-00 handles"
+      ],
+      "category": "Window handle",
+      "method": "manual",
+      "eep": "F6-10-00",
+      "actuator_type": "",
+      "teach": [
+        "These handles send no teach-in telegram.",
+        "Turn the handle once: it appears in the telegram list with its ID.",
+        "Manual Entry: that ID as address, profile F6-10-00."
+      ],
+      "id_where": "Telegram list after one turn, or the label on the handle.",
+      "notes": [
+        "Handles with a 4BS profile (A5-14-09, A5-14-0A) send a teach-in and use Start Teach-In."
+      ],
+      "source": "Default mappings",
+      "art": "handle"
+    },
+    {
+      "id": "generic-4bs-sensor",
+      "name": "Temperature, humidity or motion sensor (4BS)",
+      "manufacturer": "Any (Eltako, Thermokon, ...)",
+      "models": [
+        "A5-02-xx temperature",
+        "A5-04-xx temperature + humidity",
+        "A5-07 / A5-08 motion"
+      ],
+      "category": "Battery or solar sensor",
+      "method": "auto",
+      "eep": "A5-02-05",
+      "actuator_type": "",
+      "teach": [
+        "Click Start Teach-In.",
+        "Press the sensor's LRN button (often under the cover). Its teach-in telegram carries the profile; the app fills in address and profile.",
+        "Save the device."
+      ],
+      "id_where": "The teach-in fills it in. It is also on the label.",
+      "notes": [
+        "A sensor without a LRN button sends normal data only: use Manual Entry with the profile from its datasheet."
+      ],
+      "source": "Test devices",
+      "art": "sensor"
+    }
+  ]
+}

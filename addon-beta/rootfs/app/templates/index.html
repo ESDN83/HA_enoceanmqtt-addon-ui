@@ -80,7 +80,7 @@
             var v = '?v={{ version }}';
             window.APP_ASSET_V = '{{ version }}';
             document.write('<link rel="stylesheet" href="' + base + '/static/css/app.css' + v + '">');
-            ['core', 'theme', 'i18n', 'nav', 'dashboard', 'devices', 'teachin', 'mappings', 'settings'].forEach(function(name) {
+            ['core', 'theme', 'i18n', 'nav', 'dashboard', 'devices', 'teachin', 'teachhelp', 'mappings', 'settings'].forEach(function(name) {
                 document.write('<script src="' + base + '/static/js/' + name + '.js' + v + '"><\/script>');
             });
         })();
@@ -357,6 +357,7 @@
                                     <i class="bi bi-lightning"></i> Actuator Teach-In (Eltako FD62NPN, FSB61, FUD61, etc.)
                                 </div>
                                 <div class="card-body">
+                                    <div id="teach-help-actuator"></div>
                                     <div class="alert alert-warning small mb-3">
                                         <strong><i class="bi bi-exclamation-triangle"></i> Before you start:</strong>
                                         Each sender offset (1-127) can only control <strong>one</strong> actuator. Use a different offset for each device.
@@ -365,19 +366,20 @@
                                     <h6>Step-by-Step</h6>
                                     <ol class="small mb-3">
                                         <li><strong>Read Base ID</strong>: click "Read" to get the gateway's base address</li>
-                                        <li><strong>Enter actuator address</strong>: the address printed on the actuator or its packaging (e.g., <code>0x05834FA4</code>)</li>
+                                        <li><strong>Enter actuator address</strong>: the ID the actuator sends its state from (e.g., <code>0x05834FA4</code>). Switch it by hand once and take the ID from the Dashboard, or from its label. Eltako Series 14: the channel's ID from PCT14</li>
                                         <li><strong>Choose sender offset</strong>: pick a unique number (1-127) for this actuator</li>
                                         <li><strong>Put actuator in learn mode:</strong>
                                             <ul>
                                                 <li><strong>Eltako FD62NPN (Dimmer):</strong> Press the rotary knob <strong>4× short + 1× long (&gt;2s)</strong>, the lamp flickers briefly to confirm learn mode</li>
-                                                <li><strong>Eltako FSR61 (Switch):</strong> Short press the learn button, the LED blinks</li>
+                                                <li><strong>Eltako FSR61 (Switch):</strong> Upper rotary switch to LRN, the LED flashes; lower switch selects the function (see its manual)</li>
                                                 <li><strong>Eltako FSB61 (Blind):</strong> Turn the rotary dial to desired run time, then press learn button</li>
                                                 <li><strong>Eltako 62 series (FJ62, FSB62):</strong> no learn positions, only learn mode on/off. The <strong>number of telegrams</strong> picks the sender type, so click "Send Teach-In" <strong>3×</strong> for a universal pushbutton, <strong>4×</strong> for a directional pushbutton (what a cover wants), 5× or 6× for central up / down</li>
+                                                <li><strong>Eltako Series 14 (FSR14, FSB14 on a FAM14):</strong> one device per channel, each with its own sender offset. Put the channel into learn mode as its manual describes. No state in Home Assistant: the FAM14's top rotary switch must be on 2, 4 or 5</li>
                                                 <li><strong>Other Eltako:</strong> Check the manual, typically a short press of the learn/prog button</li>
                                             </ul>
                                         </li>
                                         <li><strong>Click "Send Teach-In"</strong> within 30 seconds, the actuator confirms with a brief lamp flicker or LED flash</li>
-                                        <li><strong>Add the device</strong> with the sender ID shown below using "Manual Entry"</li>
+                                        <li><strong>Click "Save device"</strong> under the result: the form opens with address, sender ID and type filled in</li>
                                     </ol>
 
                                     <div class="alert alert-danger small mb-3">
@@ -457,10 +459,17 @@
                                 <span data-i18n="teach_in.waiting">Waiting for device... Press the teach-in button now.</span>
                                 <span id="teach-in-countdown" class="fw-bold ms-2"></span>
                             </div>
+                            <div id="teach-in-error" class="alert alert-danger" style="display: none;">
+                                <i class="bi bi-x-circle"></i> <span data-i18n="teach_in.connection_failed">Connection failed. EnOcean gateway may not be connected.</span>
+                            </div>
                             <button class="btn btn-outline-secondary btn-sm mt-2" onclick="cancelTeachIn()">
                                 <i class="bi bi-x-circle"></i> <span data-i18n="modal.cancel">Cancel</span>
                             </button>
+                            <div id="teach-help-auto" class="mt-3"></div>
                         </div>
+
+                        <!-- Start page: shown while none of the three ways is open (ADR-0034) -->
+                        <div id="teach-guide"></div>
                     </div>
 
                     <div class="wizard-step" id="step-2">
@@ -470,6 +479,8 @@
                             <i class="bi bi-info-circle"></i>
                             <span data-i18n="teach_in.multichannel_note">This module has 2 channels. One teach-in covers the whole module: pick the channel below, save, then add a second device with the same address for the other channel.</span>
                         </div>
+
+                        <div id="teach-help-manual"></div>
 
                         <form id="device-form">
                             <div class="row">
