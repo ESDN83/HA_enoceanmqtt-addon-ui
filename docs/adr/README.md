@@ -39,3 +39,4 @@ Rules:
 - [0032](0032-vld-decode-by-command-pilot-wire.md) VLD telegrams decode by command; pilot wire modules are queried
 - [0033](0033-ai-assistant-guide.md) AI assistants get a setup guide from the app itself
 - [0034](0034-add-device-help-and-catalogue.md) The Add Device page explains itself, with a catalogue of verified devices
+- [0035](0035-d2-01-metering.md) Every metering D2-01 module gets Power and Energy

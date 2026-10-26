@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.8.5-beta11] - 2026-10-26 (beta channel)
+
+### Added
+
+- **Power and Energy for metering D2-01 modules**, e.g. the NodOn Micro
+  Smart Plug (D2-01-0E), and also D2-01-08, 09 and 0B. Power is shown from
+  the module's own reports, and the module is asked for power and energy
+  every five minutes (needs a sender ID). Energy works with the Home
+  Assistant energy dashboard. A switch status no longer clears the values.
+  Issue #48.
+
 ## [1.8.5-beta10] - 2026-10-26 (beta channel)
 
 ### Added

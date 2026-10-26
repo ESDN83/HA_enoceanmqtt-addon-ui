@@ -305,6 +305,12 @@ Teach-In" has to be clicked several times in a row:
   mode change and every five minutes; the module does not send them by
   itself. Energy works with the Home Assistant energy dashboard.
 
+### Metering Modules (D2-01-08, 09, 0B, 0C, 0E, e.g. NodOn Micro Smart Plug)
+- **Power** (W) and **Energy** (kWh) appear next to the switch.
+- Power arrives whenever the module reports it. Energy is asked for every
+  five minutes, which needs the device's Sender ID (filled in by the
+  teach-in).
+
 ## AI Assistants
 
 An AI assistant connected to Home Assistant through an MCP server that can

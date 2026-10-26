@@ -142,6 +142,14 @@ ID taken from the telegram list after one press.
 - Rocker telegrams are not used as state for D2 devices; they report state
   in their own telegram.
 
+### Metering D2-01 modules (08, 09, 0B, 0C, 0E, e.g. NodOn Micro Smart Plug)
+- They get *Power* (W) and *Energy* (kWh) next to the switch: from the
+  module's own reports and from a query every five minutes (CMD 6).
+- The query needs a `sender_id`. A plug that shows power but no energy has
+  none: interactive teach-in fills it in.
+- They report energy only when asked by default; the app does not change
+  that setting (CMD 5).
+
 ### Radiator valves (A5-20-01, Micropelt MVA004 / SAM)
 - The valve listens only about one second after it transmits. The app
   answers every valve telegram at once with the values set in Home

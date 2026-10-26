@@ -270,6 +270,29 @@
       "art": "module"
     },
     {
+      "id": "nodon-msp-2-1-11",
+      "name": "NodOn Micro Smart Plug",
+      "manufacturer": "NodOn",
+      "models": [
+        "MSP-2-1-11"
+      ],
+      "category": "Plug with power metering (D2)",
+      "method": "auto",
+      "eep": "D2-01-0E",
+      "actuator_type": "switch",
+      "teach": [
+        "Click Start Teach-In.",
+        "Put the plug into pairing mode with its button as its manual describes. The app fills in profile and sender ID.",
+        "Save the device."
+      ],
+      "id_where": "The teach-in fills it in. It is also on the plug's label.",
+      "notes": [
+        "Entities: switch, Power and Energy. Power comes with the plug's own reports, energy from a query every five minutes, which needs the sender ID."
+      ],
+      "source": "Issue #48 (telegrams of a real plug)",
+      "art": "module"
+    },
+    {
       "id": "nodon-sdo-2-1-05",
       "name": "NodOn door and window contact",
       "manufacturer": "NodOn",

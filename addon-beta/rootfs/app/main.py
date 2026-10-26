@@ -182,7 +182,7 @@ async def lifespan(app: FastAPI):
         valve_control.on_sender_assigned = _valve_discovery
 
         # Pilot wire modules: mode commands and measurement queries (ADR-0032).
-        pilot_wire = PilotWire(serial_handler, device_manager, mqtt_handler)
+        pilot_wire = PilotWire(serial_handler, device_manager, mqtt_handler, eep_manager)
         serial_handler.pilot_wire = pilot_wire
         pilot_wire.start()
 

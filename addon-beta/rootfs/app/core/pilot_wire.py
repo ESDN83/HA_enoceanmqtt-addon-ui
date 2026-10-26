@@ -1,5 +1,6 @@
 """
-Pilot wire heating modules (D2-01-0C, e.g. NodOn SIN-2-FP-21). ADR-0032.
+Pilot wire heating modules (D2-01-0C, e.g. NodOn SIN-2-FP-21) and metering
+D2-01 modules (e.g. NodOn Micro Smart Plug, D2-01-0E). ADR-0032, ADR-0035.
 
 The module takes a pilot wire mode and measures power and energy. Formats
 from EEP D2-01 as EEP.xml and Jeedom's profile describe it, and as FHEM
@@ -15,6 +16,11 @@ from EEP D2-01 as EEP.xml and Jeedom's profile describe it, and as FHEM
 The module answers queries but does not report power or energy by itself
 unless configured to (CMD 5), which would change its stored settings. The
 app asks instead: after a mode change and every few minutes.
+
+Every D2-01 type whose profile has the measurement commands (CMD 5/6/7 in
+EEP.xml: 08, 09, 0B, 0C, 0E) is queried the same way, and gets Power and
+Energy. A NodOn plug reports power on its own but energy only when asked
+(issue #48). The query carries the device's channel in its IO field.
 """
 
 import asyncio
@@ -28,13 +34,26 @@ MODES = ["Off", "Comfort", "Eco", "Anti-freeze", "Comfort-1", "Comfort-2"]
 ENTITY_MODE = "pilot_wire_mode"
 
 QUERY_MODE = bytes([0x09])
-QUERY_ENERGY = bytes([0x06, 0x00])
-QUERY_POWER = bytes([0x06, 0x20])
+QUERY_POWER_BIT = 0x20  # CMD 6 byte 1: bit 5 power (else energy), IO below
 POLL_SECONDS = 300
+METER_FIELDS = ("POWER_W", "ENERGY_KWH")
 
 
 def is_pilot(device) -> bool:
     return device is not None and str(device.eep_id).upper() == PILOT_EEP
+
+
+def profile_meters(profile) -> bool:
+    """A D2-01 profile with the actuator measurement response (CMD 7)."""
+    if profile is None or not profile.eep_id.upper().startswith("D2-01-"):
+        return False
+    return any(str(f.get("command")) == "7" for f in profile.fields)
+
+
+def query_payloads(channel: int = 0):
+    """CMD 6 power and energy queries for one channel."""
+    io = int(channel or 0) & 0x1F
+    return bytes([0x06, QUERY_POWER_BIT | io]), bytes([0x06, io])
 
 
 def set_mode_payload(mode: str) -> bytes:
@@ -66,25 +85,36 @@ def derived_state(decoded: Dict[str, Any]) -> Dict[str, Any]:
 
 
 class PilotWire:
-    """Sends mode commands and measurement queries to pilot wire modules."""
+    """Sends mode commands to pilot wire modules and measurement queries to
+    every metering D2-01 module."""
 
-    def __init__(self, serial_handler, device_manager, mqtt_handler):
+    def __init__(self, serial_handler, device_manager, mqtt_handler, eep_manager=None):
         self.serial_handler = serial_handler
         self.device_manager = device_manager
         self.mqtt_handler = mqtt_handler
+        self.eep_manager = eep_manager
         self._task: Optional[asyncio.Task] = None
 
-    def merge_state(self, device_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def meters(self, device) -> bool:
+        if device is None or self.eep_manager is None:
+            return is_pilot(device)
+        return profile_meters(self.eep_manager.get_profile(str(device.eep_id).upper()))
+
+    def merge_state(self, device, payload: Dict[str, Any]) -> Dict[str, Any]:
         """A reply carries the mode or one measurement; keep the others.
 
         Each published state replaces the retained one, so without this an
-        energy reply would wipe the power value and the other way round.
+        energy reply would wipe the power value, and a switch status the
+        last measurement. A measurement of another channel is not this
+        device's.
         """
-        last = self.mqtt_handler.get_last_state(device_name) if self.mqtt_handler else None
+        last = self.mqtt_handler.get_last_state(device.name) if self.mqtt_handler else None
         merged = {k: v for k, v in (last or {}).items()
-                  if k in ("PILOT_MODE", "POWER_W", "ENERGY_KWH")}
+                  if k in ("PILOT_MODE",) + METER_FIELDS}
         merged.update(payload)
-        merged.update(derived_state(payload))
+        io = payload.get("IO")
+        if payload.get("CMD") != 7 or io is None or int(io) == int(getattr(device, "channel", 0) or 0):
+            merged.update(derived_state(payload))
         return merged
 
     async def _send(self, device, data: bytes, label: str) -> bool:
@@ -113,8 +143,11 @@ class PilotWire:
             await self.query(device)
 
     async def query(self, device):
-        for data, label in ((QUERY_MODE, "mode query"), (QUERY_POWER, "power query"),
-                            (QUERY_ENERGY, "energy query")):
+        power, energy = query_payloads(getattr(device, "channel", 0))
+        queries = [(power, "power query"), (energy, "energy query")]
+        if is_pilot(device):
+            queries.insert(0, (QUERY_MODE, "mode query"))
+        for data, label in queries:
             await self._send(device, data, label)
 
     def start(self):
@@ -125,6 +158,6 @@ class PilotWire:
         await asyncio.sleep(30)  # let the transceiver connect first
         while True:
             for device in list(self.device_manager.devices.values()):
-                if is_pilot(device) and device.sender_id and self.serial_handler.is_connected:
+                if self.meters(device) and device.sender_id and self.serial_handler.is_connected:
                     await self.query(device)
             await asyncio.sleep(POLL_SECONDS)

@@ -1029,8 +1029,8 @@ class SerialHandler:
                 payload = dict(decoded)
                 if self.valve_control is not None and str(target.eep_id).upper() == "A5-20-01":
                     payload.update(self.valve_control.state_fields(target.name))
-                if self.pilot_wire is not None and str(target.eep_id).upper() == "D2-01-0C":
-                    payload = self.pilot_wire.merge_state(target.name, payload)
+                if self.pilot_wire is not None and self.pilot_wire.meters(target):
+                    payload = self.pilot_wire.merge_state(target, payload)
                 if d2_01_status:
                     io = decoded.get("IO")
                     ch = int(getattr(target, "channel", 0) or 0)

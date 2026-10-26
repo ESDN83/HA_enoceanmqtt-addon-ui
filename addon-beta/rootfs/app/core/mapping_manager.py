@@ -1434,12 +1434,16 @@ class MappingManager:
             configs.extend(self._valve_control_configs(
                 eep_id, device_address, device_name, mqtt_prefix, device_info, avail_config))
 
-        # A pilot wire module (D2-01-0C) takes a mode and reports power and
-        # energy when asked (ADR-0032). Needs a sender ID to be addressed.
-        if str(eep_id).upper() == "D2-01-0C" and device_sender:
+        # A pilot wire module (D2-01-0C) takes a mode (needs a sender ID to
+        # be addressed, ADR-0032). Every metering D2-01 module reports power
+        # and energy, by itself or when asked (ADR-0035).
+        from core.pilot_wire import profile_meters
+        meters = bool(self.eep_manager) and profile_meters(self.eep_manager.get_profile(str(eep_id).upper()))
+        pilot_mode = str(eep_id).upper() == "D2-01-0C" and bool(device_sender)
+        if meters or pilot_mode:
             configs.extend(self._pilot_wire_configs(
                 eep_id, device_address, device_sender, device_name, mqtt_prefix,
-                device_info, avail_config))
+                device_info, avail_config, pilot_mode=pilot_mode, meters=meters))
 
         # Auto-add diagnostic entities for every device: RSSI + Last Seen
         state_topic = f"{mqtt_prefix}/{device_name}/state"
@@ -1656,25 +1660,30 @@ class MappingManager:
         return [connected, base_id, devices, last_telegram, busy, pending, duration]
 
     def _pilot_wire_configs(self, eep_id, device_address, device_sender, device_name,
-                            mqtt_prefix, device_info, avail_config) -> List[Dict[str, Any]]:
-        """Pilot wire mode, power and energy of a D2-01-0C module."""
+                            mqtt_prefix, device_info, avail_config, pilot_mode=True,
+                            meters=True) -> List[Dict[str, Any]]:
+        """Pilot wire mode of a D2-01-0C module, power and energy of every
+        metering D2-01 module."""
         from core.pilot_wire import MODES, ENTITY_MODE
         state_topic = f"{mqtt_prefix}/{device_name}/state"
 
         def guarded(field):
             return f"{{{{ value_json.{field} if value_json.{field} is defined else None }}}}"
 
-        entities = [
-            ("select", "PILOT_MODE", "pilot_wire_mode", {
+        entities = []
+        if pilot_mode:
+            entities.append(("select", "PILOT_MODE", "pilot_wire_mode", {
                 "name": "Pilot Wire Mode", "options": MODES, "icon": "mdi:radiator",
-                "command_topic": f"{mqtt_prefix}/{device_name}/set/{ENTITY_MODE}"}),
+                "command_topic": f"{mqtt_prefix}/{device_name}/set/{ENTITY_MODE}"}))
+        if meters:
+            entities += [
             ("sensor", "POWER_W", "power", {
                 "name": "Power", "unit_of_measurement": "W", "device_class": "power",
                 "state_class": "measurement"}),
             ("sensor", "ENERGY_KWH", "energy", {
                 "name": "Energy", "unit_of_measurement": "kWh", "device_class": "energy",
                 "state_class": "total_increasing"}),
-        ]
+            ]
         out = []
         for component, field, suffix, extra in entities:
             uid = self.build_unique_id(eep_id, device_address, device_sender, field)
