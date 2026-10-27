@@ -196,6 +196,11 @@ class SerialHandler:
         # measured against, and whether anything has answered it yet. See
         # track_cover_travel.
         self._cover_commands: Dict[str, dict] = {}
+        # Rocker-taught shutters: what the actuator last reported, "moving"
+        # (travel started) or "stopped" (end position or travel report).
+        # Cleared by every command sent, so only a report that came after
+        # the last command counts (issue #49, ADR-0037).
+        self._cover_motion: Dict[str, str] = {}
         # Bumped every time a read loop is started or stopped. A loop that
         # finds the counter moved on knows a newer one has taken over and
         # stops, so a stale one can never keep reading. See _stop_reader.
@@ -941,6 +946,10 @@ class SerialHandler:
         # RORG guard can drop them (issue #39, ADR-0014).
         cover_state = None if vld_actuator else self._eltako_cover_state(telegram, device)
         cover_travel = None if vld_actuator else self._eltako_cover_travel(telegram, device)
+        if cover_state in ("opening", "closing"):
+            self._cover_motion[device.name] = "moving"
+        elif cover_state is not None or cover_travel is not None:
+            self._cover_motion[device.name] = "stopped"
 
         # Check RORG matches the EEP profile, FD62NPN sends F6+A5+D1 but
         # only A5 matches A5-38-08. Decoding F6/D1 with A5 profile = garbage.
@@ -1118,6 +1127,14 @@ class SerialHandler:
     # runtime expired, so the end positions are the only points where the
     # position is certain. They are the synchronisation points, which is how
     # Eltako's own GFVS software tracks the position. See ADR-0014.
+    def cover_reported_stopped(self, name: str) -> bool:
+        """True only if the shutter's last report since the last command said
+        it stands still."""
+        return self._cover_motion.get(name) == "stopped"
+
+    def cover_command_sent(self, name: str):
+        self._cover_motion.pop(name, None)
+
     _ELTAKO_COVER_RPS = {0x70: "open", 0x50: "closed", 0x01: "opening", 0x02: "closing"}
     _ELTAKO_COVER_INVERTED = {"open": "closed", "closed": "open",
                               "opening": "closing", "closing": "opening"}

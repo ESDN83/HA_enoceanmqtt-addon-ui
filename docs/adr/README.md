@@ -41,3 +41,4 @@ Rules:
 - [0034](0034-add-device-help-and-catalogue.md) The Add Device page explains itself, with a catalogue of verified devices
 - [0035](0035-d2-01-metering.md) Every metering D2-01 module gets Power and Energy
 - [0036](0036-free-sender-for-pairing-and-dimmer-confirmation.md) Pairing picks a free sender ID; a dimmer's confirmation keeps its level
+- [0037](0037-f6-cover-stop-only-when-moving.md) A rocker-taught shutter is not sent Stop when it reported standing still

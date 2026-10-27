@@ -274,8 +274,13 @@ Teach-In" has to be clicked several times in a row:
 
 ### Eltako Shutter Actuators (FJ62, FSB)
 - Open and close are short rocker taps, and so is stop: a tap while the shutter
-  runs interrupts it. A stop sent while nothing is moving starts a run instead,
-  exactly as it would on a wall switch.
+  runs interrupts it. The same tap on a shutter that stands still starts it,
+  as on a wall switch, so the app does not send Stop when the actuator's last
+  report (end position or run time) says it has stopped. Without such a report
+  Stop is sent, because stopping a moving shutter matters more.
+- With **Position control** (GFVS teach-in, see below) Stop is a real stop
+  command and never starts the shutter. The FSB61NP takes the same GFVS
+  teach-in telegram (`0xFFF80D80`).
 - Up is the top half of the rocker, down the bottom one, the way Eltako wires a
   directional pushbutton. If your shutter runs the wrong way, tick **Reverse
   direction** on the device. Covers that existed before 1.8.1 have that box

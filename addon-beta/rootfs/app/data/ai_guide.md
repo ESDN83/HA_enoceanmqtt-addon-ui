@@ -137,8 +137,11 @@ ID taken from the telegram list after one press.
 
 ### Covers
 - **Eltako FJ62 / FSB**: profile `A5-3F-7F` or `F6-02-01`,
-  `actuator_type: cover`. Open, close and stop are short taps; a stop while
-  nothing moves starts a run (as on a wall switch). They report end
+  `actuator_type: cover`. Open, close and stop are short taps; a tap on a
+  shutter that stands still starts it, so the app skips Stop when the
+  actuator's last report since the last command says it stopped (and sends
+  it otherwise). With `position_control` (GFVS, `0xFFF80D80`, also taken by
+  the FSB61NP) Stop is a real stop command. They report end
   positions and run times; set `travel_time` (seconds for a full run) to get
   a position. Wrong direction: tick *Reverse direction* (`invert`).
 - Driving to a position needs a second teach-in (`cover_gfvs`) and

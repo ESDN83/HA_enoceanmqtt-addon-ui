@@ -123,11 +123,12 @@
         "No state in Home Assistant: confirmation telegrams are off from the factory. Upper dial to CLR, then within 10 s the lower dial 3 times to the LEFT stop and back: toggles them on (3 times to the RIGHT deletes everything).",
         "While in LRN it learns the next telegram it hears, any of them: pause automations that switch other Eltako devices during the teach-in.",
         "Static mode wanted anyway: set Press duration on the device so the button is held long enough.",
-        "OPUS 561.164 is a rebranded FSB61NP; on it GS1 also behaved statically (user report).",
+        "OPUS 561.164 is a rebranded FSB61NP; on it GS1 also behaves statically (user report, confirmed on two actuators).",
         "Runs the wrong way: tick Reverse direction.",
-        "With a travel time set, Home Assistant shows a position."
+        "With a travel time set, Home Assistant shows a position.",
+        "Stop is a tap of the last direction; the app skips it when the actuator reported it already stands still. For a real stop and positions use the second teach-in with type Blind position (GFVS, sent once) and Position control."
       ],
-      "source": "Issue #39, ADR-0014, FSB61NP manual, forum post 84",
+      "source": "Issue #39, ADR-0014, FSB61NP manual, forum post 84, issue #49",
       "art": "flush"
     },
     {

@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.8.5-beta13] - 2026-10-27 (beta channel)
+
+### Changed
+
+- **Stop no longer starts a shutter that stands still** (Eltako FSB61NP,
+  FJ62, OPUS 561.164 taught as a directional pushbutton). Stop is a tap of
+  the last direction, and on a standing shutter that tap starts it. When
+  the actuator's last report (end position or run time) says it has
+  stopped, Stop is now not sent. Without such a report it is sent as
+  before. Issue #49.
+
 ## [1.8.5-beta12] - 2026-10-27 (beta channel)
 
 ### Fixed

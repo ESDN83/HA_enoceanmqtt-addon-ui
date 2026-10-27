@@ -1064,6 +1064,9 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             rocker = 0x50 if rocker == 0x70 else 0x70
         if rocker is not None:
             _last_cover_rocker[device_name] = rocker
+            # Forget the last report before sending: the actuator answers
+            # about 200 ms later, possibly before this send returns.
+            serial_handler.cover_command_sent(device_name)
             # A configured press time is for actuators that only travel on a
             # long press (Flextron ALADIN, ADR-0019). Stop below stays a tap,
             # which halts a running shutter on those as well.
@@ -1084,7 +1087,16 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             # Nothing to repeat before the first command of a session. Up is
             # the safer guess for a tap that starts a run instead of ending
             # one, a shutter going down can trap something.
+            # Only a tap stops it, and the same tap starts a shutter that
+            # stands still (issue #49). When the actuator's last report since
+            # the last command says it stopped, nothing is sent. Without such
+            # a report the tap goes out as before: stopping a moving shutter
+            # matters more than an occasional restart. ADR-0037.
+            if serial_handler.cover_reported_stopped(device_name):
+                logger.info(f"STOP for {device_name} not sent: the actuator reported it stopped")
+                return
             rocker = _last_cover_rocker.get(device_name, 0x70)
+            serial_handler.cover_command_sent(device_name)
             sent = await serial_handler.send_rps_press_release(
                 sender_id=sender_id, press_data=rocker,
                 destination=broadcast, label=device_name
