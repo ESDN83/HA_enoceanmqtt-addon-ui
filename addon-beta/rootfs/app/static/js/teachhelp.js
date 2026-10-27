@@ -105,6 +105,9 @@ function _renderActuatorHelp() {
                 ${_fig('knob62', t('help.fig_knob62', 'Eltako 62 series: learn mode on, then the number of telegrams picks what is learned (FL62 3x, FJ62 4x).'))}
                 ${_fig('din14', t('help.fig_din14_act', 'Series 14: one device per channel, the address of each channel comes from PCT14.'))}
             </div>
+            <div class="alert alert-warning small mt-2 mb-2"><i class="bi bi-exclamation-triangle"></i>
+                ${escapeHtml(t('help.act_tips', 'Before you start: upper dial to LRN, not CLR (on CLR the actuator deletes every sensor it hears). In LRN it learns the next telegram it hears, any of them: pause automations that switch other Eltako devices. No state afterwards: switch the actuator\'s confirmation telegrams on, see its entry in the device list.'))}
+            </div>
             <p class="small mt-2 mb-0"><strong>${escapeHtml(t('teach_in.actuator_address', 'Actuator Address'))}:</strong>
             ${escapeHtml(t('help.act_address', 'the ID the actuator sends its state from. Switch it by hand once: its confirmation shows the ID on the Dashboard. Series 14: the channel\'s ID from PCT14. The teach-in itself works with any address; the address is what links its state to Home Assistant.'))}</p>
         </details>`;

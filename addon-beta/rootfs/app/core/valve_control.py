@@ -158,7 +158,7 @@ class ValveControl:
             if device is None and not teach_in_active:
                 logger.info(f"Valve teach-in from {telegram.sender_hex} ignored, no teach-in session")
                 return None
-            sender = self._sender_for(device)
+            sender = self._sender_for(device, telegram.sender_hex)
             if sender is None:
                 logger.warning(f"Valve teach-in from {telegram.sender_hex}: no free sender ID")
                 return None
@@ -175,23 +175,13 @@ class ValveControl:
             asyncio.create_task(self._reply(device.name, sender, payload, telegram.sender_id, version))
         return None
 
-    def _sender_for(self, device) -> Optional[int]:
-        """The device's own sender, else the lowest gateway offset nobody uses.
-
-        Eltako actuators act on a sender ID whatever the destination, so a
-        valve must not share one with them.
-        """
+    def _sender_for(self, device, address: str) -> Optional[int]:
+        """The device's own sender, else a free one (shared with UTE pairing,
+        ADR-0036). Eltako actuators act on a sender ID whatever the
+        destination, so a valve must not share one with them."""
         if device is not None and device.sender_id:
             return int(device.sender_id.replace("0x", "").replace("0X", ""), 16)
-        used = {str(d.sender_id).lower().replace("0x", "").zfill(8)
-                for d in self.device_manager.devices.values() if d.sender_id}
-        for offset in range(2, 128):
-            sid = self.serial_handler.get_sender_id(offset)
-            if sid is None:
-                return None
-            if f"{sid:08x}" not in used:
-                return sid
-        return None
+        return self.serial_handler.sender_for(address)
 
     async def _store_sender(self, device, sender: int):
         device.sender_id = f"0x{sender:08X}"

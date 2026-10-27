@@ -439,5 +439,6 @@
   "help.source": "验证来源",
   "help.use_this": "从这个设备开始",
   "teach_in.gfvs_after": "现在在已有的窗帘设备上勾选位置控制。",
-  "teach_in.save_device": "保存设备"
+  "teach_in.save_device": "保存设备",
+  "help.act_tips": "开始前：上旋钮转到 LRN，不是 CLR（在 CLR 位置执行器会删除它听到的每个传感器）。在 LRN 位置它会学习听到的下一条电报，无论来自哪里：请暂停控制其他 Eltako 设备的自动化。之后没有状态：打开执行器的确认电报，见设备列表中的条目。"
 }

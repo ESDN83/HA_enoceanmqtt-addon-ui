@@ -514,5 +514,6 @@
   "help.source": "Bestätigt durch",
   "help.use_this": "Mit diesem Gerät starten",
   "teach_in.gfvs_after": "Jetzt beim vorhandenen Rollladen-Gerät Positionssteuerung ankreuzen.",
-  "teach_in.save_device": "Gerät speichern"
+  "teach_in.save_device": "Gerät speichern",
+  "help.act_tips": "Vor dem Start: oberen Drehschalter auf LRN, nicht CLR (auf CLR löscht der Aktor jeden Sensor, den er hört). In LRN lernt er das nächste Telegramm, das er hört, egal welches: Automationen pausieren, die andere Eltako-Geräte schalten. Danach kein Zustand: die Bestätigungstelegramme des Aktors einschalten, siehe seinen Eintrag in der Geräteliste."
 }

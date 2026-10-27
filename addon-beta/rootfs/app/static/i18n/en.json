@@ -514,5 +514,6 @@
   "help.source": "Verified by",
   "help.use_this": "Start with this device",
   "teach_in.gfvs_after": "Now tick Position control on the existing cover device.",
-  "teach_in.save_device": "Save device"
+  "teach_in.save_device": "Save device",
+  "help.act_tips": "Before you start: upper dial to LRN, not CLR (on CLR the actuator deletes every sensor it hears). In LRN it learns the next telegram it hears, any of them: pause automations that switch other Eltako devices. No state afterwards: switch the actuator's confirmation telegrams on, see its entry in the device list."
 }

@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.8.5-beta12] - 2026-10-27 (beta channel)
+
+### Fixed
+
+- **Paired D2 modules shared a sender ID with Eltako actuators.** Every
+  module paired by teach-in (NodOn, OPUS D2) was told to use base ID + 1,
+  the sender of the first actuator taught with offset 1. Switching one could
+  switch the other. New pairings now get the lowest free sender ID; the
+  radiator valve teach-in does the same. Forum post 84.
+- **A dimmer showed 100 % after dimming.** Eltako dimmers behind a FAM14
+  (FUD14) confirm with an on/off telegram, which set the brightness to 100.
+  It now keeps the level that was set. Forum post 84.
+
+### Added
+
+- Add Device help and device list: Eltako 61 teach-in pitfalls (LRN, not
+  CLR; it learns any telegram it hears; how to switch confirmation telegrams
+  on), FSB61 static modes, FUD14, and the OPUS 561.164 as a rebranded
+  FSB61NP.
+
 ## [1.8.5-beta11] - 2026-10-26 (beta channel)
 
 ### Added

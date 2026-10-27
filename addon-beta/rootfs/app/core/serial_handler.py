@@ -171,12 +171,10 @@ class SerialHandler:
         self._read_task: Optional[asyncio.Task] = None
         self._telegram_callbacks: List[Callable] = []
         self._teach_in_callback: Optional[Callable] = None
-        # UTE (RORG D4) auto-response sender offset. NodOn D2-05-00 covers in
-        # bidirectional learn mode expect a UTE teach-in *response* carrying the
-        # controller Sender ID they must bind to (base_id + offset). Commands
-        # are addressed (destination = actuator), so one gateway sender can
-        # drive many covers, a single offset is fine. Set per teach-in session.
-        self._ute_response_offset: int = 1
+        # Sender IDs handed out in teach-in responses (UTE, valve) whose
+        # device is not saved yet, by module address: a second module paired
+        # before the first is saved must not get the same one (ADR-0036).
+        self._pending_senders: Dict[str, int] = {}
         # Radiator valves that only listen right after they transmit
         # (A5-20-01, ADR-0029); set by main once everything exists.
         self.valve_control = None
@@ -799,7 +797,7 @@ class SerialHandler:
             f"channels={channels} bidir={bidirectional} resp_expected={response_expected}"
         )
 
-        response_sender = self.get_sender_id(self._ute_response_offset)
+        response_sender = self.sender_for(telegram.sender_hex)
 
         # Only bidirectional queries that expect a response get answered; a
         # unidirectional module just wants us to remember its EEP.
@@ -985,9 +983,20 @@ class SerialHandler:
         if rps_state is not None:
             decoded["state"] = rps_state
             if device.actuator_type == "light":
-                # An RPS light actuator switches, it does not dim. Report the
-                # only two brightness values it can ever be in.
-                decoded["brightness"] = 100 if rps_state == "ON" else 0
+                if str(device.eep_id).upper().startswith("F6"):
+                    # An RPS light actuator switches, it does not dim. Report
+                    # the only two brightness values it can ever be in.
+                    decoded["brightness"] = 100 if rps_state == "ON" else 0
+                elif rps_state == "OFF":
+                    decoded["brightness"] = 0
+                else:
+                    # A dimmer (A5-38-08, e.g. FUD14 behind a FAM14) confirms
+                    # with a rocker telegram that says on, not how bright.
+                    # Keep the level it was set to; 100 % made a dimmer set
+                    # to 50 % show full brightness (forum post 84).
+                    prev = (self.mqtt_handler.get_last_state(device.name) or {}) if self.mqtt_handler else {}
+                    level = prev.get("brightness")
+                    decoded["brightness"] = level if isinstance(level, (int, float)) and level > 0 else 100
             logger.debug(f"RPS actuator status: {device.name} -> {rps_state}")
 
         # For light actuators, add HA-compatible state and brightness fields.
@@ -1581,6 +1590,32 @@ class SerialHandler:
         if self._base_id is None:
             return None
         return f"0x{self._base_id:08X}"
+
+    def sender_for(self, address: str) -> Optional[int]:
+        """The sender ID a module pairing from `address` is told to bind.
+
+        Its configured one if it has one, else the lowest gateway offset no
+        device uses. A fixed offset 1 put every D2 module on the sender of
+        the first Eltako actuator taught with offset 1, and Eltako actuators
+        act on a sender ID whatever the destination (forum post 84).
+        """
+        key = str(address).lower().replace("0x", "").zfill(8)
+        devices = list(self.device_manager.devices.values()) if self.device_manager else []
+        for d in devices:
+            if d.sender_id and str(d.address).lower().replace("0x", "").zfill(8) == key:
+                return int(str(d.sender_id).lower().replace("0x", ""), 16)
+        if key in self._pending_senders:
+            return self._pending_senders[key]
+        used = {str(d.sender_id).lower().replace("0x", "").zfill(8) for d in devices if d.sender_id}
+        used |= {f"{sid:08x}" for sid in self._pending_senders.values()}
+        for offset in range(1, 128):
+            sid = self.get_sender_id(offset)
+            if sid is None:
+                return None
+            if f"{sid:08x}" not in used:
+                self._pending_senders[key] = sid
+                return sid
+        return None
 
     def get_sender_id(self, offset: int = 1) -> Optional[int]:
         """Get a sender ID derived from base ID + offset (1-127)"""

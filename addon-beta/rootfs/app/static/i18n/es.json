@@ -439,5 +439,6 @@
   "help.source": "Verificado por",
   "help.use_this": "Empezar con este dispositivo",
   "teach_in.gfvs_after": "Ahora marca Control de posición en el dispositivo de persiana existente.",
-  "teach_in.save_device": "Guardar dispositivo"
+  "teach_in.save_device": "Guardar dispositivo",
+  "help.act_tips": "Antes de empezar: selector superior en LRN, no CLR (en CLR el actuador borra cada sensor que oye). En LRN aprende el siguiente telegrama que oiga, sea cual sea: pausa las automatizaciones que conmutan otros dispositivos Eltako. Sin estado después: activa los telegramas de confirmación del actuador, ver su ficha en la lista de dispositivos."
 }

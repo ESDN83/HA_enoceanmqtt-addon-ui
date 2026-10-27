@@ -238,6 +238,19 @@ shows the same steps. No warranty: make a full Home Assistant backup first.
 - Press the teach-in button firmly on your device
 - Some devices require multiple presses or holding the button
 
+### Eltako 61 Series (FSR61, FUD61, FSB61, OPUS 561.164)
+- Teach-in: upper rotary switch to **LRN**, not CLR. On CLR the actuator
+  deletes every sensor it hears.
+- In LRN it learns the next telegram it hears, from any sender. Pause
+  automations that switch other Eltako devices while teaching in.
+- No state in Home Assistant: the confirmation telegrams are off from the
+  factory. Upper switch to CLR, then within 10 s the lower switch 3 times to
+  the **left** stop and back; this toggles them. 3 times to the right
+  deletes every learned sensor.
+- FSB61: use GS2 or GS3 on the lower switch. GS4 and GR are static (the
+  motor runs only while the button is held), so a tap from the app moves the
+  shutter only briefly. The OPUS 561.164 is a rebranded FSB61NP.
+
 ### Eltako 62 Series (FJ62, FSB62, FL62)
 These actuators have no learn positions, only learn mode on and off. The number
 of telegrams they receive decides which kind of sender is learned, so "Send

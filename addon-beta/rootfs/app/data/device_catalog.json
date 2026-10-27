@@ -14,7 +14,7 @@
       "eep": "F6-02-01",
       "actuator_type": "switch",
       "teach": [
-        "Upper rotary switch to LRN, the LED flashes.",
+        "Upper rotary switch to LRN (not CLR), the LED flashes.",
         "Lower rotary switch to the pushbutton function you want (see its manual).",
         "Actuator Teach-In: type Switch, a free sender offset, Send Teach-In. The LED stops flashing: learned.",
         "Turn the upper rotary switch back to its operating position.",
@@ -22,9 +22,11 @@
       ],
       "id_where": "The NP types send a confirmation every time they switch. Switch it by hand or with a learned pushbutton: its ID appears in the telegram list on the Dashboard. The address is only needed for the state in Home Assistant.",
       "notes": [
+        "No state in Home Assistant: confirmation telegrams are off from the factory. Upper dial to CLR, then within 10 s the lower dial 3 times to the LEFT stop and back: toggles them on (3 times to the RIGHT deletes everything).",
+        "While in LRN it learns the next telegram it hears, any of them: pause automations that switch other Eltako devices during the teach-in.",
         "ON and OFF shown the wrong way round: tick Invert reported state on the device."
       ],
-      "source": "Test devices, ADR-0008, ADR-0013",
+      "source": "Test devices, ADR-0008, ADR-0013, FSR61NP manual, forum post 84",
       "art": "flush"
     },
     {
@@ -99,27 +101,33 @@
     },
     {
       "id": "eltako-fsb61",
-      "name": "Eltako FSB61 shutter actuator",
+      "name": "Eltako FSB61 shutter actuator (also OPUS 561.164)",
       "manufacturer": "Eltako",
       "models": [
-        "FSB61NP-230V"
+        "FSB61NP-230V",
+        "OPUS greenNet 561.164 (GN-A-U230V-JRG)"
       ],
       "category": "Shutter / blind actuator (flush-mounted)",
       "method": "actuator",
       "eep": "F6-02-01",
       "actuator_type": "cover",
       "teach": [
-        "Upper rotary switch to LRN, the LED flashes.",
+        "Upper rotary switch to LRN (not CLR), the LED flashes.",
+        "Lower rotary switch to GS2 or GS3. GS4 and GR are static: the motor only runs while the button is held, so a tap moves it a fraction of a second.",
         "Actuator Teach-In: type Blind, a free sender offset, Send Teach-In. The LED stops flashing: learned.",
         "Turn the upper rotary switch back to its operating position.",
         "Click Save device and enter the travel time (seconds for a full run)."
       ],
       "id_where": "It reports end positions and run times; run it once by hand and its ID appears in the telegram list.",
       "notes": [
+        "No state in Home Assistant: confirmation telegrams are off from the factory. Upper dial to CLR, then within 10 s the lower dial 3 times to the LEFT stop and back: toggles them on (3 times to the RIGHT deletes everything).",
+        "While in LRN it learns the next telegram it hears, any of them: pause automations that switch other Eltako devices during the teach-in.",
+        "Static mode wanted anyway: set Press duration on the device so the button is held long enough.",
+        "OPUS 561.164 is a rebranded FSB61NP; on it GS1 also behaved statically (user report).",
         "Runs the wrong way: tick Reverse direction.",
         "With a travel time set, Home Assistant shows a position."
       ],
-      "source": "Issue #39, ADR-0014",
+      "source": "Issue #39, ADR-0014, FSB61NP manual, forum post 84",
       "art": "flush"
     },
     {
@@ -172,7 +180,32 @@
         "No state in Home Assistant: the FAM14 only sends confirmation telegrams with its top rotary switch on 2, 4 or 5 (FAM14 manual).",
         "Disconnect PCT14 from the FAM14 afterwards; while it is connected the FAM14 executes no radio commands."
       ],
-      "source": "Forum post 82, Eltako FAM14 manual",
+      "source": "Forum posts 82 and 84, Eltako FAM14 manual",
+      "art": "din14"
+    },
+    {
+      "id": "eltako-fud14",
+      "name": "Eltako FUD14 dimmer on FAM14 (DIN rail)",
+      "manufacturer": "Eltako",
+      "models": [
+        "FUD14",
+        "FUD14/800W"
+      ],
+      "category": "DIN rail dimmer behind a FAM14 radio module",
+      "method": "actuator",
+      "eep": "A5-38-08",
+      "actuator_type": "light",
+      "teach": [
+        "Put the dimmer into learn mode as its manual describes; the LED flashes.",
+        "Actuator Teach-In: Actuator address = the dimmer's ID from PCT14, type Dimmer, a free sender offset, Send Teach-In. The LED stops flashing: learned.",
+        "Click Save device under the teach-in result."
+      ],
+      "id_where": "No printed radio ID. PCT14 shows it in the FAM14's device list (refresh).",
+      "notes": [
+        "It confirms on and off with a rocker telegram, without the level. The app keeps the brightness you set (since 1.8.5-beta12).",
+        "No state in Home Assistant: the FAM14's top rotary switch must be on 2, 4 or 5."
+      ],
+      "source": "Forum post 84",
       "art": "din14"
     },
     {
@@ -289,7 +322,7 @@
       "notes": [
         "Entities: switch, Power and Energy. Power comes with the plug's own reports, energy from a query every five minutes, which needs the sender ID."
       ],
-      "source": "Issue #48 (telegrams of a real plug)",
+      "source": "Issue #48, forum post 84",
       "art": "module"
     },
     {

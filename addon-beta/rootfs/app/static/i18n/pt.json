@@ -439,5 +439,6 @@
   "help.source": "Verificado por",
   "help.use_this": "Começar com este dispositivo",
   "teach_in.gfvs_after": "Agora marque Controlo de posição no dispositivo de estore existente.",
-  "teach_in.save_device": "Guardar dispositivo"
+  "teach_in.save_device": "Guardar dispositivo",
+  "help.act_tips": "Antes de começar: seletor superior em LRN, não CLR (em CLR o atuador apaga cada sensor que ouve). Em LRN aprende o próximo telegrama que ouvir, seja qual for: pause as automações que comutam outros dispositivos Eltako. Sem estado depois: ative os telegramas de confirmação do atuador, ver a sua entrada na lista de dispositivos."
 }

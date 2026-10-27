@@ -73,12 +73,25 @@ ID taken from the telegram list after one press.
 
 - **Interactive teach-in** (web UI, Teach-In): the app listens and answers
   bidirectional requests itself (radiator valves, D2 modules with UTE). It
-  fills in the sender ID. This is the reliable path; point users to it.
+  fills in the sender ID: the device's own if it has one, else the lowest
+  gateway offset no device uses. This is the reliable path; point users to
+  it.
 - **Sending a teach-in** to an actuator in learn mode:
   `POST /api/gateway/teach-in-actuator` with `destination`, `sender_offset`,
   `actuator_type` (`switch`/`cover` send a rocker, `light` sends A5-38-08,
   `cover_gfvs` the Eltako position path). The actuator must be in learn mode
   first; the user does that at the device.
+- **Eltako 61 series (FSR61, FUD61, FSB61, OPUS 561.164)**: upper dial to
+  LRN, never CLR (on CLR the actuator deletes every sensor it hears). In LRN
+  it learns the next telegram it hears, from any sender: tell the user to
+  pause automations that switch other Eltako devices during the teach-in.
+- **No state from an Eltako 61 actuator**: confirmation telegrams are off
+  from the factory. Upper dial to CLR, then within 10 s the lower dial 3
+  times to the left stop and back toggles them. 3 times to the right
+  deletes every learned sensor: say the direction explicitly.
+- **FSB61 lower dial**: GS2 or GS3. GS4 and GR are static (the motor runs
+  only while the button is held), so a tap moves the shutter a fraction of
+  a second; a `press_time` on the device helps if static mode is wanted.
 - **Eltako 62 series (FJ62, FSB62, FL62)** have no learn positions. The
   number of teach-in telegrams decides what is learned: 3 universal
   pushbutton, 4 directional pushbutton (use for covers), 5 central up, 6
@@ -117,6 +130,8 @@ ID taken from the telegram list after one press.
 ### Switches and dimmers
 - Relay on F6: `actuator_type: switch` or `light` (no brightness).
 - Dimmer: `A5-38-08` with `actuator_type: light` (brightness works).
+  Eltako dimmers behind a FAM14 (FUD14) confirm with a rocker telegram
+  without the level; the app keeps the last brightness.
 - The commanded state is shown at once; the actuator's confirmation
   overwrites it.
 
