@@ -140,7 +140,8 @@ ID taken from the telegram list after one press.
   `actuator_type: cover`. Open, close and stop are short taps; a tap on a
   shutter that stands still starts it, so the app skips Stop when the
   actuator's last report since the last command says it stopped (and sends
-  it otherwise). With `position_control` (GFVS, `0xFFF80D80`) Stop is a
+  it otherwise). A second Stop within 2 s of an unanswered one is skipped
+  too (a double tap restarts the shutter). With `position_control` (GFVS, `0xFFF80D80`) Stop is a
   real stop command. Only the newer FSB61NP (manual 30200430) takes GFVS;
   the older one (manual 30200420) has none: ask which manual the user has
   before suggesting it. They report end

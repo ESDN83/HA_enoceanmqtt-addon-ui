@@ -1091,12 +1091,16 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             # stands still (issue #49). When the actuator's last report since
             # the last command says it stopped, nothing is sent. Without such
             # a report the tap goes out as before: stopping a moving shutter
-            # matters more than an occasional restart. ADR-0037.
-            if serial_handler.cover_reported_stopped(device_name):
-                logger.info(f"STOP for {device_name} not sent: the actuator reported it stopped")
+            # matters more than an occasional restart. A second Stop before
+            # the first is answered is not sent either: the actuator takes it
+            # as a new tap. ADR-0037.
+            blocked = serial_handler.cover_stop_blocked(device_name)
+            if blocked:
+                logger.info(f"STOP for {device_name} not sent: {blocked}")
                 return
             rocker = _last_cover_rocker.get(device_name, 0x70)
-            serial_handler.cover_command_sent(device_name)
+            # Before sending, the report can come before this send returns.
+            serial_handler.cover_stop_sent(device_name)
             sent = await serial_handler.send_rps_press_release(
                 sender_id=sender_id, press_data=rocker,
                 destination=broadcast, label=device_name

@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.8.5-beta14] - 2026-10-28 (beta channel)
+
+### Fixed
+
+- **A quick second Stop no longer restarts the shutter** (rocker-taught
+  Eltako and OPUS shutters). After a Stop is sent, further Stops are not
+  sent until the actuator reports it stopped, a new Open or Close is sent,
+  or 2 s pass without an answer (then Stop is sent again, in case the first
+  was lost). This also covers a Stop that arrives just before the travel
+  report. Issue #49.
+
 ## [1.8.5-beta13] - 2026-10-27 (beta channel)
 
 ### Changed

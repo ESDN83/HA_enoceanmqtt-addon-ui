@@ -277,7 +277,9 @@ Teach-In" has to be clicked several times in a row:
   runs interrupts it. The same tap on a shutter that stands still starts it,
   as on a wall switch, so the app does not send Stop when the actuator's last
   report (end position or run time) says it has stopped. Without such a report
-  Stop is sent, because stopping a moving shutter matters more.
+  Stop is sent, because stopping a moving shutter matters more. A second
+  Stop within 2 s of the first is not sent until the actuator has answered
+  the first, since it would be taken as a new tap and restart the shutter.
 - With **Position control** (GFVS teach-in, see below) Stop is a real stop
   command and never starts the shutter. The newer FSB61NP (manual
   30200430) takes the same GFVS teach-in telegram (`0xFFF80D80`); the older

@@ -198,9 +198,12 @@ class SerialHandler:
         self._cover_commands: Dict[str, dict] = {}
         # Rocker-taught shutters: what the actuator last reported, "moving"
         # (travel started) or "stopped" (end position or travel report).
-        # Cleared by every command sent, so only a report that came after
+        # Cleared by every OPEN/CLOSE sent, so only a report that came after
         # the last command counts (issue #49, ADR-0037).
         self._cover_motion: Dict[str, str] = {}
+        # When the last Stop went out, until a report answers it. A second
+        # Stop in that window would be a new tap and restart the shutter.
+        self._cover_stop_sent: Dict[str, float] = {}
         # Bumped every time a read loop is started or stopped. A loop that
         # finds the counter moved on knows a newer one has taken over and
         # stops, so a stale one can never keep reading. See _stop_reader.
@@ -948,8 +951,10 @@ class SerialHandler:
         cover_travel = None if vld_actuator else self._eltako_cover_travel(telegram, device)
         if cover_state in ("opening", "closing"):
             self._cover_motion[device.name] = "moving"
+            self._cover_stop_sent.pop(device.name, None)
         elif cover_state is not None or cover_travel is not None:
             self._cover_motion[device.name] = "stopped"
+            self._cover_stop_sent.pop(device.name, None)
 
         # Check RORG matches the EEP profile, FD62NPN sends F6+A5+D1 but
         # only A5 matches A5-38-08. Decoding F6/D1 with A5 profile = garbage.
@@ -1127,13 +1132,28 @@ class SerialHandler:
     # runtime expired, so the end positions are the only points where the
     # position is certain. They are the synchronisation points, which is how
     # Eltako's own GFVS software tracks the position. See ADR-0014.
-    def cover_reported_stopped(self, name: str) -> bool:
-        """True only if the shutter's last report since the last command said
-        it stands still."""
-        return self._cover_motion.get(name) == "stopped"
+    # Travel reports came 0.2 to 0.4 s after a Stop (issue #49). A Stop with
+    # no answer after this long is taken as lost and may be sent again.
+    COVER_STOP_ANSWER_TIME = 2.0
+
+    def cover_stop_blocked(self, name: str) -> Optional[str]:
+        """Why a Stop must not be sent now, or None. Either the shutter's last
+        report since the last OPEN/CLOSE said it stands still, or a Stop went
+        out moments ago and its report has not come yet."""
+        if self._cover_motion.get(name) == "stopped":
+            return "the actuator reported it stopped"
+        sent = self._cover_stop_sent.get(name)
+        if sent is not None and time.monotonic() - sent < self.COVER_STOP_ANSWER_TIME:
+            return "a Stop was sent moments ago and is not answered yet"
+        return None
 
     def cover_command_sent(self, name: str):
         self._cover_motion.pop(name, None)
+        self._cover_stop_sent.pop(name, None)
+
+    def cover_stop_sent(self, name: str):
+        self._cover_motion.pop(name, None)
+        self._cover_stop_sent[name] = time.monotonic()
 
     _ELTAKO_COVER_RPS = {0x70: "open", 0x50: "closed", 0x01: "opening", 0x02: "closing"}
     _ELTAKO_COVER_INVERTED = {"open": "closed", "closed": "open",
