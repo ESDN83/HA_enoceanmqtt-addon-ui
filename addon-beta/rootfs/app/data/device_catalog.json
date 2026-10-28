@@ -126,7 +126,7 @@
         "OPUS 561.164 is a rebranded FSB61NP; on it GS1 also behaves statically (user report, confirmed on two actuators).",
         "Runs the wrong way: tick Reverse direction.",
         "With a travel time set, Home Assistant shows a position.",
-        "Stop is a tap of the last direction; the app skips it when the actuator reported it already stands still. For a real stop and positions use the second teach-in with type Blind position (GFVS, sent once) and Position control."
+        "Stop is a tap of the last direction; the app skips it when the actuator reported it already stands still. For a real stop and positions: the second teach-in with type Blind position (GFVS, sent once) and Position control. Only the newer FSB61NP (manual 30200430) has GFVS; the older one (manual 30200420) does not."
       ],
       "source": "Issue #39, ADR-0014, FSB61NP manual, forum post 84, issue #49",
       "art": "flush"

@@ -10,6 +10,9 @@
   the actuator's last report (end position or run time) says it has
   stopped, Stop is now not sent. Without such a report it is sent as
   before. Issue #49.
+- Docs and device list: only the newer FSB61NP (manual 30200430) supports
+  the GFVS teach-in for position control; the older one (manual 30200420)
+  does not. Issue #49.
 
 ## [1.8.5-beta12] - 2026-10-27 (beta channel)
 

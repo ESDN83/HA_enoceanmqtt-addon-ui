@@ -279,8 +279,9 @@ Teach-In" has to be clicked several times in a row:
   report (end position or run time) says it has stopped. Without such a report
   Stop is sent, because stopping a moving shutter matters more.
 - With **Position control** (GFVS teach-in, see below) Stop is a real stop
-  command and never starts the shutter. The FSB61NP takes the same GFVS
-  teach-in telegram (`0xFFF80D80`).
+  command and never starts the shutter. The newer FSB61NP (manual
+  30200430) takes the same GFVS teach-in telegram (`0xFFF80D80`); the older
+  one (manual 30200420) has no GFVS and stays on the rocker path.
 - Up is the top half of the rocker, down the bottom one, the way Eltako wires a
   directional pushbutton. If your shutter runs the wrong way, tick **Reverse
   direction** on the device. Covers that existed before 1.8.1 have that box
