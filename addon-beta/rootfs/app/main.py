@@ -24,7 +24,7 @@ from api import devices, eep, mappings, system, gateway
 
 # Import core components
 from core.mqtt_handler import MQTTHandler
-from core.serial_handler import SerialHandler, RPS_HOLD_SECONDS
+from core.serial_handler import SerialHandler, RPS_HOLD_SECONDS, keep_level_when_off
 from core.device_manager import DeviceManager
 from core.eep_manager import EEPManager
 from core.mapping_manager import MappingManager
@@ -703,10 +703,13 @@ async def _echo_light_state(device_name: str, command: str, brightness: int = No
     """
     if not mqtt_handler:
         return
-    state = dict(mqtt_handler.get_last_state(device_name) or {})
+    previous = mqtt_handler.get_last_state(device_name) or {}
+    state = dict(previous)
     state["state"] = command
     if command == "OFF":
+        # The last level stays in the state, see keep_level_when_off (#52).
         state["brightness"] = 0
+        keep_level_when_off(state, previous)
     elif brightness is not None:
         state["brightness"] = brightness
     await mqtt_handler.publish_state(device_name, state)

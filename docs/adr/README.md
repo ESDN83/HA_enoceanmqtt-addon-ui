@@ -44,3 +44,4 @@ Rules:
 - [0037](0037-f6-cover-stop-only-when-moving.md) A rocker-taught shutter is not sent Stop when it reported standing still
 - [0038](0038-tcp-idle-keepalive-and-reconnect-wait.md) TCP idle keepalive, commands wait for a reconnect, own echoes ignored
 - [0039](0039-meter-readings-need-confirmation.md) Implausible meter readings need a second reading
+- [0040](0040-light-off-keeps-last-level.md) A light that is off keeps reporting its last level

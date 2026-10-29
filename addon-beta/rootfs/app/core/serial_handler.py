@@ -133,6 +133,23 @@ def crc8(data: bytes) -> int:
     return crc
 
 
+def keep_level_when_off(state: Dict[str, Any], previous: Dict[str, Any]) -> None:
+    """A light that is off keeps reporting the level it was last on at.
+
+    Home Assistant ignores brightness 0 and keeps the last level only in
+    memory. After a Home Assistant restart it reads the retained state, and
+    for a dimmer that was off it found 0 and so no level at all: the next
+    plain "turn on" sent 100 % (issue #52). With the last level in the state
+    it sends that level again. HA shows no brightness for a light that is
+    off, and SW / EDIM keep the actuator's real output.
+    """
+    if state.get("state") != "OFF":
+        return
+    level = previous.get("brightness")
+    if isinstance(level, (int, float)) and level > 0:
+        state["brightness"] = level
+
+
 @dataclass
 class RadioTelegram:
     """Represents an EnOcean radio telegram"""
@@ -1218,6 +1235,9 @@ class SerialHandler:
                         if target.actuator_type == "light" and "brightness" in prev:
                             payload["brightness"] = prev["brightness"]
 
+                if target.actuator_type == "light":
+                    keep_level_when_off(
+                        payload, self.mqtt_handler.get_last_state(target.name) or {})
                 await self.mqtt_handler.publish_state(target.name, payload)
                 logger.debug(f"TX MQTT [{target.name}] Published state to {self.mqtt_handler.prefix}/{target.name}/state")
 

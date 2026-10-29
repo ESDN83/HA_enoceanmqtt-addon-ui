@@ -244,6 +244,12 @@ shows the same steps. No warranty: make a full Home Assistant backup first.
 - Verify the MQTT discovery prefix matches your HA config (default: `homeassistant`)
 - Check the app log for errors
 
+### Dimmer Turns On at 100 %
+- A dimmer that is off keeps reporting the level it was last on at, so a
+  plain "turn on" (dashboard toggle, voice, automation without brightness)
+  returns to that level, also after a Home Assistant restart. Up to beta15
+  a dimmer that was off during the restart came back at 100 %.
+
 ### Teach-In Not Working
 - Make sure the EnOcean gateway shows "connected" (green status)
 - Press the teach-in button firmly on your device

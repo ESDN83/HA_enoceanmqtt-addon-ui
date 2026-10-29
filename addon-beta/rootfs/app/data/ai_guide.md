@@ -132,6 +132,9 @@ ID taken from the telegram list after one press.
 - Dimmer: `A5-38-08` with `actuator_type: light` (brightness works).
   Eltako dimmers behind a FAM14 (FUD14) confirm with a rocker telegram
   without the level; the app keeps the last brightness.
+- A light that is off keeps its last level in `brightness` (SW / EDIM show
+  the real output). Home Assistant then turns it back on at that level,
+  also after a Home Assistant restart.
 - The commanded state is shown at once; the actuator's confirmation
   overwrites it.
 

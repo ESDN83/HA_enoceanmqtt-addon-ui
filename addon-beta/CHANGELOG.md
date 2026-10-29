@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.5-beta16] - 2026-10-29 (beta channel)
+
+### Fixed
+
+- **A dimmer that was off during a Home Assistant restart no longer comes
+  back at 100 %.** A light that is off now keeps its last level in the
+  state, so Home Assistant turns it on at that level again. Issue #52.
+
 ## [1.8.5-beta15] - 2026-10-29 (beta channel)
 
 ### Fixed
