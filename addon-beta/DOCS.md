@@ -179,6 +179,9 @@ app installed in Home Assistant at all.
 When enabled (default), the app persists the last known state of all devices.
 After a restart, these states are republished so that infrequent sensors (like a
 Kessel Staufix that only reports every 8-10 hours) don't show as "unavailable".
+While the app runs it always keeps the last state in memory, whatever this
+option says (a dimmer's last level, a shutter's position); the option only
+decides whether it survives a restart.
 
 ## Switching from EnOcean MQTT Slim or ChristopheHD enocean-mqtt
 

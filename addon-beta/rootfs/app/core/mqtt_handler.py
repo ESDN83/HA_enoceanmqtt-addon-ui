@@ -393,11 +393,14 @@ class MQTTHandler:
         # Merge cached other-channel values for multi-channel devices
         state = self._merge_multichannel_state(device_name, state)
 
-        # Persist state for recovery (only if caching enabled).
+        # The last state is always kept in memory: the light level, the cover
+        # position and the meter checks build on it. Without the cache option
+        # it was never stored, and a dimmer switched off forgot its level
+        # (#52). The option decides only whether it survives a restart.
         # Writes are debounced: updates just mark the cache dirty and a
         # single background task flushes the full YAML every _save_interval.
+        self._last_states[device_name] = state
         if self.cache_states:
-            self._last_states[device_name] = state
             self._schedule_state_save()
 
         await self.publish(topic, state, retain=True)
@@ -509,6 +512,10 @@ class MQTTHandler:
             async with aiofiles.open(self._states_file, 'r') as f:
                 content = await f.read()
                 self._last_states = yaml.safe_load(content) or {}
+            # Saved by versions that marked the cached state itself.
+            for state in self._last_states.values():
+                if isinstance(state, dict):
+                    state.pop("_restored", None)
 
             logger.info(f"Loaded {len(self._last_states)} persisted device states into memory")
 
@@ -527,8 +534,10 @@ class MQTTHandler:
 
         for device_name, state in self._last_states.items():
             topic = f"{self.prefix}/{device_name}/state"
-            state["_restored"] = True
-            await self.publish(topic, state, retain=True)
+            # Only the republished copy is marked. Marking the cached state
+            # itself carried "_restored" into every later state built on it,
+            # such as the echo of the next command (#52).
+            await self.publish(topic, dict(state, _restored=True), retain=True)
             logger.debug(f"Restored state for {device_name}")
 
         logger.info(f"Republished {len(self._last_states)} cached device states")

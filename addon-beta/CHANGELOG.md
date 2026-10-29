@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.8.5-beta17] - 2026-10-29 (beta channel)
+
+### Fixed
+
+- **The dimmer level fix from beta16 now also works with Cache Device
+  States switched off.** The app kept no last state in memory at all
+  without that option, so a dimmer switched off reported level 0 again.
+  The option now only decides whether states survive a restart. Issue #52.
+- A restored state no longer passes its "_restored" mark on to the next
+  state, such as the echo of a command. Issue #52.
+
 ## [1.8.5-beta16] - 2026-10-29 (beta channel)
 
 ### Fixed
