@@ -85,11 +85,14 @@ availability_task: asyncio.Task = None
 # only rewritten on a change, plus the moment the add-on came up (#37).
 _availability_known: Dict[str, bool] = {}
 _availability_started_at: Optional[datetime] = None
-# Throttle for the command queue state topic. Transitions are always published,
-# this only caps the pending count in between (#38).
-QUEUE_PUBLISH_MIN_INTERVAL = 0.5
+# Throttle for the diagnostics topic. Busy/idle transitions are always
+# published; everything else (pending count, last telegram time) at most every
+# 5 s, the latest state going out when the 5 s are up. At 0.5 s it was written
+# after nearly every telegram, 837 times a quiet night (#38, #51).
+QUEUE_PUBLISH_MIN_INTERVAL = 5.0
 _queue_last_published_at: float = 0.0
 _queue_last_busy: Optional[bool] = None
+_queue_trailing: Optional[asyncio.Task] = None
 
 
 @asynccontextmanager
@@ -651,12 +654,21 @@ async def _publish_gateway_state(force: bool = False):
     state = _gateway_diagnostics_state()
     now = time.monotonic()
     changed = state.get("busy") != _queue_last_busy
-    if not (force or changed) and now - _queue_last_published_at < QUEUE_PUBLISH_MIN_INTERVAL:
+    wait = QUEUE_PUBLISH_MIN_INTERVAL - (now - _queue_last_published_at)
+    if not (force or changed) and wait > 0:
+        global _queue_trailing
+        if _queue_trailing is None or _queue_trailing.done():
+            _queue_trailing = asyncio.create_task(_publish_gateway_state_later(wait))
         return
 
     _queue_last_busy = state.get("busy")
     _queue_last_published_at = now
     await mqtt_handler.publish(mqtt_handler.diagnostics_topic, state, retain=True)
+
+
+async def _publish_gateway_state_later(delay: float):
+    await asyncio.sleep(delay)
+    await _publish_gateway_state()
 
 
 async def _echo_switch_state(device_name: str, command: str):
@@ -761,8 +773,13 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             await pilot_wire.set_mode(module, payload)
             return
 
+    # A command that arrives while the transport reconnects (about a second
+    # after a gateway closed the connection) waits for it instead of being
+    # dropped (issue #51).
+    if serial_handler and not serial_handler.is_connected:
+        await serial_handler.wait_connected(5)
     if not serial_handler or not serial_handler.is_connected:
-        logger.warning(f"Cannot send command for {device_name}: serial not connected")
+        logger.warning(f"Command for {device_name} not sent: transceiver not connected")
         return
 
     if not device_manager:

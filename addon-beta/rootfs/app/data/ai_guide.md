@@ -170,6 +170,11 @@ ID taken from the telegram list after one press.
   none: interactive teach-in fills it in.
 - They report energy only when asked by default; the app does not change
   that setting (CMD 5).
+- Implausible readings (energy falling or rising faster than 4 kW, power
+  above 4000 W) are held back and queried again; only a confirmed second
+  reading is published. A counter reset or replaced module therefore shows
+  up after a second reading, not at once. Log: "implausible, held back",
+  "confirmed by a second reading".
 
 ### Radiator valves (A5-20-01, Micropelt MVA004 / SAM)
 - The valve listens only about one second after it transmits. The app
@@ -210,6 +215,13 @@ on/off) must be renamed by hand and their automations checked.
   `GET /api/eep/{eep_id}`. A wrong profile is the usual cause.
 - An actuator does not react: sender ID set, actuator taught to that
   sender, no other device on the same offset, then the app log.
+- TCP gateway drops (`Transport lost ... FIN received` at a fixed
+  interval): the gateway's idle timeout. The app sends CO_RD_VERSION after
+  60 s without transmitting; if drops continue, the user raises the
+  gateway's timeout (Symcon LAN gateway "Inactivity Timer", default 300 s).
+- Senders in the transceiver's base ID range (base ID + 0..127) are the
+  app's own telegrams repeated back; they are logged at debug only and
+  never listed as unknown devices.
 - Always quote what you found to the user before suggesting a change.
 
 ## Debugging

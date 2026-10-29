@@ -21,10 +21,19 @@ Every D2-01 type whose profile has the measurement commands (CMD 5/6/7 in
 EEP.xml: 08, 09, 0B, 0C, 0E) is queried the same way, and gets Power and
 Energy. A NodOn plug reports power on its own but energy only when asked
 (issue #48). The query carries the device's channel in its IO field.
+
+A reading that cannot be right (energy lower than before or rising faster
+than the maximum load allows, power above it) is held back and asked for
+again at once. It is published only when a second reading confirms it, so a
+corrupted telegram is dropped and a real counter reset or a replaced module
+still goes through. Home Assistant reads a falling total_increasing value as
+a meter reset, so one corrupted value would spoil the energy statistics for
+good (issue #51, ADR-0039).
 """
 
 import asyncio
 import logging
+import time
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -37,6 +46,12 @@ QUERY_MODE = bytes([0x09])
 QUERY_POWER_BIT = 0x20  # CMD 6 byte 1: bit 5 power (else energy), IO below
 POLL_SECONDS = 300
 METER_FIELDS = ("POWER_W", "ENERGY_KWH")
+# A D2-01 module switches at most 16 A; with margin, more than this is not a
+# load it can measure. Only decides what gets a second look, so a real higher
+# value still goes through once it is confirmed.
+MAX_POWER_W = 4000.0
+# Rounding and counter resolution: smaller differences are not a jump.
+ENERGY_TOLERANCE_KWH = 0.01
 
 
 def is_pilot(device) -> bool:
@@ -94,6 +109,10 @@ class PilotWire:
         self.mqtt_handler = mqtt_handler
         self.eep_manager = eep_manager
         self._task: Optional[asyncio.Task] = None
+        # Per device: when the published energy was last accepted, and a
+        # held-back reading waiting for its confirmation, as (value, time).
+        self._energy_at: Dict[str, float] = {}
+        self._held: Dict[tuple, tuple] = {}
 
     def meters(self, device) -> bool:
         if device is None or self.eep_manager is None:
@@ -114,8 +133,73 @@ class PilotWire:
         merged.update(payload)
         io = payload.get("IO")
         if payload.get("CMD") != 7 or io is None or int(io) == int(getattr(device, "channel", 0) or 0):
-            merged.update(derived_state(payload))
+            merged.update(self._checked(device, derived_state(payload), last or {}))
         return merged
+
+    def _energy_ok(self, value: float, since: Optional[tuple]) -> bool:
+        """value is a plausible successor of since = (kWh, time)."""
+        if since is None or since[0] is None:
+            return True
+        before, at = since
+        if value < before - ENERGY_TOLERANCE_KWH:
+            return False
+        if at is None:
+            return True  # no time to measure the rise against
+        hours = max(0.0, time.monotonic() - at) / 3600
+        return value - before <= MAX_POWER_W / 1000 * hours + ENERGY_TOLERANCE_KWH
+
+    def _checked(self, device, values: Dict[str, Any], last: Dict[str, Any]) -> Dict[str, Any]:
+        """The readings that may be published now; the others are held back
+        and asked for again."""
+        out = dict(values)
+        now = time.monotonic()
+        if "ENERGY_KWH" in out:
+            value = out["ENERGY_KWH"]
+            key = (device.name, "energy")
+            held = self._held.pop(key, None)
+            last_value = last.get("ENERGY_KWH")
+            previous = (float(last_value), self._energy_at.get(device.name)) if last_value is not None else None
+            if self._energy_ok(value, previous):
+                self._energy_at[device.name] = now
+            elif held is not None and self._energy_ok(value, held):
+                logger.info(f"{device.name}: energy {value} kWh confirmed by a second "
+                            f"reading (was {last_value} kWh), taken as a counter reset")
+                self._energy_at[device.name] = now
+            else:
+                logger.warning(f"{device.name}: energy {value} kWh after {last_value} kWh "
+                               f"is implausible, held back and asked again")
+                self._held[key] = (value, now)
+                del out["ENERGY_KWH"]
+                self._ask_again(device, energy=True)
+        if "POWER_W" in out:
+            value = out["POWER_W"]
+            key = (device.name, "power")
+            held = self._held.pop(key, None)
+            if 0 <= value <= MAX_POWER_W:
+                pass
+            elif held is not None:
+                logger.info(f"{device.name}: power {value} W confirmed by a second reading")
+            else:
+                logger.warning(f"{device.name}: power {value} W is implausible, "
+                               f"held back and asked again")
+                self._held[key] = (value, now)
+                del out["POWER_W"]
+                self._ask_again(device, energy=False)
+        return out
+
+    def _ask_again(self, device, energy: bool):
+        power, energy_query = query_payloads(getattr(device, "channel", 0))
+        data = energy_query if energy else power
+        label = "energy query (check)" if energy else "power query (check)"
+
+        async def later():
+            # Not from inside the read loop: it must be free for the answer.
+            await asyncio.sleep(0.5)
+            await self._send(device, data, label)
+        try:
+            asyncio.get_running_loop().create_task(later())
+        except RuntimeError:
+            pass  # no loop (tests): the next poll asks again
 
     async def _send(self, device, data: bytes, label: str) -> bool:
         try:
@@ -158,6 +242,11 @@ class PilotWire:
         await asyncio.sleep(30)  # let the transceiver connect first
         while True:
             for device in list(self.device_manager.devices.values()):
-                if self.meters(device) and device.sender_id and self.serial_handler.is_connected:
-                    await self.query(device)
+                if not (self.meters(device) and device.sender_id):
+                    continue
+                # A poll that falls into a reconnect waits for it (#51).
+                if not await self.serial_handler.wait_connected(5):
+                    logger.warning(f"{device.name} not polled: transceiver not connected")
+                    continue
+                await self.query(device)
             await asyncio.sleep(POLL_SECONDS)

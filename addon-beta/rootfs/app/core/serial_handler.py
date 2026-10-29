@@ -25,7 +25,27 @@ PACKET_TYPE_EVENT = 0x04
 PACKET_TYPE_COMMON_COMMAND = 0x05
 
 # Common commands
+CO_RD_VERSION = 0x03
 CO_RD_IDBASE = 0x08
+
+# ESP3 event codes. CO_TX_DONE follows every telegram sent; the two in
+# _EVENT_WARNINGS mean a telegram did not go out as asked.
+_EVENT_NAMES = {
+    0x01: "SA_RECLAIM_NOT_SUCCESSFUL", 0x02: "SA_CONFIRM_LEARN",
+    0x03: "SA_LEARN_ACK", 0x04: "CO_READY", 0x05: "CO_EVENT_SECUREDEVICES",
+    0x06: "CO_DUTYCYCLE_LIMIT", 0x07: "CO_TRANSMIT_FAILED", 0x08: "CO_TX_DONE",
+    0x09: "CO_LRN_MODE_DISABLED",
+}
+_EVENT_WARNINGS = {0x06, 0x07}
+
+# A TCP link the app has sent nothing on for this long gets a CO_RD_VERSION.
+# TCP keepalive carries no data, so it does not stop a gateway that drops idle
+# connections (Symcon EnOcean LAN gateway: 300 s by default). Counted from the
+# last transmit, not receive: a gateway may count only what it receives. The
+# answer also shows the transceiver itself is alive, not only the socket; two
+# unanswered in a row drop the connection for a reconnect (issue #51).
+TCP_IDLE_KEEPALIVE_SECONDS = 60
+KEEPALIVE_MISSES_BEFORE_RECONNECT = 2
 
 # Response return codes
 RET_OK = 0x00
@@ -204,6 +224,11 @@ class SerialHandler:
         # When the last Stop went out, until a report answers it. A second
         # Stop in that window would be a new tap and restart the shutter.
         self._cover_stop_sent: Dict[str, float] = {}
+        self._keepalive_running = False
+        self._keepalive_misses = 0
+        # "Unknown device" senders already logged at INFO, with the time.
+        # Once an hour per sender is enough to find a device to add (#51).
+        self._unknown_logged: Dict[int, float] = {}
         # Bumped every time a read loop is started or stopped. A loop that
         # finds the counter moved on knows a newer one has taken over and
         # stops, so a stale one can never keep reading. See _stop_reader.
@@ -212,6 +237,15 @@ class SerialHandler:
     @property
     def is_connected(self) -> bool:
         """Returns connection status"""
+        return self._connected
+
+    async def wait_connected(self, timeout: float) -> bool:
+        """Wait up to timeout seconds for the transport to be back. A command
+        that arrives during a reconnect (about a second) waits for it instead
+        of being dropped (issue #51)."""
+        deadline = time.monotonic() + timeout
+        while not self._connected and time.monotonic() < deadline:
+            await asyncio.sleep(0.1)
         return self._connected
 
     @property
@@ -328,7 +362,7 @@ class SerialHandler:
         loops call recv() on whatever `self._socket` currently is, so the
         inbound byte stream is split between them and neither ever assembles a
         whole ESP3 frame: receiving dies silently while sending still works,
-        and the log fills with several "Serial reader: still waiting for data"
+        and the log fills with several "Reader: still waiting for data"
         lines that share an elapsed time but not a packet count.
 
         Reported as #41 after reconnect loops, "restart services" and a failed
@@ -346,7 +380,7 @@ class SerialHandler:
             pass
         except Exception as e:
             logger.debug(f"Previous read loop ended with {e}")
-        logger.info("Serial reader: previous loop stopped")
+        logger.info("Reader: previous loop stopped")
 
     # How long a session has to last before it counts as usable on its own,
     # without having carried a single byte. An EnOcean gateway can be silent
@@ -387,7 +421,7 @@ class SerialHandler:
             if generation is not None and generation != self._reader_generation:
                 # A newer loop owns the transport. Two readers split the byte
                 # stream and neither sees a whole frame (#41).
-                logger.info("Serial reader: superseded by a newer loop, stopping")
+                logger.info("Reader: superseded by a newer loop, stopping")
                 return
             try:
                 # Wait for sync byte (0x55) using run_in_executor
@@ -400,13 +434,17 @@ class SerialHandler:
                     idle = now - idle_since
                     if idle - idle_logged >= 30:
                         idle_logged = idle
-                        logger.info(
-                            f"Serial reader #{generation}: still waiting for data "
+                        # Routine while nothing transmits: 858 lines a night
+                        # at INFO in a field log (#51).
+                        logger.debug(
+                            f"Reader #{generation}: still waiting for data "
                             f"({idle:.0f}s elapsed, {packet_count} packets so far)"
                         )
+                    self._maybe_keepalive()
                     continue
 
                 idle_since = None
+                self._maybe_keepalive()
                 session_bytes += 1
                 backoff = 1.0  # a byte arrived, so the session is usable
 
@@ -481,7 +519,7 @@ class SerialHandler:
                     if self._response_future and not self._response_future.done():
                         self._response_future.set_result(packet_data)
                 elif packet_type == PACKET_TYPE_EVENT:
-                    logger.info(f"Event packet: {packet_data.hex()}")
+                    self._log_event(packet_data)
 
             except asyncio.CancelledError:
                 break
@@ -523,6 +561,53 @@ class SerialHandler:
                     await asyncio.sleep(1)
 
         logger.info("Serial read loop stopped")
+
+    def _log_event(self, packet_data: bytes):
+        code = packet_data[0] if packet_data else None
+        name = _EVENT_NAMES.get(code, "unknown event")
+        detail = packet_data[1:].hex()
+        line = f"Transceiver event 0x{code if code is not None else 0:02X} {name}" + (f" ({detail})" if detail else "")
+        # CO_DUTYCYCLE_LIMIT with 0x00 is the all clear after the limit.
+        if code in _EVENT_WARNINGS and not (code == 0x06 and packet_data[1:2] == b"\x00"):
+            logger.warning(line)
+        elif code == 0x08:
+            logger.debug(line)
+        else:
+            logger.info(line)
+
+    def _maybe_keepalive(self):
+        if (self.is_tcp and self._connected and not self._keepalive_running
+                and time.monotonic() - self._last_tx >= TCP_IDLE_KEEPALIVE_SECONDS):
+            self._keepalive_running = True
+            # A task, not awaited: only the read loop can deliver the answer.
+            asyncio.create_task(self._idle_keepalive())
+
+    async def _idle_keepalive(self):
+        try:
+            await self._send_command(CO_RD_VERSION)
+            self._keepalive_misses = 0
+            logger.debug("Idle keepalive: transceiver answered CO_RD_VERSION")
+        except (TransceiverBusyError, NotConnectedError):
+            pass  # busy is just as good; not connected is the reconnect's job
+        except TransportLostError as e:
+            logger.warning(f"Idle keepalive: {e}")
+        except CommandTimeoutError as e:
+            self._keepalive_misses += 1
+            if self._keepalive_misses < KEEPALIVE_MISSES_BEFORE_RECONNECT:
+                logger.warning(f"Idle keepalive: {e}")
+            else:
+                self._keepalive_misses = 0
+                logger.warning("Transceiver did not answer two keepalives in a row, "
+                               "reconnecting")
+                # The read loop sees the shutdown and takes its usual
+                # reconnect path.
+                if self._socket:
+                    try:
+                        self._socket.shutdown(socket.SHUT_RDWR)
+                    except OSError:
+                        pass
+        finally:
+            self._keepalive_running = False
 
     async def _close_transport(self):
         """Close the current serial/socket transport without touching task state."""
@@ -654,6 +739,15 @@ class SerialHandler:
 
         logger.debug(f"RX [{telegram.sender_hex}] RORG={telegram.rorg_hex} Data={telegram.data.hex().upper()} dBm={telegram.dbm}")
 
+        # Our own telegram, sent back by a repeater with our sender ID in it.
+        # It is not a device, so it stays out of the unknown device list and
+        # the INFO log (issue #51).
+        if self._is_own_sender(sender_id) and (
+                self.device_manager is None
+                or self.device_manager.get_device_by_address(telegram.sender_hex) is None):
+            logger.debug(f"RX [{telegram.sender_hex}] own telegram, repeated back")
+            return
+
         # Check if this is a teach-in telegram.
         # Only treat as teach-in if the sender is NOT already configured:
         # some non-standard devices (e.g. Eltako Staufix boiler sensor) send
@@ -707,6 +801,12 @@ class SerialHandler:
             device_name, eep_id, decoded = await self._process_telegram(telegram)
 
         # Store in telegram buffer
+        if device_name is None and not is_teach_in and valve_teach is None:
+            # The whole frame as received, to tell a corrupted telegram from a
+            # real unknown sender (#51).
+            logger.debug(f"RX [{telegram.sender_hex}] raw ERP1 {data.hex().upper()} "
+                         f"opt {optional.hex().upper()}")
+
         if self.telegram_buffer:
             self.telegram_buffer.add(
                 sender_id=telegram.sender_hex,
@@ -726,6 +826,11 @@ class SerialHandler:
                 await callback(telegram)
             except Exception as e:
                 logger.error(f"Telegram callback error: {e}")
+
+    def _is_own_sender(self, sender_id: int) -> bool:
+        """True for the transceiver's base ID range (base ID + 0..127), the
+        sender IDs this app transmits with."""
+        return self._base_id is not None and 0 <= sender_id - self._base_id <= 0x7F
 
     def _is_teach_in(self, telegram: RadioTelegram) -> bool:
         """Check if telegram is a teach-in"""
@@ -909,7 +1014,16 @@ class SerialHandler:
         # Find device by address
         device = self.device_manager.get_device_by_address(telegram.sender_hex)
         if not device:
-            logger.info(f"RX [{telegram.sender_hex}] Unknown device (not configured)")
+            now = time.monotonic()
+            last = self._unknown_logged.get(telegram.sender_id)
+            if last is None or now - last >= 3600:
+                if len(self._unknown_logged) > 1000:
+                    self._unknown_logged.clear()  # corrupted IDs, mostly
+                self._unknown_logged[telegram.sender_id] = now
+                logger.info(f"RX [{telegram.sender_hex}] Unknown device (not configured), "
+                            f"logged once an hour at INFO")
+            else:
+                logger.debug(f"RX [{telegram.sender_hex}] Unknown device (not configured)")
             return None, None, None
 
         # Get EEP profile
@@ -970,7 +1084,7 @@ class SerialHandler:
             # Confirmation of an actuator taught in under another EEP. No field
             # decode is possible here, but the state it reports is.
             decoded = self._telegram_meta(telegram)
-            logger.debug(f"RX [{telegram.sender_hex}] RORG 0x{telegram.rorg:02X} does not match {device.eep_id}, taken as RPS actuator status only")
+            logger.debug(f"RX [{telegram.sender_hex}] RORG 0x{telegram.rorg:02X} does not match {device.eep_id}, read as actuator confirmation only")
         else:
             logger.debug(f"RX [{telegram.sender_hex}] RORG mismatch: got 0x{telegram.rorg:02X}, expected 0x{expected_rorg:02X} for {device.eep_id}, skipping decode")
             return device.name, device.eep_id, None
@@ -1357,6 +1471,8 @@ class SerialHandler:
         78). A group applies when its own CMD field, read where that layout
         puts it, holds its ID. Fields without a command tag always apply, and
         if no group matches everything is decoded as before. ADR-0032.
+        A5-38-08 names its command field COM, not CMD: without it a dimming
+        status (COM 2) was decoded with the switching fields too (#51).
         """
         groups: Dict[str, list] = {}
         untagged = []
@@ -1367,7 +1483,7 @@ class SerialHandler:
             return fields
         matched = []
         for cmd, group in groups.items():
-            cmd_field = next((f for f in group if f.get("shortcut") == "CMD"), None)
+            cmd_field = next((f for f in group if f.get("shortcut") in ("CMD", "COM")), None)
             if cmd_field is None:
                 continue
             shift = data_bits - cmd_field.get("offset", 0) - cmd_field.get("size", 4)
@@ -1618,7 +1734,7 @@ class SerialHandler:
 
         base_id = int.from_bytes(response[1:5], 'big')
         self._base_id = base_id
-        logger.info(f"USB300 Base ID: 0x{base_id:08X}")
+        logger.info(f"Transceiver base ID: 0x{base_id:08X}")
         return f"0x{base_id:08X}"
 
     @property
@@ -1909,7 +2025,7 @@ class SerialHandler:
             val = max(0, min(255, dim_value))
             data = bytes([0x02, val, ramp_time & 0xFF, 0x0B])
 
-        logger.info(f"Sending A5-38-08 dimmer {command} (value={dim_value}, ramp={ramp_time}s) sender=0x{sender_id:08X}")
+        logger.info(f"Sending A5-38-08 dimmer {command} (value={data[1]}, ramp={ramp_time}s) sender=0x{sender_id:08X}")
 
         success = await self.send_telegram(
             sender_id=sender_id,

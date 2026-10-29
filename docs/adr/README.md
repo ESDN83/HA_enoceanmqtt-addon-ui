@@ -42,3 +42,5 @@ Rules:
 - [0035](0035-d2-01-metering.md) Every metering D2-01 module gets Power and Energy
 - [0036](0036-free-sender-for-pairing-and-dimmer-confirmation.md) Pairing picks a free sender ID; a dimmer's confirmation keeps its level
 - [0037](0037-f6-cover-stop-only-when-moving.md) A rocker-taught shutter is not sent Stop when it reported standing still
+- [0038](0038-tcp-idle-keepalive-and-reconnect-wait.md) TCP idle keepalive, commands wait for a reconnect, own echoes ignored
+- [0039](0039-meter-readings-need-confirmation.md) Implausible meter readings need a second reading

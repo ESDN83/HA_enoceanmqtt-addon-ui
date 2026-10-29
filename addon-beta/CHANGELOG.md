@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.8.5-beta15] - 2026-10-29 (beta channel)
+
+### Fixed
+
+- **Commands are no longer lost during a reconnect.** A command or energy
+  poll that arrives while the TCP connection is being re-opened waits up to
+  5 s for it. Before, the command was dropped and the poll skipped without a
+  log line. Issue #51.
+- **TCP gateways that close idle connections stay connected.** After 60 s
+  without sending, the app asks the transceiver for its version (Symcon
+  EnOcean LAN gateway closes after 300 s by default). Two unanswered requests
+  in a row make the app reconnect. Issue #51.
+- The app's own telegrams, repeated back by a repeater, no longer show up as
+  unknown devices. Issue #51.
+- **A corrupted meter reading no longer spoils the energy dashboard**
+  (metering D2-01 modules). Energy lower than before or rising faster than
+  4 kW allows, and power above 4000 W, are held back and queried again, and
+  published only when a second reading confirms them. A real counter reset
+  or a replaced plug still goes through. Issue #51.
+- A5-38-08 dimmer status is decoded with the dimming fields only (it also
+  showed the switching command's fields). Issue #51.
+
+### Changed
+
+- Quieter log at INFO: "still waiting for data" and the transmit-done event
+  moved to debug, "Unknown device" is logged once an hour per sender,
+  transceiver events are named and the duty-cycle limit and transmit
+  failures are warnings. Debug shows the raw frame of unknown senders.
+  Issue #51.
+- The gateway diagnostics topic is published at most every 5 s (busy/idle
+  changes still at once). Issue #51.
+- Log wording: "Transceiver base ID" instead of "USB300 Base ID", the dimmer
+  OFF line shows the value sent, an actuator confirmation under another EEP
+  is no longer called "RPS". FastAPI 0.162.0.
+
 ## [1.8.5-beta14] - 2026-10-28 (beta channel)
 
 ### Fixed

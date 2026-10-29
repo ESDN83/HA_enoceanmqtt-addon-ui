@@ -138,6 +138,17 @@ Format: `tcp:HOST:PORT` (e.g., `tcp:192.168.1.118:8638`)
 
 When both serial and TCP are configured, **TCP takes priority**.
 
+- After 60 s without sending, the app asks the transceiver for its version.
+  This keeps gateways connected that close idle connections, and shows the
+  transceiver still answers. Two unanswered requests in a row make the app
+  reconnect.
+- **`Transport lost ... FIN received` every few minutes:** the gateway closes
+  idle connections. The keepalive above should prevent it; if it still
+  happens, raise the gateway's idle or inactivity timeout (Symcon EnOcean LAN
+  gateway: "Inactivity Timer", 300 s by default).
+- A command or energy poll that arrives during a reconnect waits up to 5 s
+  for it instead of being dropped.
+
 ### MQTT Settings
 
 By default the app automatically connects to the MQTT broker provided by
@@ -331,6 +342,12 @@ Teach-In" has to be clicked several times in a row:
 - Power arrives whenever the module reports it. Energy is asked for every
   five minutes, which needs the device's Sender ID (filled in by the
   teach-in).
+- A reading that cannot be right (energy lower than before or rising faster
+  than 4 kW allows, power above 4000 W) is held back and asked for again.
+  It is published only when a second reading confirms it, so a corrupted
+  radio telegram never reaches the energy dashboard, while a reset or a
+  replaced plug still shows its new count. The log says "implausible, held
+  back" or "confirmed by a second reading".
 
 ## AI Assistants
 
