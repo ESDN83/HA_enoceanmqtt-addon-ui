@@ -702,6 +702,8 @@ def _echo_raw_output(state: Dict, on: bool, level):
     """
     if "SW" in state:
         state["SW"] = 1 if on else 0
+        if "SW_text" in state:
+            state["SW_text"] = "On" if on else "Off"  # EEP.xml item text
     if "EDIM" in state and level is not None:
         state["EDIM"] = float(level) if on else 0.0
 

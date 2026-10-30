@@ -1,6 +1,6 @@
 ---
 name: "EnOcean MQTT UI (Beta)"
-version: "1.8.5-beta18"
+version: "1.8.5-beta19"
 slug: "enocean-mqtt-ui-beta"
 description: "BETA channel of EnOcean MQTT UI: EnOcean to MQTT bridge with web UI and HA discovery. Run either this or the stable app on a transceiver, not both. AI assistants: GET /api/ai/guide through the app's Ingress API for setup steps and device pitfalls."
 url: "https://github.com/ESDN83/HA_enoceanmqtt-addon-ui"

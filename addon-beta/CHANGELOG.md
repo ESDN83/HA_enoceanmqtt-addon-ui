@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.5-beta19] - 2026-10-30 (beta channel)
+
+### Fixed
+
+- The command echo also sets SW_text along with SW, so it no longer shows
+  the previous "On"/"Off" until the dimmer answers. Issue #52.
+
 ## [1.8.5-beta18] - 2026-10-30 (beta channel)
 
 ### Fixed
