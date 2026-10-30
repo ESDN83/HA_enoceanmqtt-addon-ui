@@ -252,6 +252,8 @@ shows the same steps. No warranty: make a full Home Assistant backup first.
   plain "turn on" (dashboard toggle, voice, automation without brightness)
   returns to that level, also after a Home Assistant restart. Up to beta15
   a dimmer that was off during the restart came back at 100 %.
+- A dimmer that was already off when you updated has no level stored yet.
+  Switch it on and off once; from then on it keeps its level.
 
 ### Teach-In Not Working
 - Make sure the EnOcean gateway shows "connected" (green status)

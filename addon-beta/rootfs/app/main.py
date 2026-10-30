@@ -686,7 +686,24 @@ async def _echo_switch_state(device_name: str, command: str):
         return
     state = dict(mqtt_handler.get_last_state(device_name) or {})
     state["state"] = command
+    _echo_raw_output(state, command == "ON", None)
     await mqtt_handler.publish_state(device_name, state)
+
+
+def _echo_raw_output(state: Dict, on: bool, level):
+    """Bring the actuator's own output fields in line with the echo.
+
+    The echo is built on the last payload, so it carried the old SW / EDIM
+    next to the new state until the actuator answered: "ON" with SW 0 (#52).
+    They are set to what was commanded rather than dropped, since entities
+    can read them from this topic and a missing field leaves them blank. The
+    actuator's status overwrites them when it arrives. D2-01 OV stays as it
+    is: on a two-channel module it is shared between the channels.
+    """
+    if "SW" in state:
+        state["SW"] = 1 if on else 0
+    if "EDIM" in state and level is not None:
+        state["EDIM"] = float(level) if on else 0.0
 
 
 async def _echo_light_state(device_name: str, command: str, brightness: int = None):
@@ -712,6 +729,7 @@ async def _echo_light_state(device_name: str, command: str, brightness: int = No
         keep_level_when_off(state, previous)
     elif brightness is not None:
         state["brightness"] = brightness
+    _echo_raw_output(state, command == "ON", state.get("brightness") if command == "ON" else 0)
     await mqtt_handler.publish_state(device_name, state)
 
 

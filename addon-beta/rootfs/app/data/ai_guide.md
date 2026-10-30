@@ -134,7 +134,8 @@ ID taken from the telegram list after one press.
   without the level; the app keeps the last brightness.
 - A light that is off keeps its last level in `brightness` (SW / EDIM show
   the real output). Home Assistant then turns it back on at that level,
-  also after a Home Assistant restart.
+  also after a Home Assistant restart. A dimmer that was already off
+  before the update to 1.8.5 needs one on/off cycle to store its level.
 - The commanded state is shown at once; the actuator's confirmation
   overwrites it.
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.8.5-beta18] - 2026-10-30 (beta channel)
+
+### Fixed
+
+- The echo of a dimmer or A5-38-08 switch command no longer shows the old
+  SW / EDIM next to the new state until the actuator answers; they follow
+  the command. Issue #52.
+- Note for dimmers fixed in beta16/17: a dimmer that was already off
+  before the update has no level stored yet. Switch it on and off once.
+
 ## [1.8.5-beta17] - 2026-10-29 (beta channel)
 
 ### Fixed
