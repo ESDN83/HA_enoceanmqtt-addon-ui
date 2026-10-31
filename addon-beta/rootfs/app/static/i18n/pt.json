@@ -440,5 +440,21 @@
   "help.use_this": "Começar com este dispositivo",
   "teach_in.gfvs_after": "Agora marque Controlo de posição no dispositivo de estore existente.",
   "teach_in.save_device": "Guardar dispositivo",
-  "help.act_tips": "Antes de começar: seletor superior em LRN, não CLR (em CLR o atuador apaga cada sensor que ouve). Em LRN aprende o próximo telegrama que ouvir, seja qual for: pause as automações que comutam outros dispositivos Eltako. Sem estado depois: ative os telegramas de confirmação do atuador, ver a sua entrada na lista de dispositivos."
+  "help.act_tips": "Antes de começar: seletor superior em LRN, não CLR (em CLR o atuador apaga cada sensor que ouve). Em LRN aprende o próximo telegrama que ouvir, seja qual for: pause as automações que comutam outros dispositivos Eltako. Sem estado depois: ative os telegramas de confirmação do atuador, ver a sua entrada na lista de dispositivos.",
+  "devices.sort_name": "Nome A-Z",
+  "devices.sort_name_desc": "Nome Z-A",
+  "devices.sort_last_seen": "Visto por último",
+  "devices.sort_status": "Estado (offline primeiro)",
+  "devices.sort_room": "Divisão",
+  "devices.view_cards": "Cartões",
+  "devices.view_list": "Lista",
+  "devices.no_room": "Sem divisão",
+  "devices.never_seen": "nunca",
+  "devices.status_offline": "Offline",
+  "devices.col_name": "Nome",
+  "devices.col_address": "Endereço",
+  "devices.col_role": "Função",
+  "devices.col_room": "Divisão",
+  "devices.col_status": "Estado",
+  "devices.col_last_seen": "Visto por último"
 }

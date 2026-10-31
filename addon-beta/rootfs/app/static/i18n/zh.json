@@ -440,5 +440,21 @@
   "help.use_this": "从这个设备开始",
   "teach_in.gfvs_after": "现在在已有的窗帘设备上勾选位置控制。",
   "teach_in.save_device": "保存设备",
-  "help.act_tips": "开始前：上旋钮转到 LRN，不是 CLR（在 CLR 位置执行器会删除它听到的每个传感器）。在 LRN 位置它会学习听到的下一条电报，无论来自哪里：请暂停控制其他 Eltako 设备的自动化。之后没有状态：打开执行器的确认电报，见设备列表中的条目。"
+  "help.act_tips": "开始前：上旋钮转到 LRN，不是 CLR（在 CLR 位置执行器会删除它听到的每个传感器）。在 LRN 位置它会学习听到的下一条电报，无论来自哪里：请暂停控制其他 Eltako 设备的自动化。之后没有状态：打开执行器的确认电报，见设备列表中的条目。",
+  "devices.sort_name": "名称 A-Z",
+  "devices.sort_name_desc": "名称 Z-A",
+  "devices.sort_last_seen": "最后在线",
+  "devices.sort_status": "状态（离线优先）",
+  "devices.sort_room": "房间",
+  "devices.view_cards": "卡片",
+  "devices.view_list": "列表",
+  "devices.no_room": "无房间",
+  "devices.never_seen": "从未",
+  "devices.status_offline": "离线",
+  "devices.col_name": "名称",
+  "devices.col_address": "地址",
+  "devices.col_role": "角色",
+  "devices.col_room": "房间",
+  "devices.col_status": "状态",
+  "devices.col_last_seen": "最后在线"
 }

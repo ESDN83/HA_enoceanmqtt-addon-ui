@@ -515,5 +515,21 @@
   "help.use_this": "Mit diesem Gerät starten",
   "teach_in.gfvs_after": "Jetzt beim vorhandenen Rollladen-Gerät Positionssteuerung ankreuzen.",
   "teach_in.save_device": "Gerät speichern",
-  "help.act_tips": "Vor dem Start: oberen Drehschalter auf LRN, nicht CLR (auf CLR löscht der Aktor jeden Sensor, den er hört). In LRN lernt er das nächste Telegramm, das er hört, egal welches: Automationen pausieren, die andere Eltako-Geräte schalten. Danach kein Zustand: die Bestätigungstelegramme des Aktors einschalten, siehe seinen Eintrag in der Geräteliste."
+  "help.act_tips": "Vor dem Start: oberen Drehschalter auf LRN, nicht CLR (auf CLR löscht der Aktor jeden Sensor, den er hört). In LRN lernt er das nächste Telegramm, das er hört, egal welches: Automationen pausieren, die andere Eltako-Geräte schalten. Danach kein Zustand: die Bestätigungstelegramme des Aktors einschalten, siehe seinen Eintrag in der Geräteliste.",
+  "devices.sort_name": "Name A-Z",
+  "devices.sort_name_desc": "Name Z-A",
+  "devices.sort_last_seen": "Zuletzt gesehen",
+  "devices.sort_status": "Status (offline zuerst)",
+  "devices.sort_room": "Raum",
+  "devices.view_cards": "Kacheln",
+  "devices.view_list": "Liste",
+  "devices.no_room": "Kein Raum",
+  "devices.never_seen": "nie",
+  "devices.status_offline": "Offline",
+  "devices.col_name": "Name",
+  "devices.col_address": "Adresse",
+  "devices.col_role": "Rolle",
+  "devices.col_room": "Raum",
+  "devices.col_status": "Status",
+  "devices.col_last_seen": "Zuletzt gesehen"
 }

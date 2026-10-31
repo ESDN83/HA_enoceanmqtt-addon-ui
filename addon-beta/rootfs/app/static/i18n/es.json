@@ -440,5 +440,21 @@
   "help.use_this": "Empezar con este dispositivo",
   "teach_in.gfvs_after": "Ahora marca Control de posición en el dispositivo de persiana existente.",
   "teach_in.save_device": "Guardar dispositivo",
-  "help.act_tips": "Antes de empezar: selector superior en LRN, no CLR (en CLR el actuador borra cada sensor que oye). En LRN aprende el siguiente telegrama que oiga, sea cual sea: pausa las automatizaciones que conmutan otros dispositivos Eltako. Sin estado después: activa los telegramas de confirmación del actuador, ver su ficha en la lista de dispositivos."
+  "help.act_tips": "Antes de empezar: selector superior en LRN, no CLR (en CLR el actuador borra cada sensor que oye). En LRN aprende el siguiente telegrama que oiga, sea cual sea: pausa las automatizaciones que conmutan otros dispositivos Eltako. Sin estado después: activa los telegramas de confirmación del actuador, ver su ficha en la lista de dispositivos.",
+  "devices.sort_name": "Nombre A-Z",
+  "devices.sort_name_desc": "Nombre Z-A",
+  "devices.sort_last_seen": "Visto por última vez",
+  "devices.sort_status": "Estado (sin conexión primero)",
+  "devices.sort_room": "Habitación",
+  "devices.view_cards": "Tarjetas",
+  "devices.view_list": "Lista",
+  "devices.no_room": "Sin habitación",
+  "devices.never_seen": "nunca",
+  "devices.status_offline": "Sin conexión",
+  "devices.col_name": "Nombre",
+  "devices.col_address": "Dirección",
+  "devices.col_role": "Rol",
+  "devices.col_room": "Habitación",
+  "devices.col_status": "Estado",
+  "devices.col_last_seen": "Visto por última vez"
 }

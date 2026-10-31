@@ -1,80 +1,277 @@
 // Extracted from templates/index.html. Classic script, no modules:
 // the inline onclick handlers call these by bare name, so they must stay global.
 
+// Device list view: sort order and cards or list, remembered per browser
+// (#54). Display only: the stored device order, topics and discovery are
+// untouched. Storage can be unavailable (private window, blocked site data),
+// so every access is guarded and the defaults apply.
+const DEVICE_VIEW_KEY = 'enoceanmqtt.deviceView';
+const DEVICE_SORTS = ['name', 'name_desc', 'last_seen', 'status', 'room'];
+let _deviceView = { sort: 'name', view: 'cards' };
+let _deviceListCache = [];
+
+function _loadDeviceView() {
+    try {
+        const v = JSON.parse(localStorage.getItem(DEVICE_VIEW_KEY) || '{}');
+        if (DEVICE_SORTS.includes(v.sort)) _deviceView.sort = v.sort;
+        if (v.view === 'cards' || v.view === 'list') _deviceView.view = v.view;
+    } catch (e) { /* defaults */ }
+}
+
+function _saveDeviceView() {
+    try { localStorage.setItem(DEVICE_VIEW_KEY, JSON.stringify(_deviceView)); } catch (e) { /* not kept */ }
+}
+
+function setDeviceSort(sort) {
+    if (!DEVICE_SORTS.includes(sort)) return;
+    _deviceView.sort = sort;
+    _saveDeviceView();
+    renderDevices();
+}
+
+function setDeviceView(view) {
+    if (view !== 'cards' && view !== 'list') return;
+    _deviceView.view = view;
+    _saveDeviceView();
+    renderDevices();
+}
+
+// Natural, case-insensitive: garage_2 before garage_10.
+function _byName(a, b) {
+    return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+// Offline first (that is what needs attention), then never heard from, then
+// the rest; by name within each.
+function _statusRank(d) {
+    if (d._available === false) return 0;
+    if (!d._last_seen) return 1;
+    return 2;
+}
+
+function _sortedDevices(devices) {
+    const list = devices.slice();
+    switch (_deviceView.sort) {
+        case 'name_desc':
+            return list.sort((a, b) => _byName(b, a));
+        case 'last_seen':
+            // Most recent first, never seen last.
+            return list.sort((a, b) => (b._last_seen || '').localeCompare(a._last_seen || '') || _byName(a, b));
+        case 'status':
+            return list.sort((a, b) => _statusRank(a) - _statusRank(b) || _byName(a, b));
+        default:   // name, and room sorts by name inside each room
+            return list.sort(_byName);
+    }
+}
+
+function _relativeTime(iso) {
+    if (!iso) return t('devices.never_seen', 'never');
+    const then = new Date(iso);
+    if (isNaN(then)) return '';
+    const sec = Math.round((then - Date.now()) / 1000);
+    const steps = [[60, 'second'], [3600, 'minute'], [86400, 'hour'], [Infinity, 'day']];
+    const div = { second: 1, minute: 60, hour: 3600, day: 86400 };
+    for (const [limit, unit] of steps) {
+        if (Math.abs(sec) < limit) {
+            try {
+                return new Intl.RelativeTimeFormat(currentLang, { numeric: 'auto' }).format(Math.round(sec / div[unit]), unit);
+            } catch (e) {
+                return then.toLocaleString();
+            }
+        }
+    }
+    return then.toLocaleString();
+}
+
+function _statusBadge(d) {
+    if (d._available === false) {
+        return `<span class="badge bg-danger">${t('devices.status_offline', 'Offline')}</span>`;
+    }
+    if (d._state) return `<span class="badge bg-success-subtle text-success-emphasis">${escapeHtml(String(d._state))}</span>`;
+    return '';
+}
+
+function _searchText(device) {
+    return [device.name, device.address, `${device.rorg}-${device.func}-${device.type}`,
+        device.actuator_type, device.room, device.description, device.sender_id
+    ].filter(Boolean).join(' ').toLowerCase();
+}
+
+// The name is user text, so it never goes into an onclick attribute. An
+// apostrophe ("Volet d'entrée") used to end the JS string and kill the whole
+// handler, which left the device with no way to be edited or deleted at all
+// (#36). Handlers are attached here and take the name from the closure.
+// See ADR-0009.
+function _wireActions(el, device) {
+    el.querySelector('.device-actions').addEventListener('click', e => e.stopPropagation());
+    el.querySelector('[data-action="edit"]').addEventListener('click', () => editDevice(device.name));
+    el.querySelector('[data-action="delete"]').addEventListener('click', () => deleteDevice(device.name));
+}
+
+// Not a btn-group: that pulls adjacent buttons together with a negative
+// margin so their outlines share an edge, which reads as the pencil and the
+// bin overlapping. A flex row with a gap keeps them visibly separate.
+const _deviceActionsHtml = `
+    <div class="d-flex gap-1 device-actions">
+        <button class="btn btn-sm btn-outline-primary" data-action="edit" title="Edit">
+            <i class="bi bi-pencil"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger" data-action="delete" title="Delete">
+            <i class="bi bi-trash"></i>
+        </button>
+    </div>`;
+
+function _deviceCard(device, group) {
+    const card = document.createElement('div');
+    // device-col is the stable hook for filterDevices; the col-* classes are
+    // layout only and may change. Two-up once the sidebar appears at md,
+    // three-up only at xl where there is room for it.
+    card.className = 'device-col col-12 col-md-6 col-xl-4 mb-3';
+    card.dataset.search = _searchText(device);
+    if (group !== null) card.dataset.group = group;
+    card.innerHTML = `
+        <div class="card device-card" style="cursor: pointer;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <h5 class="card-title mb-1">${escapeHtml(device.name)}</h5>
+                    ${_deviceActionsHtml}
+                </div>
+                <p class="card-text mb-1">
+                    <code class="text-muted">${escapeHtml(device.address)}</code>
+                    ${_statusBadge(device)}
+                </p>
+                <p class="card-text mb-1">
+                    <span class="badge bg-primary">${escapeHtml(device.rorg)}-${escapeHtml(device.func)}-${escapeHtml(device.type)}</span>
+                    ${device.actuator_type ? `<span class="badge bg-warning text-dark ms-1"><i class="bi bi-lightning"></i> ${escapeHtml(device.actuator_type)}</span>` : ''}
+                    ${device.room ? `<span class="badge bg-secondary ms-1">${escapeHtml(device.room)}</span>` : ''}
+                </p>
+                ${device.description ? `<p class="card-text mb-0"><small class="text-muted">${escapeHtml(device.description)}</small></p>` : ''}
+                ${device.sender_id ? `<p class="card-text mb-0"><small class="text-muted"><i class="bi bi-arrow-left-right"></i> Sender: ${escapeHtml(device.sender_id)}</small></p>` : ''}
+                <p class="card-text mb-0"><small class="text-muted"><i class="bi bi-clock"></i> ${escapeHtml(_relativeTime(device._last_seen))}</small></p>
+            </div>
+        </div>`;
+    card.querySelector('.device-card').addEventListener('click', () => showDeviceDetail(device.name));
+    _wireActions(card, device);
+    return card;
+}
+
+function _deviceRow(device, group) {
+    const row = document.createElement('tr');
+    row.className = 'device-col';
+    row.style.cursor = 'pointer';
+    row.dataset.search = _searchText(device);
+    if (group !== null) row.dataset.group = group;
+    row.innerHTML = `
+        <td class="fw-semibold text-break">${escapeHtml(device.name)}</td>
+        <td class="d-none d-md-table-cell"><code class="text-muted">${escapeHtml(device.address)}</code></td>
+        <td class="d-none d-lg-table-cell"><span class="badge bg-primary">${escapeHtml(device.rorg)}-${escapeHtml(device.func)}-${escapeHtml(device.type)}</span></td>
+        <td class="d-none d-lg-table-cell">${device.actuator_type ? escapeHtml(device.actuator_type) : ''}</td>
+        <td class="d-none d-md-table-cell">${device.room ? escapeHtml(device.room) : ''}</td>
+        <td>${_statusBadge(device)}</td>
+        <td class="text-nowrap"><small class="text-muted">${escapeHtml(_relativeTime(device._last_seen))}</small></td>
+        <td class="text-end">${_deviceActionsHtml}</td>`;
+    row.addEventListener('click', () => showDeviceDetail(device.name));
+    _wireActions(row, device);
+    return row;
+}
+
+function _syncDeviceToolbar() {
+    const sort = document.getElementById('device-sort');
+    if (sort) sort.value = _deviceView.sort;
+    document.getElementById('device-view-cards')?.classList.toggle('active', _deviceView.view === 'cards');
+    document.getElementById('device-view-list')?.classList.toggle('active', _deviceView.view === 'list');
+}
+
+function renderDevices() {
+    const container = document.getElementById('device-list');
+    if (!container) return;
+    _syncDeviceToolbar();
+    container.innerHTML = '';
+    const devices = _sortedDevices(_deviceListCache);
+    if (devices.length === 0) {
+        container.innerHTML = `<div class="col-12"><p class="text-muted">${t('devices.empty', 'Add your first device')} <a href="#" onclick="navigateTo('teach-in')">${t('nav.add_device', 'Add Device')}</a></p></div>`;
+        return;
+    }
+
+    // Room: one group per room, by name, devices without a room last (#54).
+    let groups = [[null, devices]];
+    if (_deviceView.sort === 'room') {
+        const byRoom = new Map();
+        devices.forEach(d => {
+            const room = (d.room || '').trim();
+            if (!byRoom.has(room)) byRoom.set(room, []);
+            byRoom.get(room).push(d);
+        });
+        const rooms = [...byRoom.keys()].filter(r => r)
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+        if (byRoom.has('')) rooms.push('');
+        groups = rooms.map(r => [r, byRoom.get(r)]);
+    }
+    const label = room => room ? room : t('devices.no_room', 'No room');
+
+    if (_deviceView.view === 'list') {
+        const wrap = document.createElement('div');
+        wrap.className = 'col-12';
+        wrap.innerHTML = `
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle device-table mb-0">
+                    <thead><tr>
+                        <th>${t('devices.col_name', 'Name')}</th>
+                        <th class="d-none d-md-table-cell">${t('devices.col_address', 'Address')}</th>
+                        <th class="d-none d-lg-table-cell">EEP</th>
+                        <th class="d-none d-lg-table-cell">${t('devices.col_role', 'Role')}</th>
+                        <th class="d-none d-md-table-cell">${t('devices.col_room', 'Room')}</th>
+                        <th>${t('devices.col_status', 'Status')}</th>
+                        <th>${t('devices.col_last_seen', 'Last seen')}</th>
+                        <th></th>
+                    </tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>`;
+        const body = wrap.querySelector('tbody');
+        groups.forEach(([room, members], i) => {
+            const g = room === null ? null : String(i);
+            if (g !== null) {
+                const head = document.createElement('tr');
+                head.className = 'device-group';
+                head.dataset.group = g;
+                head.innerHTML = `<th colspan="8">${escapeHtml(label(room))}</th>`;
+                body.appendChild(head);
+            }
+            members.forEach(d => body.appendChild(_deviceRow(d, g)));
+        });
+        container.appendChild(wrap);
+    } else {
+        groups.forEach(([room, members], i) => {
+            const g = room === null ? null : String(i);
+            if (g !== null) {
+                const head = document.createElement('div');
+                head.className = 'col-12 device-group';
+                head.dataset.group = g;
+                head.innerHTML = `<h6 class="text-muted mt-2 mb-2">${escapeHtml(label(room))}</h6>`;
+                container.appendChild(head);
+            }
+            members.forEach(d => container.appendChild(_deviceCard(d, g)));
+        });
+    }
+
+    // Re-apply search filter if query is active
+    const searchQuery = document.getElementById('device-search').value;
+    if (searchQuery) filterDevices();
+}
+
 async function loadDevices() {
     try {
-        const response = await fetch(getApiUrl('/api/devices'));
-        const devices = await response.json();
-
-        const container = document.getElementById('device-list');
-        container.innerHTML = '';
-
-        if (devices.length === 0) {
-            container.innerHTML = `<div class="col-12"><p class="text-muted">${t('devices.empty', 'Add your first device')} <a href="#" onclick="navigateTo('teach-in')">${t('nav.add_device', 'Add Device')}</a></p></div>`;
-            return;
-        }
-
-        devices.forEach(device => {
-            const card = document.createElement('div');
-            // device-col is the stable hook for filterDevices; the col-* classes are
-            // layout only and may change. Two-up once the sidebar appears at md,
-            // three-up only at xl where there is room for it.
-            card.className = 'device-col col-12 col-md-6 col-xl-4 mb-3';
-            // Build searchable text from device properties only (not button text)
-            const searchText = [device.name, device.address, `${device.rorg}-${device.func}-${device.type}`,
-                device.actuator_type, device.room, device.description, device.sender_id
-            ].filter(Boolean).join(' ').toLowerCase();
-            card.dataset.search = searchText;
-            // The name is user text, so it never goes into an onclick
-            // attribute. An apostrophe ("Volet d'entrée") used to end the JS
-            // string and kill the whole handler, which left the device with no
-            // way to be edited or deleted at all (#36). Handlers are attached
-            // below and take the name from the closure. See ADR-0009.
-            card.innerHTML = `
-                <div class="card device-card" style="cursor: pointer;">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <h5 class="card-title mb-1">${escapeHtml(device.name)}</h5>
-                            <!-- Not a btn-group: that pulls adjacent buttons together with a
-                                 negative margin so their outlines share an edge, which reads as
-                                 the pencil and the bin overlapping. A flex row with a gap keeps
-                                 them visibly separate. -->
-                            <div class="d-flex gap-1 device-actions">
-                                <button class="btn btn-sm btn-outline-primary" data-action="edit" title="Edit">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" data-action="delete" title="Delete">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <p class="card-text mb-1">
-                            <code class="text-muted">${escapeHtml(device.address)}</code>
-                        </p>
-                        <p class="card-text mb-1">
-                            <span class="badge bg-primary">${escapeHtml(device.rorg)}-${escapeHtml(device.func)}-${escapeHtml(device.type)}</span>
-                            ${device.actuator_type ? `<span class="badge bg-warning text-dark ms-1"><i class="bi bi-lightning"></i> ${escapeHtml(device.actuator_type)}</span>` : ''}
-                            ${device.room ? `<span class="badge bg-secondary ms-1">${escapeHtml(device.room)}</span>` : ''}
-                        </p>
-                        ${device.description ? `<p class="card-text mb-0"><small class="text-muted">${escapeHtml(device.description)}</small></p>` : ''}
-                        ${device.sender_id ? `<p class="card-text mb-0"><small class="text-muted"><i class="bi bi-arrow-left-right"></i> Sender: ${escapeHtml(device.sender_id)}</small></p>` : ''}
-                    </div>
-                </div>
-            `;
-            card.querySelector('.device-card').addEventListener('click', () => showDeviceDetail(device.name));
-            card.querySelector('.device-actions').addEventListener('click', e => e.stopPropagation());
-            card.querySelector('[data-action="edit"]').addEventListener('click', () => editDevice(device.name));
-            card.querySelector('[data-action="delete"]').addEventListener('click', () => deleteDevice(device.name));
-            container.appendChild(card);
-        });
-
-        // Re-apply search filter if query is active
-        const searchQuery = document.getElementById('device-search').value;
-        if (searchQuery) filterDevices();
+        const response = await fetch(getApiUrl('/api/devices?include=state'));
+        _deviceListCache = await response.json();
+        renderDevices();
     } catch (error) {
         showToast(t('devices.load_failed', 'Failed to load devices'), 'danger');
     }
 }
+
+_loadDeviceView();
+
 function updateDerivedSenderId() {
     const baseId = document.getElementById('gateway-base-id').value;
     const offset = parseInt(document.getElementById('sender-offset').value) || 1;
@@ -674,10 +871,17 @@ function getDeviceClassOptions(component, selected) {
 }
 function filterDevices() {
     const query = document.getElementById('device-search').value.toLowerCase();
-    const cards = document.querySelectorAll('#device-list > .device-col');
+    // Cards and list rows alike; a room heading hides with its last match.
+    const items = document.querySelectorAll('#device-list .device-col');
+    const visible = new Set();
 
-    cards.forEach(card => {
-        const text = card.dataset.search || card.textContent.toLowerCase();
-        card.style.display = text.includes(query) ? '' : 'none';
+    items.forEach(item => {
+        const text = item.dataset.search || item.textContent.toLowerCase();
+        const show = text.includes(query);
+        item.style.display = show ? '' : 'none';
+        if (show && item.dataset.group !== undefined) visible.add(item.dataset.group);
+    });
+    document.querySelectorAll('#device-list .device-group').forEach(head => {
+        head.style.display = visible.has(head.dataset.group) ? '' : 'none';
     });
 }

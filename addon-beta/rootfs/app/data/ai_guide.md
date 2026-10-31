@@ -30,7 +30,8 @@ the add-on list (`..._enocean-mqtt-ui`, beta `..._enocean-mqtt-ui-beta`):
 - `GET /openapi.json` every endpoint with its fields
 - `GET /health` MQTT and transceiver connected, device and profile count
 - `GET /api/gateway/info` base ID of the transceiver
-- `GET /api/devices` configured devices, `GET /api/devices/{name}` one
+- `GET /api/devices` configured devices (`?include=state` adds
+  `_last_seen`, `_state`, `_available`), `GET /api/devices/{name}` one
 - `GET /api/gateway/unknown-devices` senders heard but not configured
   (address, RORG, signal, count)
 - `GET /api/gateway/recent-telegrams?limit=50` raw and decoded telegrams

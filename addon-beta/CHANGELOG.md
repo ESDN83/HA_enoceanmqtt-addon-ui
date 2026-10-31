@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.8.5-beta20] - 2026-10-31 (beta channel)
+
+### Added
+
+- **Device list: sort and list view.** Sort by name (A-Z, Z-A, natural
+  order), last seen, status (offline first) or room (grouped). Cards or a
+  compact list, the search works in both. The choice is remembered in the
+  browser. Each device shows when it was last heard. Issue #54.
+
 ## [1.8.5-beta19] - 2026-10-30 (beta channel)
 
 ### Fixed

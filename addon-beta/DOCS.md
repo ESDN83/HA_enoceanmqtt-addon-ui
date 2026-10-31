@@ -66,6 +66,11 @@ Overview with connection status, device counts, recent telegrams and unknown dev
 
 ### Devices
 List and manage all configured EnOcean devices. Add, edit, or remove devices.
+- Search by name, address, profile, room or description.
+- Sort by name (A-Z, Z-A), last seen, status (offline devices first) or room
+  (grouped under room headings, "No room" last).
+- Show the devices as cards or as a compact list. Sort and view are
+  remembered in the browser.
 
 ### EEP Profiles
 Browse the complete EnOcean Equipment Profile tree with dedicated sections for

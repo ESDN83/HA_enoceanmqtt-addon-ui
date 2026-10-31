@@ -258,8 +258,21 @@
                 </button>
             </div>
 
-            <div class="mb-3">
-                <input type="text" class="form-control" id="device-search" placeholder="Search devices..." data-i18n-placeholder="devices.search_placeholder">
+            <!-- Search, sort and view for the device list. Sort and view are
+                 remembered per browser; display only (#54). -->
+            <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+                <input type="text" class="form-control flex-grow-1 device-search" id="device-search" placeholder="Search devices..." data-i18n-placeholder="devices.search_placeholder">
+                <select class="form-select w-auto" id="device-sort" aria-label="Sort" onchange="setDeviceSort(this.value)">
+                    <option value="name" data-i18n="devices.sort_name">Name A-Z</option>
+                    <option value="name_desc" data-i18n="devices.sort_name_desc">Name Z-A</option>
+                    <option value="last_seen" data-i18n="devices.sort_last_seen">Last seen</option>
+                    <option value="status" data-i18n="devices.sort_status">Status (offline first)</option>
+                    <option value="room" data-i18n="devices.sort_room">Room</option>
+                </select>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-primary" id="device-view-cards" onclick="setDeviceView('cards')" title="Cards" data-i18n-title="devices.view_cards"><i class="bi bi-grid-3x2-gap"></i></button>
+                    <button type="button" class="btn btn-outline-primary" id="device-view-list" onclick="setDeviceView('list')" title="List" data-i18n-title="devices.view_list"><i class="bi bi-list-ul"></i></button>
+                </div>
             </div>
 
             <div id="device-list" class="row">

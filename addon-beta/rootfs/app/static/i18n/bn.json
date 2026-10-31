@@ -440,5 +440,21 @@
   "help.use_this": "এই ডিভাইস দিয়ে শুরু করুন",
   "teach_in.gfvs_after": "এখন বিদ্যমান কভার ডিভাইসে পজিশন কন্ট্রোল টিক দিন।",
   "teach_in.save_device": "ডিভাইস সংরক্ষণ করুন",
-  "help.act_tips": "শুরুর আগে: উপরের ডায়াল LRN-এ, CLR নয় (CLR-এ অ্যাকচুয়েটর শোনা প্রতিটি সেন্সর মুছে ফেলে)। LRN-এ এটি পরের শোনা যেকোনো টেলিগ্রাম শিখে নেয়: অন্য Eltako ডিভাইস চালানো অটোমেশন বিরতি দিন। পরে কোনো অবস্থা নেই: অ্যাকচুয়েটরের নিশ্চিতকরণ টেলিগ্রাম চালু করুন, ডিভাইস তালিকায় এর এন্ট্রি দেখুন।"
+  "help.act_tips": "শুরুর আগে: উপরের ডায়াল LRN-এ, CLR নয় (CLR-এ অ্যাকচুয়েটর শোনা প্রতিটি সেন্সর মুছে ফেলে)। LRN-এ এটি পরের শোনা যেকোনো টেলিগ্রাম শিখে নেয়: অন্য Eltako ডিভাইস চালানো অটোমেশন বিরতি দিন। পরে কোনো অবস্থা নেই: অ্যাকচুয়েটরের নিশ্চিতকরণ টেলিগ্রাম চালু করুন, ডিভাইস তালিকায় এর এন্ট্রি দেখুন।",
+  "devices.sort_name": "নাম A-Z",
+  "devices.sort_name_desc": "নাম Z-A",
+  "devices.sort_last_seen": "শেষ দেখা",
+  "devices.sort_status": "অবস্থা (অফলাইন আগে)",
+  "devices.sort_room": "ঘর",
+  "devices.view_cards": "কার্ড",
+  "devices.view_list": "তালিকা",
+  "devices.no_room": "কোনো ঘর নেই",
+  "devices.never_seen": "কখনো না",
+  "devices.status_offline": "অফলাইন",
+  "devices.col_name": "নাম",
+  "devices.col_address": "ঠিকানা",
+  "devices.col_role": "ভূমিকা",
+  "devices.col_room": "ঘর",
+  "devices.col_status": "অবস্থা",
+  "devices.col_last_seen": "শেষ দেখা"
 }

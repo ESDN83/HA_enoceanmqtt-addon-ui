@@ -440,5 +440,21 @@
   "help.use_this": "ابدأ بهذا الجهاز",
   "teach_in.gfvs_after": "الآن فعّل التحكم بالموضع على جهاز الستارة الموجود.",
   "teach_in.save_device": "حفظ الجهاز",
-  "help.act_tips": "قبل البدء: المفتاح الدوار العلوي على LRN وليس CLR (على CLR يحذف المشغل كل مستشعر يسمعه). في LRN يتعلم البرقية التالية التي يسمعها أيًا كانت: أوقف مؤقتًا الأتمتة التي تشغّل أجهزة Eltako أخرى. لا حالة بعد ذلك: فعّل برقيات التأكيد في المشغل، انظر بنده في قائمة الأجهزة."
+  "help.act_tips": "قبل البدء: المفتاح الدوار العلوي على LRN وليس CLR (على CLR يحذف المشغل كل مستشعر يسمعه). في LRN يتعلم البرقية التالية التي يسمعها أيًا كانت: أوقف مؤقتًا الأتمتة التي تشغّل أجهزة Eltako أخرى. لا حالة بعد ذلك: فعّل برقيات التأكيد في المشغل، انظر بنده في قائمة الأجهزة.",
+  "devices.sort_name": "الاسم أ-ي",
+  "devices.sort_name_desc": "الاسم ي-أ",
+  "devices.sort_last_seen": "آخر ظهور",
+  "devices.sort_status": "الحالة (غير المتصل أولاً)",
+  "devices.sort_room": "الغرفة",
+  "devices.view_cards": "بطاقات",
+  "devices.view_list": "قائمة",
+  "devices.no_room": "بلا غرفة",
+  "devices.never_seen": "أبداً",
+  "devices.status_offline": "غير متصل",
+  "devices.col_name": "الاسم",
+  "devices.col_address": "العنوان",
+  "devices.col_role": "الدور",
+  "devices.col_room": "الغرفة",
+  "devices.col_status": "الحالة",
+  "devices.col_last_seen": "آخر ظهور"
 }

@@ -440,5 +440,21 @@
   "help.use_this": "このデバイスで始める",
   "teach_in.gfvs_after": "既存のカバーデバイスで位置制御にチェックを入れてください。",
   "teach_in.save_device": "デバイスを保存",
-  "help.act_tips": "開始前：上のダイヤルは CLR ではなく LRN に（CLR では受信したセンサーをすべて削除します）。LRN では次に受信したテレグラムを何でも学習します：他の Eltako 機器を操作するオートメーションを一時停止してください。その後状態が出ない場合：アクチュエーターの確認テレグラムをオンにします（デバイス一覧の項目を参照）。"
+  "help.act_tips": "開始前：上のダイヤルは CLR ではなく LRN に（CLR では受信したセンサーをすべて削除します）。LRN では次に受信したテレグラムを何でも学習します：他の Eltako 機器を操作するオートメーションを一時停止してください。その後状態が出ない場合：アクチュエーターの確認テレグラムをオンにします（デバイス一覧の項目を参照）。",
+  "devices.sort_name": "名前 A-Z",
+  "devices.sort_name_desc": "名前 Z-A",
+  "devices.sort_last_seen": "最終受信",
+  "devices.sort_status": "状態（オフライン優先）",
+  "devices.sort_room": "部屋",
+  "devices.view_cards": "カード",
+  "devices.view_list": "リスト",
+  "devices.no_room": "部屋なし",
+  "devices.never_seen": "なし",
+  "devices.status_offline": "オフライン",
+  "devices.col_name": "名前",
+  "devices.col_address": "アドレス",
+  "devices.col_role": "役割",
+  "devices.col_room": "部屋",
+  "devices.col_status": "状態",
+  "devices.col_last_seen": "最終受信"
 }

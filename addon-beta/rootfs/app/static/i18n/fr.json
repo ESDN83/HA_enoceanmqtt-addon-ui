@@ -444,5 +444,21 @@
   "help.use_this": "Commencer avec cet appareil",
   "teach_in.gfvs_after": "Cochez maintenant Contrôle de position sur l'appareil volet existant.",
   "teach_in.save_device": "Enregistrer l'appareil",
-  "help.act_tips": "Avant de commencer : commutateur du haut sur LRN, pas CLR (sur CLR l'actionneur efface chaque capteur qu'il entend). En LRN il apprend le prochain télégramme reçu, quel qu'il soit : mettez en pause les automatisations qui commandent d'autres appareils Eltako. Pas d'état ensuite : activez les télégrammes de confirmation de l'actionneur, voir sa fiche dans la liste d'appareils."
+  "help.act_tips": "Avant de commencer : commutateur du haut sur LRN, pas CLR (sur CLR l'actionneur efface chaque capteur qu'il entend). En LRN il apprend le prochain télégramme reçu, quel qu'il soit : mettez en pause les automatisations qui commandent d'autres appareils Eltako. Pas d'état ensuite : activez les télégrammes de confirmation de l'actionneur, voir sa fiche dans la liste d'appareils.",
+  "devices.sort_name": "Nom A-Z",
+  "devices.sort_name_desc": "Nom Z-A",
+  "devices.sort_last_seen": "Vu en dernier",
+  "devices.sort_status": "Statut (hors ligne d'abord)",
+  "devices.sort_room": "Pièce",
+  "devices.view_cards": "Cartes",
+  "devices.view_list": "Liste",
+  "devices.no_room": "Sans pièce",
+  "devices.never_seen": "jamais",
+  "devices.status_offline": "Hors ligne",
+  "devices.col_name": "Nom",
+  "devices.col_address": "Adresse",
+  "devices.col_role": "Rôle",
+  "devices.col_room": "Pièce",
+  "devices.col_status": "Statut",
+  "devices.col_last_seen": "Vu en dernier"
 }

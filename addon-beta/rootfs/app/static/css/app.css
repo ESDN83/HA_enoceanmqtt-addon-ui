@@ -393,3 +393,17 @@ textarea.form-control::placeholder {
     object-fit: contain;
     flex-shrink: 0;
 }
+
+/* Device list toolbar and list view (#54). */
+.device-search {
+    min-width: 12rem;
+}
+.device-table td,
+.device-table th {
+    background-color: transparent;
+}
+.device-table .device-group th {
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+    background-color: var(--bs-tertiary-bg);
+}

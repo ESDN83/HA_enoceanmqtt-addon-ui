@@ -440,5 +440,21 @@
   "help.use_this": "इस डिवाइस से शुरू करें",
   "teach_in.gfvs_after": "अब मौजूदा कवर डिवाइस पर पोज़िशन कंट्रोल चुनें।",
   "teach_in.save_device": "डिवाइस सहेजें",
-  "help.act_tips": "शुरू करने से पहले: ऊपरी डायल LRN पर, CLR नहीं (CLR पर एक्चुएटर हर सुना हुआ सेंसर मिटा देता है)। LRN में वह अगला सुना हुआ कोई भी टेलीग्राम सीख लेता है: अन्य Eltako डिवाइस चलाने वाले ऑटोमेशन रोकें। बाद में कोई स्थिति नहीं: एक्चुएटर के पुष्टि टेलीग्राम चालू करें, डिवाइस सूची में उसकी प्रविष्टि देखें।"
+  "help.act_tips": "शुरू करने से पहले: ऊपरी डायल LRN पर, CLR नहीं (CLR पर एक्चुएटर हर सुना हुआ सेंसर मिटा देता है)। LRN में वह अगला सुना हुआ कोई भी टेलीग्राम सीख लेता है: अन्य Eltako डिवाइस चलाने वाले ऑटोमेशन रोकें। बाद में कोई स्थिति नहीं: एक्चुएटर के पुष्टि टेलीग्राम चालू करें, डिवाइस सूची में उसकी प्रविष्टि देखें।",
+  "devices.sort_name": "नाम A-Z",
+  "devices.sort_name_desc": "नाम Z-A",
+  "devices.sort_last_seen": "अंतिम बार देखा",
+  "devices.sort_status": "स्थिति (ऑफ़लाइन पहले)",
+  "devices.sort_room": "कमरा",
+  "devices.view_cards": "कार्ड",
+  "devices.view_list": "सूची",
+  "devices.no_room": "कोई कमरा नहीं",
+  "devices.never_seen": "कभी नहीं",
+  "devices.status_offline": "ऑफ़लाइन",
+  "devices.col_name": "नाम",
+  "devices.col_address": "पता",
+  "devices.col_role": "भूमिका",
+  "devices.col_room": "कमरा",
+  "devices.col_status": "स्थिति",
+  "devices.col_last_seen": "अंतिम बार देखा"
 }

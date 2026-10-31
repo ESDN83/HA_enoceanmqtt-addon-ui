@@ -231,6 +231,8 @@ async def lifespan(app: FastAPI):
     app.state.eep_manager = eep_manager
     app.state.mapping_manager = mapping_manager
     app.state.telegram_buffer = telegram_buffer
+    # The watchdog's verdict per device, read by the device list (#54).
+    app.state.device_availability = _availability_known
     app.state.config_path = CONFIG_PATH
     # Handles for the API routers. They must NOT do 'from main import ...':
     # run.sh starts this file as 'python3 main.py', so the live module is
