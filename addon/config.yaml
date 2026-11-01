@@ -1,15 +1,12 @@
 ---
 name: "EnOcean MQTT UI"
-version: "1.8.4"
+version: "1.8.5"
 slug: "enocean-mqtt-ui"
-description: "All-in-One EnOcean to MQTT bridge with web UI. Configure devices visually, create custom EEP profiles, and manage MQTT mappings - no config files needed!"
+description: "All-in-One EnOcean to MQTT bridge with web UI. Configure devices visually, create custom EEP profiles, and manage MQTT mappings - no config files needed! AI assistants: GET /api/ai/guide through the app's Ingress API for setup steps and device pitfalls."
 url: "https://github.com/ESDN83/HA_enoceanmqtt-addon-ui"
 arch:
   - aarch64
   - amd64
-  - armv7
-  - armhf
-  - i386
 init: false
 uart: true
 udev: true

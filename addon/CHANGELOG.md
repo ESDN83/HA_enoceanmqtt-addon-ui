@@ -1,5 +1,79 @@
 # Changelog
 
+## [1.8.5] - 2026-11-01
+
+Radiator valves, pilot wire and metering modules, a setup guide for Add
+Device and for AI assistants, and many field fixes for Eltako actuators and
+TCP gateways. Twenty beta builds, field tested on the forum and GitHub.
+
+### Check after updating
+
+- **64-bit only (amd64, aarch64).** Home Assistant ended 32-bit support
+  (armv7, armhf, i386) with release 2025.12, see
+  [their announcement](https://www.home-assistant.io/blog/2025/05/22/deprecating-core-and-supervised-installation-methods-and-32-bit-systems/).
+  A 32-bit installation keeps the app version it has.
+- **A5-20-01 / -04 / -06 valves** read only the valve's own fields now. The
+  temperature was a status byte before (e.g. 32.47 instead of 19.1 °C), and
+  fields the valve never sends are gone.
+- **Pilot wire modules (D2-01-0C)** lose their on/off switch; the *Pilot
+  Wire Mode* select covers it.
+- **Dimmers that were already off before the update** have no level stored
+  yet. Switch them on and off once; from then on a plain turn-on returns to
+  the last level, also after a Home Assistant restart.
+
+### Added
+
+- **Radiator valves (A5-20-01, e.g. Micropelt MVA004)**: set point or valve
+  position from Home Assistant, sent in the valve's own listen window, with
+  a pending indicator.
+- **Pilot wire heating modules (D2-01-0C, e.g. NodOn SIN-2-FP-21)**: mode
+  select, power and energy.
+- **Power and Energy for metering D2-01 modules** (08, 09, 0B, 0C, 0E, e.g.
+  NodOn Micro Smart Plug), polled every five minutes.
+- **Add Device explains itself**: a start page for each way to add a
+  device, illustrations, and a searchable list of devices whose setup was
+  confirmed, with the steps for each. *Save device* after an actuator
+  teach-in.
+- **Device list: sort and list view.** Sort by name, last seen, status
+  (offline first) or room; cards or a compact list; remembered per browser.
+- **A setup guide for AI assistants** at `/api/ai/guide`, reachable through
+  the app's Ingress API (e.g. ha-mcp).
+
+### Fixed
+
+- **Eltako shutters taught as a pushbutton**: Stop is no longer sent to a
+  shutter that reported it stands still, and a quick second Stop no longer
+  restarts it.
+- **Dimmers**: keep their level when the actuator confirms with a rocker
+  telegram, and turn on at the last level after a Home Assistant restart.
+  The command echo matches the command (SW, EDIM).
+- **TCP gateways that close idle connections** (Symcon EnOcean LAN gateway,
+  300 s) stay connected: the app asks the transceiver for its version after
+  60 s without sending, and reconnects if it stops answering. A command
+  during a reconnect waits for it instead of being dropped.
+- **Corrupted meter readings** no longer reach the energy dashboard: an
+  implausible value is queried again and published only when confirmed, so
+  a real counter reset still goes through.
+- **Paired D2 modules shared a sender ID** with taught-in Eltako actuators;
+  pairing now takes the next free one.
+- D2 telegrams were decoded with the fields of every command at once;
+  A5-38-08 status now only with the dimming fields.
+- A D2 blind jumped to open or closed on its own button press; D2-01 types
+  missing from the profile database work.
+- Pairing a UTE device stalled the receiver for 300 ms.
+- The app's own telegrams repeated back by a repeater are no longer listed
+  as unknown devices, and the INFO log is much quieter.
+- The last device state is kept in memory even with *Cache Device States*
+  off.
+
+### Changed
+
+- **Base image Alpine 3.24, Python 3.14**, libraries updated (FastAPI
+  0.162, Starlette, uvicorn, Jinja2, python-multipart, lxml, PyYAML,
+  aiofiles, paho-mqtt 2.1), closing known security issues.
+
+Full beta history: [addon-beta/CHANGELOG.md](https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/blob/main/addon-beta/CHANGELOG.md)
+
 ## [1.8.4] - 2026-10-19
 
 Moving over from EnOcean MQTT Slim or ChristopheHD enocean-mqtt, long-press

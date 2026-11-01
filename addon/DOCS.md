@@ -38,6 +38,11 @@ all from within Home Assistant.
 - **EnOcean TCM515** USB transceiver
 - Any serial-based EnOcean transceiver module
 
+The app runs on 64-bit systems (amd64, aarch64). Home Assistant ended
+32-bit support with release 2025.12
+([announcement](https://www.home-assistant.io/blog/2025/05/22/deprecating-core-and-supervised-installation-methods-and-32-bit-systems/)); 1.8.4 is
+the last version for 32-bit systems.
+
 ## Supported EnOcean Profiles
 
 | RORG | Type | Examples |
@@ -66,6 +71,11 @@ Overview with connection status, device counts, recent telegrams and unknown dev
 
 ### Devices
 List and manage all configured EnOcean devices. Add, edit, or remove devices.
+- Search by name, address, profile, room or description.
+- Sort by name (A-Z, Z-A), last seen, status (offline devices first) or room
+  (grouped under room headings, "No room" last).
+- Show the devices as cards or as a compact list. Sort and view are
+  remembered in the browser.
 
 ### EEP Profiles
 Browse the complete EnOcean Equipment Profile tree with dedicated sections for
@@ -101,7 +111,12 @@ Home Assistant at the next start of the app.
 ![Custom Profile](https://github.com/user-attachments/assets/8da98b5c-14cf-4e4e-a26a-cc31aac98e67)
 
 ### Add Device
-Wizard for adding new devices via Teach-In (automatic) or manual entry.
+Wizard for adding new devices: Teach-In (the device announces itself),
+Actuator Teach-In (the app teaches an Eltako actuator) or Manual Entry. The
+page starts with a short guide: which way fits your device, where the ID is,
+what the profile is, and a searchable list of verified devices with their
+steps. Rocker switches send no teach-in: press one, take its ID from the
+Dashboard and use Manual Entry.
 
 ### Settings
 Export/import full configuration as YAML, upload custom EEP.xml, local backups
@@ -133,6 +148,17 @@ Format: `tcp:HOST:PORT` (e.g., `tcp:192.168.1.118:8638`)
 
 When both serial and TCP are configured, **TCP takes priority**.
 
+- After 60 s without sending, the app asks the transceiver for its version.
+  This keeps gateways connected that close idle connections, and shows the
+  transceiver still answers. Two unanswered requests in a row make the app
+  reconnect.
+- **`Transport lost ... FIN received` every few minutes:** the gateway closes
+  idle connections. The keepalive above should prevent it; if it still
+  happens, raise the gateway's idle or inactivity timeout (Symcon EnOcean LAN
+  gateway: "Inactivity Timer", 300 s by default).
+- A command or energy poll that arrives during a reconnect waits up to 5 s
+  for it instead of being dropped.
+
 ### MQTT Settings
 
 By default the app automatically connects to the MQTT broker provided by
@@ -163,6 +189,9 @@ app installed in Home Assistant at all.
 When enabled (default), the app persists the last known state of all devices.
 After a restart, these states are republished so that infrequent sensors (like a
 Kessel Staufix that only reports every 8-10 hours) don't show as "unavailable".
+While the app runs it always keeps the last state in memory, whatever this
+option says (a dimmer's last level, a shutter's position); the option only
+decides whether it survives a restart.
 
 ## Switching from EnOcean MQTT Slim or ChristopheHD enocean-mqtt
 
@@ -228,10 +257,31 @@ shows the same steps. No warranty: make a full Home Assistant backup first.
 - Verify the MQTT discovery prefix matches your HA config (default: `homeassistant`)
 - Check the app log for errors
 
+### Dimmer Turns On at 100 %
+- A dimmer that is off keeps reporting the level it was last on at, so a
+  plain "turn on" (dashboard toggle, voice, automation without brightness)
+  returns to that level, also after a Home Assistant restart. Up to 1.8.4
+  a dimmer that was off during the restart came back at 100 %.
+- A dimmer that was already off when you updated has no level stored yet.
+  Switch it on and off once; from then on it keeps its level.
+
 ### Teach-In Not Working
 - Make sure the EnOcean gateway shows "connected" (green status)
 - Press the teach-in button firmly on your device
 - Some devices require multiple presses or holding the button
+
+### Eltako 61 Series (FSR61, FUD61, FSB61, OPUS 561.164)
+- Teach-in: upper rotary switch to **LRN**, not CLR. On CLR the actuator
+  deletes every sensor it hears.
+- In LRN it learns the next telegram it hears, from any sender. Pause
+  automations that switch other Eltako devices while teaching in.
+- No state in Home Assistant: the confirmation telegrams are off from the
+  factory. Upper switch to CLR, then within 10 s the lower switch 3 times to
+  the **left** stop and back; this toggles them. 3 times to the right
+  deletes every learned sensor.
+- FSB61: use GS2 or GS3 on the lower switch. GS4 and GR are static (the
+  motor runs only while the button is held), so a tap from the app moves the
+  shutter only briefly. The OPUS 561.164 is a rebranded FSB61NP.
 
 ### Eltako 62 Series (FJ62, FSB62, FL62)
 These actuators have no learn positions, only learn mode on and off. The number
@@ -245,10 +295,27 @@ Teach-In" has to be clicked several times in a row:
 | Central control up | 5 |
 | Central control down | 6 |
 
+### Eltako Series 14 (FSR14, FSB14 on a FAM14)
+- One device in this app per channel, each with its own sender offset: an
+  FSR14-4x is four devices.
+- The channels have no printed radio ID. Connect PCT14 to the FAM14,
+  refresh the device list: it shows each channel's ID. Use it as *Actuator
+  Address*. Disconnect PCT14 afterwards.
+- No state in Home Assistant: the FAM14 sends confirmation telegrams only
+  with its top rotary switch on 2, 4 or 5.
+
 ### Eltako Shutter Actuators (FJ62, FSB)
 - Open and close are short rocker taps, and so is stop: a tap while the shutter
-  runs interrupts it. A stop sent while nothing is moving starts a run instead,
-  exactly as it would on a wall switch.
+  runs interrupts it. The same tap on a shutter that stands still starts it,
+  as on a wall switch, so the app does not send Stop when the actuator's last
+  report (end position or run time) says it has stopped. Without such a report
+  Stop is sent, because stopping a moving shutter matters more. A second
+  Stop within 2 s of the first is not sent until the actuator has answered
+  the first, since it would be taken as a new tap and restart the shutter.
+- With **Position control** (GFVS teach-in, see below) Stop is a real stop
+  command and never starts the shutter. The newer FSB61NP (manual
+  30200430) takes the same GFVS teach-in telegram (`0xFFF80D80`); the older
+  one (manual 30200420) has no GFVS and stays on the rocker path.
 - Up is the top half of the rocker, down the bottom one, the way Eltako wires a
   directional pushbutton. If your shutter runs the wrong way, tick **Reverse
   direction** on the device. Covers that existed before 1.8.1 have that box
@@ -260,6 +327,55 @@ Teach-In" has to be clicked several times in a row:
 - Set **Travel time (s)** on the device to get a position as well. It is the
   number of seconds for a full run, and the position is synchronised whenever
   the shutter reaches an end position. The position is read-only for now.
+
+
+### Radiator Valves (A5-20-01, e.g. Micropelt MVA004 / SAM)
+- The valve only listens for about a second after it transmits, so the app
+  answers every telegram from it at once. A value you set in Home Assistant is
+  stored and goes out with the next answer, after at most one radio interval
+  (10 s in the first minutes after a reset, then every few minutes).
+- Pairing: start **Teach-In** in the app, then press the valve's button for
+  5 s. The app answers the valve's request (green flash) and fills in the
+  Sender ID; save the device with it. A valve that is already set up is
+  answered too, with the Sender ID it has.
+- Entities: **Valve Setpoint** (0-100 %), **Target Temperature** (0-40 °C),
+  **Control Mode** (valve / temperature) and **Summer Mode**. Setting the
+  setpoint or the temperature switches the mode to match. Until you set
+  anything the valve regulates itself to 21 °C.
+- **Command Pending** is on while a value you set waits for the valve's next
+  telegram, and goes off once the valve has been answered with it. **Last
+  Answer** shows when the valve was last answered.
+- The valve uses its own temperature sensor. Summer mode makes it report only
+  every few hours.
+
+
+### Pilot Wire Heating Modules (D2-01-0C, e.g. NodOn SIN-2-FP-21)
+- Pair the module with **Teach-In**; it needs a Sender ID, which the teach-in
+  fills in.
+- **Pilot Wire Mode** sets Off, Comfort, Eco, Anti-freeze, Comfort-1 or
+  Comfort-2. A mode chosen at the module's own button is shown as well.
+- **Power** (W) and **Energy** (kWh) are read from the module after every
+  mode change and every five minutes; the module does not send them by
+  itself. Energy works with the Home Assistant energy dashboard.
+
+### Metering Modules (D2-01-08, 09, 0B, 0C, 0E, e.g. NodOn Micro Smart Plug)
+- **Power** (W) and **Energy** (kWh) appear next to the switch.
+- Power arrives whenever the module reports it. Energy is asked for every
+  five minutes, which needs the device's Sender ID (filled in by the
+  teach-in).
+- A reading that cannot be right (energy lower than before or rising faster
+  than 4 kW allows, power above 4000 W) is held back and asked for again.
+  It is published only when a second reading confirms it, so a corrupted
+  radio telegram never reaches the energy dashboard, while a reset or a
+  replaced plug still shows its new count. The log says "implausible, held
+  back" or "confirmed by a second reading".
+
+## AI Assistants
+
+An AI assistant connected to Home Assistant through an MCP server that can
+call app APIs (e.g. ha-mcp) can read a setup guide from the running app at
+`/api/ai/guide`: the steps to add and teach in devices and the pitfalls of
+specific devices. It is told to ask you before changing anything.
 
 ## Support
 

@@ -124,13 +124,28 @@ async def _publish_discovery(device, mqtt_handler, mapping_manager, device_manag
 
 
 @router.get("")
-async def list_devices(request: Request) -> List[Dict[str, Any]]:
-    """Get all devices"""
+async def list_devices(request: Request, include: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Get all devices.
+
+    include=state adds what the device list sorts and shows by, read-only and
+    prefixed with "_" so it can never be mistaken for configuration:
+    _last_seen (last telegram, ISO time), _state (last reported state) and
+    _available (False once the availability watchdog marked it offline).
+    """
     device_manager = request.app.state.device_manager
     if not device_manager:
         raise HTTPException(status_code=500, detail="Device manager not initialized")
 
-    return device_manager.get_all_devices()
+    devices = device_manager.get_all_devices()
+    if include == "state":
+        mqtt_handler = getattr(request.app.state, "mqtt_handler", None)
+        availability = getattr(request.app.state, "device_availability", None) or {}
+        for d in devices:
+            last = (mqtt_handler.get_last_state(d["name"]) if mqtt_handler else None) or {}
+            d["_last_seen"] = last.get("last_seen")
+            d["_state"] = last.get("state")
+            d["_available"] = availability.get(d["name"], True)
+    return devices
 
 
 @router.get("/search/{query}")
@@ -335,6 +350,9 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
             # first so the entity does not fall back to unknown (#36).
             if old_name != name:
                 await mqtt_handler.rename_cached_state(old_name, name)
+                valve_control = getattr(request.app.state, "valve_control", None)
+                if valve_control is not None:
+                    valve_control.rename(old_name, name)
                 await mqtt_handler.clear_device_topics(old_name)
         except Exception as e:
             import logging

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11"><rect x="1" y="1" width="318" height="198" rx="12" fill="#f7f8fa" stroke="#d0d4da"/>
+<rect x="15" y="40" width="290" height="10" fill="#ccc"/>
+<rect x="25" y="28" width="60" height="100" rx="4" fill="#fff" stroke="#888" stroke-width="2"/>
+<text x="55" y="48" text-anchor="middle" fill="#555" font-weight="700">FAM14</text>
+<circle cx="55" cy="72" r="11" fill="#eee" stroke="#666" stroke-width="2"/><line x1="55" y1="72" x2="64" y2="66" stroke="#0d6efd" stroke-width="3" stroke-linecap="round"/>
+<text x="55" y="98" text-anchor="middle" fill="#0d6efd" font-weight="700">2 / 4 / 5</text>
+<text x="55" y="112" text-anchor="middle" fill="#777" font-size="9">sends states</text>
+<rect x="95" y="28" width="90" height="100" rx="4" fill="#fff" stroke="#888" stroke-width="2"/>
+<text x="140" y="48" text-anchor="middle" fill="#555" font-weight="700">FSR14-4x</text>
+<g fill="#eee" stroke="#666"><rect x="103" y="60" width="16" height="16"/><rect x="123" y="60" width="16" height="16"/><rect x="143" y="60" width="16" height="16"/><rect x="163" y="60" width="16" height="16"/></g>
+<g fill="#444" font-size="10" text-anchor="middle"><text x="111" y="90">1</text><text x="131" y="90">2</text><text x="151" y="90">3</text><text x="171" y="90">4</text></g>
+<circle cx="140" cy="110" r="5" fill="#f1c40f" stroke="#a88a00"><animate attributeName="opacity" values="1;0.15;1" dur="1s" repeatCount="indefinite"/></circle>
+<rect x="195" y="62" width="112" height="98" rx="4" fill="#fff" stroke="#0d6efd" stroke-width="1.5"/>
+<text x="251" y="77" text-anchor="middle" fill="#0d6efd" font-weight="700">PCT14 device list</text>
+<g font-family="ui-monospace,Menlo,Consolas,monospace" font-size="10" fill="#333">
+<text x="202" y="93">Base FF8A0000</text>
+<text x="202" y="108">ch1  FF8A0001</text><text x="202" y="121">ch2  FF8A0002</text>
+<text x="202" y="134">ch3  FF8A0003</text><text x="202" y="147">ch4  FF8A0004</text></g>
+<text x="20" y="150" fill="#444">4 channels = 4 devices,</text>
+<text x="20" y="164" fill="#444">4 sender offsets</text>
+<text x="160" y="188" text-anchor="middle" fill="#777">Example IDs: use the ones PCT14 shows</text>
+</svg>

@@ -800,6 +800,68 @@ DEFAULT_MAPPINGS = {
             "unit_of_measurement": "V"
         }
     },
+    # HVAC radiator valve (A5-20-01, e.g. Micropelt MVA004), what it reports
+    # (EEP.xml direction 1). Status bits as EEP.xml names them; BCAP's meaning
+    # differs between the EEP text and device datasheets, so it gets no
+    # battery class. Forum post 71.
+    "A5-20-01": {
+        "CV": {
+            "component": "sensor",
+            "name": "Valve Position",
+            "unit_of_measurement": "%",
+            "state_class": "measurement",
+            "icon": "mdi:valve"
+        },
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "°C",
+            "state_class": "measurement"
+        },
+        "DWO": {
+            "component": "binary_sensor",
+            "name": "Window Open",
+            "device_class": "window"
+        },
+        "ACO": {
+            "component": "binary_sensor",
+            "name": "Actuator Obstructed",
+            "device_class": "problem"
+        },
+        "FTS": {
+            "component": "binary_sensor",
+            "name": "Temperature Sensor Failure",
+            "device_class": "problem",
+            "entity_category": "diagnostic"
+        },
+        "CCO": {
+            "component": "binary_sensor",
+            "name": "Cover Open",
+            "device_class": "opening",
+            "entity_category": "diagnostic"
+        },
+        "ES": {
+            "component": "binary_sensor",
+            "name": "Energy Storage Charged",
+            "entity_category": "diagnostic"
+        },
+        "ENIE": {
+            "component": "binary_sensor",
+            "name": "Energy Input",
+            "entity_category": "diagnostic"
+        },
+        "BCAP": {
+            "component": "binary_sensor",
+            "name": "Battery Capacity",
+            "entity_category": "diagnostic"
+        },
+        "SO": {
+            "component": "binary_sensor",
+            "name": "Service On",
+            "entity_category": "diagnostic"
+        }
+    },
     # 4BS Digital Input (A5-30), from arno0392 fork
     "A5-30-01": {
         "DI0": {
@@ -1160,6 +1222,14 @@ class MappingManager:
         If actuator_type is set (light/switch/cover), generates a controllable entity
         instead of sensor entities from the EEP profile.
         """
+        # A valve (A5-20-01) gets its sender ID only at teach-in, and that ID
+        # is the gateway's, not the valve's. Keeping it out of the unique_id
+        # keeps the entities when it is assigned (ADR-0029).
+        is_valve = str(eep_id).upper() == "A5-20-01" and not actuator_type
+        valve_controllable = is_valve and bool(device_sender)
+        if is_valve:
+            device_sender = ""
+
         configs = []
 
         avail_config = {
@@ -1290,11 +1360,16 @@ class MappingManager:
                         # actuator reports at all (ADR-0015).
                         config["optimistic"] = False
 
-            configs.append({
-                "component": actuator_type,
-                "unique_id": unique_id,
-                "config": config
-            })
+            # A pilot wire module (D2-01-0C) is driven by its Pilot Wire Mode
+            # select. The generic D2-01 output switch teach-in gives it only
+            # meant Off / Comfort next to it, and read as a leftover (forum
+            # post 80). ADR-0032.
+            if str(eep_id).upper() != "D2-01-0C":
+                configs.append({
+                    "component": actuator_type,
+                    "unique_id": unique_id,
+                    "config": config
+                })
 
             # Return early, actuators don't need sensor entities from EEP profile
             # Still add diagnostic entities below
@@ -1354,6 +1429,21 @@ class MappingManager:
                     "unique_id": unique_id,
                     "config": config
                 })
+
+        if valve_controllable:
+            configs.extend(self._valve_control_configs(
+                eep_id, device_address, device_name, mqtt_prefix, device_info, avail_config))
+
+        # A pilot wire module (D2-01-0C) takes a mode (needs a sender ID to
+        # be addressed, ADR-0032). Every metering D2-01 module reports power
+        # and energy, by itself or when asked (ADR-0035).
+        from core.pilot_wire import profile_meters
+        meters = bool(self.eep_manager) and profile_meters(self.eep_manager.get_profile(str(eep_id).upper()))
+        pilot_mode = str(eep_id).upper() == "D2-01-0C" and bool(device_sender)
+        if meters or pilot_mode:
+            configs.extend(self._pilot_wire_configs(
+                eep_id, device_address, device_sender, device_name, mqtt_prefix,
+                device_info, avail_config, pilot_mode=pilot_mode, meters=meters))
 
         # Auto-add diagnostic entities for every device: RSSI + Last Seen
         state_topic = f"{mqtt_prefix}/{device_name}/state"
@@ -1568,6 +1658,108 @@ class MappingManager:
         })
 
         return [connected, base_id, devices, last_telegram, busy, pending, duration]
+
+    def _pilot_wire_configs(self, eep_id, device_address, device_sender, device_name,
+                            mqtt_prefix, device_info, avail_config, pilot_mode=True,
+                            meters=True) -> List[Dict[str, Any]]:
+        """Pilot wire mode of a D2-01-0C module, power and energy of every
+        metering D2-01 module."""
+        from core.pilot_wire import MODES, ENTITY_MODE
+        state_topic = f"{mqtt_prefix}/{device_name}/state"
+
+        def guarded(field):
+            return f"{{{{ value_json.{field} if value_json.{field} is defined else None }}}}"
+
+        entities = []
+        if pilot_mode:
+            entities.append(("select", "PILOT_MODE", "pilot_wire_mode", {
+                "name": "Pilot Wire Mode", "options": MODES, "icon": "mdi:radiator",
+                "command_topic": f"{mqtt_prefix}/{device_name}/set/{ENTITY_MODE}"}))
+        if meters:
+            entities += [
+            ("sensor", "POWER_W", "power", {
+                "name": "Power", "unit_of_measurement": "W", "device_class": "power",
+                "state_class": "measurement"}),
+            ("sensor", "ENERGY_KWH", "energy", {
+                "name": "Energy", "unit_of_measurement": "kWh", "device_class": "energy",
+                "state_class": "total_increasing"}),
+            ]
+        out = []
+        for component, field, suffix, extra in entities:
+            uid = self.build_unique_id(eep_id, device_address, device_sender, field)
+            config = {
+                "unique_id": uid,
+                "object_id": f"{device_name}_{suffix}".lower().replace(" ", "_"),
+                "state_topic": state_topic,
+                "value_template": guarded(field),
+                "device": device_info,
+                "availability": avail_config,
+            }
+            config.update(extra)
+            out.append({"component": component, "unique_id": uid, "config": config})
+        return out
+
+    def _valve_control_configs(self, eep_id, device_address, device_name, mqtt_prefix,
+                               device_info, avail_config) -> List[Dict[str, Any]]:
+        """Setpoint, target temperature, mode and summer mode of a valve.
+
+        A command is stored and goes out in the reply to the valve's next
+        telegram (ADR-0029), so the state shows what was set, not what the
+        valve has already taken.
+        """
+        state_topic = f"{mqtt_prefix}/{device_name}/state"
+        entities = [
+            ("number", "SET_VALVE", "valve_setpoint", {
+                "name": "Valve Setpoint", "min": 0, "max": 100, "step": 1,
+                "unit_of_measurement": "%", "mode": "slider", "icon": "mdi:valve"}),
+            ("number", "SET_TEMP", "target_temperature", {
+                "name": "Target Temperature", "min": 0, "max": 40, "step": 0.5,
+                "unit_of_measurement": "°C", "device_class": "temperature", "mode": "box"}),
+            ("select", "SET_MODE", "mode", {
+                "name": "Control Mode", "options": ["valve", "temperature"],
+                "icon": "mdi:tune-variant"}),
+            ("switch", "SET_SUMMER", "summer_mode", {
+                "name": "Summer Mode", "payload_on": "ON", "payload_off": "OFF",
+                "icon": "mdi:white-balance-sunny", "entity_category": "config"}),
+        ]
+        # Read-only: whether a set value still waits for the valve's next
+        # telegram, and when the valve last got an answer (forum post 75).
+        status = [
+            ("binary_sensor", "SET_PENDING", "command_pending", {
+                "name": "Command Pending", "payload_on": "ON", "payload_off": "OFF",
+                "icon": "mdi:timer-sand"}),
+            ("sensor", "LAST_ANSWER", "last_answer", {
+                "name": "Last Answer", "device_class": "timestamp",
+                "entity_category": "diagnostic",
+                "value_template": "{{ value_json.LAST_ANSWER if value_json.LAST_ANSWER else None }}"}),
+        ]
+        out = []
+        for component, field, object_suffix, extra in status:
+            uid = self.build_unique_id(eep_id, device_address, "", field)
+            config = {
+                "unique_id": uid,
+                "object_id": f"{device_name}_{object_suffix}".lower().replace(" ", "_"),
+                "state_topic": state_topic,
+                "value_template": f"{{{{ value_json.{field} }}}}",
+                "device": device_info,
+                "availability": avail_config,
+            }
+            config.update(extra)
+            out.append({"component": component, "unique_id": uid, "config": config})
+        for component, field, command, extra in entities:
+            uid = self.build_unique_id(eep_id, device_address, "", field)
+            config = {
+                "unique_id": uid,
+                "object_id": f"{device_name}_{command}".lower().replace(" ", "_"),
+                "state_topic": state_topic,
+                "value_template": f"{{{{ value_json.{field} }}}}",
+                "command_topic": f"{mqtt_prefix}/{device_name}/set/{command}",
+                "device": device_info,
+                "availability": avail_config,
+            }
+            config.update(extra)
+            out.append({"component": component, "unique_id": uid, "config": config})
+        return out
 
     def build_discovery_for_device(self, device, mqtt_prefix: str,
                                    devices_on_address) -> List[Dict[str, Any]]:

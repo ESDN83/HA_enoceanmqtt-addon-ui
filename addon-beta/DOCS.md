@@ -38,6 +38,11 @@ all from within Home Assistant.
 - **EnOcean TCM515** USB transceiver
 - Any serial-based EnOcean transceiver module
 
+The app runs on 64-bit systems (amd64, aarch64). Home Assistant ended
+32-bit support with release 2025.12
+([announcement](https://www.home-assistant.io/blog/2025/05/22/deprecating-core-and-supervised-installation-methods-and-32-bit-systems/)); 1.8.4 is
+the last version for 32-bit systems.
+
 ## Supported EnOcean Profiles
 
 | RORG | Type | Examples |
@@ -255,7 +260,7 @@ shows the same steps. No warranty: make a full Home Assistant backup first.
 ### Dimmer Turns On at 100 %
 - A dimmer that is off keeps reporting the level it was last on at, so a
   plain "turn on" (dashboard toggle, voice, automation without brightness)
-  returns to that level, also after a Home Assistant restart. Up to beta15
+  returns to that level, also after a Home Assistant restart. Up to 1.8.4
   a dimmer that was off during the restart came back at 100 %.
 - A dimmer that was already off when you updated has no level stored yet.
   Switch it on and off once; from then on it keeps its level.

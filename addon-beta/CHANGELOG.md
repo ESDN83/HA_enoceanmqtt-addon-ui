@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.5] - 2026-11-01
+
+Promoted to stable: 1.8.5-beta1 to beta20, see below. The next beta
+starts at 1.8.6-beta1.
+
 ## [1.8.5-beta20] - 2026-10-31 (beta channel)
 
 ### Added

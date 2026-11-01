@@ -5,6 +5,7 @@ Main application entry point
 Compatible with ChristopheHD/HA_enoceanmqtt-addon MQTT patterns.
 """
 
+import json
 import os
 import time
 import asyncio
@@ -16,17 +17,19 @@ from typing import Dict, Optional
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 
 # Import API routers
 from api import devices, eep, mappings, system, gateway
 
 # Import core components
 from core.mqtt_handler import MQTTHandler
-from core.serial_handler import SerialHandler, RPS_HOLD_SECONDS
+from core.serial_handler import SerialHandler, RPS_HOLD_SECONDS, keep_level_when_off
 from core.device_manager import DeviceManager
 from core.eep_manager import EEPManager
 from core.mapping_manager import MappingManager
+from core.valve_control import ValveControl, is_valve
+from core.pilot_wire import PilotWire, is_pilot, ENTITY_MODE as PILOT_ENTITY_MODE
 from core.telegram_buffer import TelegramBuffer
 from core.command_queue import CommandQueue
 
@@ -75,23 +78,28 @@ eep_manager: EEPManager = None
 mapping_manager: MappingManager = None
 telegram_buffer: TelegramBuffer = None
 command_queue: CommandQueue = None
+valve_control: "ValveControl" = None
+pilot_wire: "PilotWire" = None
 availability_task: asyncio.Task = None
 # Last availability the watchdog published per device, so the retained topic is
 # only rewritten on a change, plus the moment the add-on came up (#37).
 _availability_known: Dict[str, bool] = {}
 _availability_started_at: Optional[datetime] = None
-# Throttle for the command queue state topic. Transitions are always published,
-# this only caps the pending count in between (#38).
-QUEUE_PUBLISH_MIN_INTERVAL = 0.5
+# Throttle for the diagnostics topic. Busy/idle transitions are always
+# published; everything else (pending count, last telegram time) at most every
+# 5 s, the latest state going out when the 5 s are up. At 0.5 s it was written
+# after nearly every telegram, 837 times a quiet night (#38, #51).
+QUEUE_PUBLISH_MIN_INTERVAL = 5.0
 _queue_last_published_at: float = 0.0
 _queue_last_busy: Optional[bool] = None
+_queue_trailing: Optional[asyncio.Task] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan - startup and shutdown"""
     global mqtt_handler, serial_handler, device_manager, eep_manager, mapping_manager, telegram_buffer
-    global availability_task, command_queue
+    global availability_task, command_queue, valve_control, pilot_wire
 
     logger.info("Starting EnOcean MQTT Add-on...")
 
@@ -166,6 +174,21 @@ async def lifespan(app: FastAPI):
         if GATEWAY_DIAGNOSTICS:
             serial_handler.register_telegram_callback(_on_telegram_for_diagnostics)
 
+        # Valves that only listen right after they transmit (ADR-0029).
+        valve_control = ValveControl(CONFIG_PATH, serial_handler, device_manager, mqtt_handler)
+        await valve_control.load()
+        serial_handler.valve_control = valve_control
+
+        async def _valve_discovery(device):
+            from api.devices import _publish_discovery
+            await _publish_discovery(device, mqtt_handler, mapping_manager, device_manager)
+        valve_control.on_sender_assigned = _valve_discovery
+
+        # Pilot wire modules: mode commands and measurement queries (ADR-0032).
+        pilot_wire = PilotWire(serial_handler, device_manager, mqtt_handler, eep_manager)
+        serial_handler.pilot_wire = pilot_wire
+        pilot_wire.start()
+
         try:
             # connect() logs the same sentence itself. Logging it twice from
             # two places reads like two connections, which is exactly the
@@ -203,10 +226,13 @@ async def lifespan(app: FastAPI):
     # Store instances in app state for access in routes
     app.state.mqtt_handler = mqtt_handler
     app.state.serial_handler = serial_handler
+    app.state.valve_control = valve_control
     app.state.device_manager = device_manager
     app.state.eep_manager = eep_manager
     app.state.mapping_manager = mapping_manager
     app.state.telegram_buffer = telegram_buffer
+    # The watchdog's verdict per device, read by the device list (#54).
+    app.state.device_availability = _availability_known
     app.state.config_path = CONFIG_PATH
     # Handles for the API routers. They must NOT do 'from main import ...':
     # run.sh starts this file as 'python3 main.py', so the live module is
@@ -436,7 +462,7 @@ async def _clear_stale_discovery(published: set):
     addresses = {_normalize_address(d.address) for d in device_manager.devices.values() if d.address}
     if not addresses:
         return
-    messages = await asyncio.get_event_loop().run_in_executor(
+    messages = await asyncio.get_running_loop().run_in_executor(
         None, _scan_retained_discovery, mqtt_handler)
     prefix = mqtt_handler.discovery_prefix + "/"
     stale = []
@@ -630,12 +656,21 @@ async def _publish_gateway_state(force: bool = False):
     state = _gateway_diagnostics_state()
     now = time.monotonic()
     changed = state.get("busy") != _queue_last_busy
-    if not (force or changed) and now - _queue_last_published_at < QUEUE_PUBLISH_MIN_INTERVAL:
+    wait = QUEUE_PUBLISH_MIN_INTERVAL - (now - _queue_last_published_at)
+    if not (force or changed) and wait > 0:
+        global _queue_trailing
+        if _queue_trailing is None or _queue_trailing.done():
+            _queue_trailing = asyncio.create_task(_publish_gateway_state_later(wait))
         return
 
     _queue_last_busy = state.get("busy")
     _queue_last_published_at = now
     await mqtt_handler.publish(mqtt_handler.diagnostics_topic, state, retain=True)
+
+
+async def _publish_gateway_state_later(delay: float):
+    await asyncio.sleep(delay)
+    await _publish_gateway_state()
 
 
 async def _echo_switch_state(device_name: str, command: str):
@@ -653,7 +688,26 @@ async def _echo_switch_state(device_name: str, command: str):
         return
     state = dict(mqtt_handler.get_last_state(device_name) or {})
     state["state"] = command
+    _echo_raw_output(state, command == "ON", None)
     await mqtt_handler.publish_state(device_name, state)
+
+
+def _echo_raw_output(state: Dict, on: bool, level):
+    """Bring the actuator's own output fields in line with the echo.
+
+    The echo is built on the last payload, so it carried the old SW / EDIM
+    next to the new state until the actuator answered: "ON" with SW 0 (#52).
+    They are set to what was commanded rather than dropped, since entities
+    can read them from this topic and a missing field leaves them blank. The
+    actuator's status overwrites them when it arrives. D2-01 OV stays as it
+    is: on a two-channel module it is shared between the channels.
+    """
+    if "SW" in state:
+        state["SW"] = 1 if on else 0
+        if "SW_text" in state:
+            state["SW_text"] = "On" if on else "Off"  # EEP.xml item text
+    if "EDIM" in state and level is not None:
+        state["EDIM"] = float(level) if on else 0.0
 
 
 async def _echo_light_state(device_name: str, command: str, brightness: int = None):
@@ -670,12 +724,16 @@ async def _echo_light_state(device_name: str, command: str, brightness: int = No
     """
     if not mqtt_handler:
         return
-    state = dict(mqtt_handler.get_last_state(device_name) or {})
+    previous = mqtt_handler.get_last_state(device_name) or {}
+    state = dict(previous)
     state["state"] = command
     if command == "OFF":
+        # The last level stays in the state, see keep_level_when_off (#52).
         state["brightness"] = 0
+        keep_level_when_off(state, previous)
     elif brightness is not None:
         state["brightness"] = brightness
+    _echo_raw_output(state, command == "ON", state.get("brightness") if command == "ON" else 0)
     await mqtt_handler.publish_state(device_name, state)
 
 
@@ -723,8 +781,30 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
     """
     global serial_handler, device_manager, mqtt_handler
 
+    # A valve (A5-20-01) is not commanded now: the value is stored and goes
+    # out in the reply to its next telegram, the only moment it listens
+    # (ADR-0029). So no transceiver is needed here.
+    if valve_control is not None and device_manager is not None:
+        valve = device_manager.get_device(device_name)
+        if is_valve(valve):
+            await valve_control.handle_command(valve, payload, entity)
+            return
+
+    # A pilot wire module's mode is its own command (CMD 8), whatever role
+    # the device has for its output (ADR-0032).
+    if pilot_wire is not None and entity == PILOT_ENTITY_MODE and device_manager is not None:
+        module = device_manager.get_device(device_name)
+        if is_pilot(module):
+            await pilot_wire.set_mode(module, payload)
+            return
+
+    # A command that arrives while the transport reconnects (about a second
+    # after a gateway closed the connection) waits for it instead of being
+    # dropped (issue #51).
+    if serial_handler and not serial_handler.is_connected:
+        await serial_handler.wait_connected(5)
     if not serial_handler or not serial_handler.is_connected:
-        logger.warning(f"Cannot send command for {device_name}: serial not connected")
+        logger.warning(f"Command for {device_name} not sent: transceiver not connected")
         return
 
     if not device_manager:
@@ -1026,6 +1106,9 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             rocker = 0x50 if rocker == 0x70 else 0x70
         if rocker is not None:
             _last_cover_rocker[device_name] = rocker
+            # Forget the last report before sending: the actuator answers
+            # about 200 ms later, possibly before this send returns.
+            serial_handler.cover_command_sent(device_name)
             # A configured press time is for actuators that only travel on a
             # long press (Flextron ALADIN, ADR-0019). Stop below stays a tap,
             # which halts a running shutter on those as well.
@@ -1046,7 +1129,20 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
             # Nothing to repeat before the first command of a session. Up is
             # the safer guess for a tap that starts a run instead of ending
             # one, a shutter going down can trap something.
+            # Only a tap stops it, and the same tap starts a shutter that
+            # stands still (issue #49). When the actuator's last report since
+            # the last command says it stopped, nothing is sent. Without such
+            # a report the tap goes out as before: stopping a moving shutter
+            # matters more than an occasional restart. A second Stop before
+            # the first is answered is not sent either: the actuator takes it
+            # as a new tap. ADR-0037.
+            blocked = serial_handler.cover_stop_blocked(device_name)
+            if blocked:
+                logger.info(f"STOP for {device_name} not sent: {blocked}")
+                return
             rocker = _last_cover_rocker.get(device_name, 0x70)
+            # Before sending, the report can come before this send returns.
+            serial_handler.cover_stop_sent(device_name)
             sent = await serial_handler.send_rps_press_release(
                 sender_id=sender_id, press_data=rocker,
                 destination=broadcast, label=device_name
@@ -1068,7 +1164,14 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
 # Create FastAPI app
 app = FastAPI(
     title="EnOcean MQTT UI",
-    description="All-in-One EnOcean to MQTT bridge with web UI",
+    # An AI assistant that reads this schema through an MCP server lands
+    # here first, so it points to the guide (ADR-0033).
+    description=(
+        "EnOcean to MQTT bridge for Home Assistant with a web UI. "
+        "AI assistants: read GET /api/ai/guide first. It explains how to add "
+        "and teach in devices and lists device-specific pitfalls. Ask the "
+        "user before any write."
+    ),
     version=VERSION,
     lifespan=lifespan
 )
@@ -1092,10 +1195,36 @@ async def root(request: Request):
     """Serve the main UI"""
     # Never cache the page: it names the script versions to load, and a
     # cached copy kept a browser on the previous version's scripts.
-    return templates.TemplateResponse("index.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "index.html", {
         "version": VERSION
     }, headers={"Cache-Control": "no-store"})
+
+
+AI_GUIDE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "ai_guide.md")
+
+
+@app.get("/api/ai/guide", response_class=PlainTextResponse, tags=["ai"],
+         summary="Setup guide for AI assistants (Markdown)")
+async def ai_guide():
+    """How to add, teach in and diagnose devices, with the pitfalls of
+    specific devices (Eltako, radiator valves, pilot wire, D2 modules) and
+    the migration from other EnOcean apps. Read this before configuring
+    anything. ADR-0033."""
+    with open(AI_GUIDE, encoding="utf-8") as f:
+        return PlainTextResponse(f.read(), media_type="text/markdown; charset=utf-8")
+
+
+DEVICE_CATALOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "device_catalog.json")
+
+
+@app.get("/api/help/devices", tags=["ai"],
+         summary="Catalogue of verified devices with setup steps")
+async def device_catalog():
+    """Devices whose setup was verified by users or in tests: profile,
+    which way to add them (auto, actuator, manual), teach-in steps, where
+    the ID is, and pitfalls. Used by the Add Device page. ADR-0034."""
+    with open(DEVICE_CATALOG, encoding="utf-8") as f:
+        return json.load(f)
 
 
 @app.get("/health")

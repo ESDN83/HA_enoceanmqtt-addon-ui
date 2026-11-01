@@ -807,7 +807,7 @@ async def _supervisor_self_restart() -> bool:
             return 200 <= resp.status < 300
 
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, _call)
     except Exception:
         return False
@@ -846,7 +846,7 @@ async def _find_slim_addon() -> Dict[str, Any]:
         return {}
 
     try:
-        return await asyncio.get_event_loop().run_in_executor(None, _call)
+        return await asyncio.get_running_loop().run_in_executor(None, _call)
     except Exception as e:
         logger.warning(f"Slim lookup via Supervisor failed: {e}")
         return {}
@@ -890,7 +890,7 @@ async def legacy_import_preview(request: Request, source: str = Form(""),
             if slim.get("state") != "started" or not slim.get("ip"):
                 raise HTTPException(status_code=409, detail="The Slim app is not running. Start it, then try again.")
             url = f"http://{slim['ip']}:{slim['port']}/api/devices"
-            data = await asyncio.get_event_loop().run_in_executor(None, _supervisor_get_json, url)
+            data = await asyncio.get_running_loop().run_in_executor(None, _supervisor_get_json, url)
             fmt = "slim"
             devices, skipped = li.parse_slim(data)
         else:
@@ -918,10 +918,11 @@ def _scan_retained_discovery(mqtt_handler, seconds: float = 3.0) -> list:
 
     found = []
     dp = mqtt_handler.discovery_prefix
-    client = mqtt.Client(client_id=f"enocean_legacy_scan_{uuid.uuid4().hex[:6]}")
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,
+                         client_id=f"enocean_legacy_scan_{uuid.uuid4().hex[:6]}")
     if mqtt_handler.username:
         client.username_pw_set(mqtt_handler.username, mqtt_handler.password)
-    client.on_connect = lambda c, u, f, rc: c.subscribe(
+    client.on_connect = lambda c, u, f, rc, props: c.subscribe(
         [(f"{dp}/+/+/config", 0), (f"{dp}/+/enocean/+/config", 0)])
     client.on_message = lambda c, u, m: found.append((m.topic, m.payload)) if m.retain else None
     client.connect(mqtt_handler.host, mqtt_handler.port, keepalive=30)
@@ -986,7 +987,7 @@ async def _find_old_entities(request: Request) -> Dict[str, Any]:
     # device exists in this app.
     addresses = {d.address.strip().lower().replace("0x", "").zfill(8)
                  for d in device_manager.devices.values() if d.address}
-    messages = await asyncio.get_event_loop().run_in_executor(
+    messages = await asyncio.get_running_loop().run_in_executor(
         None, _scan_retained_discovery, mqtt_handler)
     dp = mqtt_handler.discovery_prefix
     old = [h for h in (match_old_entity(t, p, dp, addresses) for t, p in messages) if h]

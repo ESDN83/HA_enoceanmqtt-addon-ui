@@ -25,7 +25,27 @@ PACKET_TYPE_EVENT = 0x04
 PACKET_TYPE_COMMON_COMMAND = 0x05
 
 # Common commands
+CO_RD_VERSION = 0x03
 CO_RD_IDBASE = 0x08
+
+# ESP3 event codes. CO_TX_DONE follows every telegram sent; the two in
+# _EVENT_WARNINGS mean a telegram did not go out as asked.
+_EVENT_NAMES = {
+    0x01: "SA_RECLAIM_NOT_SUCCESSFUL", 0x02: "SA_CONFIRM_LEARN",
+    0x03: "SA_LEARN_ACK", 0x04: "CO_READY", 0x05: "CO_EVENT_SECUREDEVICES",
+    0x06: "CO_DUTYCYCLE_LIMIT", 0x07: "CO_TRANSMIT_FAILED", 0x08: "CO_TX_DONE",
+    0x09: "CO_LRN_MODE_DISABLED",
+}
+_EVENT_WARNINGS = {0x06, 0x07}
+
+# A TCP link the app has sent nothing on for this long gets a CO_RD_VERSION.
+# TCP keepalive carries no data, so it does not stop a gateway that drops idle
+# connections (Symcon EnOcean LAN gateway: 300 s by default). Counted from the
+# last transmit, not receive: a gateway may count only what it receives. The
+# answer also shows the transceiver itself is alive, not only the socket; two
+# unanswered in a row drop the connection for a reconnect (issue #51).
+TCP_IDLE_KEEPALIVE_SECONDS = 60
+KEEPALIVE_MISSES_BEFORE_RECONNECT = 2
 
 # Response return codes
 RET_OK = 0x00
@@ -113,6 +133,23 @@ def crc8(data: bytes) -> int:
     return crc
 
 
+def keep_level_when_off(state: Dict[str, Any], previous: Dict[str, Any]) -> None:
+    """A light that is off keeps reporting the level it was last on at.
+
+    Home Assistant ignores brightness 0 and keeps the last level only in
+    memory. After a Home Assistant restart it reads the retained state, and
+    for a dimmer that was off it found 0 and so no level at all: the next
+    plain "turn on" sent 100 % (issue #52). With the last level in the state
+    it sends that level again. HA shows no brightness for a light that is
+    off, and SW / EDIM keep the actuator's real output.
+    """
+    if state.get("state") != "OFF":
+        return
+    level = previous.get("brightness")
+    if isinstance(level, (int, float)) and level > 0:
+        state["brightness"] = level
+
+
 @dataclass
 class RadioTelegram:
     """Represents an EnOcean radio telegram"""
@@ -171,12 +208,15 @@ class SerialHandler:
         self._read_task: Optional[asyncio.Task] = None
         self._telegram_callbacks: List[Callable] = []
         self._teach_in_callback: Optional[Callable] = None
-        # UTE (RORG D4) auto-response sender offset. NodOn D2-05-00 covers in
-        # bidirectional learn mode expect a UTE teach-in *response* carrying the
-        # controller Sender ID they must bind to (base_id + offset). Commands
-        # are addressed (destination = actuator), so one gateway sender can
-        # drive many covers, a single offset is fine. Set per teach-in session.
-        self._ute_response_offset: int = 1
+        # Sender IDs handed out in teach-in responses (UTE, valve) whose
+        # device is not saved yet, by module address: a second module paired
+        # before the first is saved must not get the same one (ADR-0036).
+        self._pending_senders: Dict[str, int] = {}
+        # Radiator valves that only listen right after they transmit
+        # (A5-20-01, ADR-0029); set by main once everything exists.
+        self.valve_control = None
+        # Pilot wire modules (D2-01-0C, ADR-0032); set by main.
+        self.pilot_wire = None
         self._base_id: Optional[int] = None
         self._response_future: Optional[asyncio.Future] = None
         # Guards every conversation with the transceiver, radio telegrams and
@@ -193,6 +233,19 @@ class SerialHandler:
         # measured against, and whether anything has answered it yet. See
         # track_cover_travel.
         self._cover_commands: Dict[str, dict] = {}
+        # Rocker-taught shutters: what the actuator last reported, "moving"
+        # (travel started) or "stopped" (end position or travel report).
+        # Cleared by every OPEN/CLOSE sent, so only a report that came after
+        # the last command counts (issue #49, ADR-0037).
+        self._cover_motion: Dict[str, str] = {}
+        # When the last Stop went out, until a report answers it. A second
+        # Stop in that window would be a new tap and restart the shutter.
+        self._cover_stop_sent: Dict[str, float] = {}
+        self._keepalive_running = False
+        self._keepalive_misses = 0
+        # "Unknown device" senders already logged at INFO, with the time.
+        # Once an hour per sender is enough to find a device to add (#51).
+        self._unknown_logged: Dict[int, float] = {}
         # Bumped every time a read loop is started or stopped. A loop that
         # finds the counter moved on knows a newer one has taken over and
         # stops, so a stale one can never keep reading. See _stop_reader.
@@ -201,6 +254,15 @@ class SerialHandler:
     @property
     def is_connected(self) -> bool:
         """Returns connection status"""
+        return self._connected
+
+    async def wait_connected(self, timeout: float) -> bool:
+        """Wait up to timeout seconds for the transport to be back. A command
+        that arrives during a reconnect (about a second) waits for it instead
+        of being dropped (issue #51)."""
+        deadline = time.monotonic() + timeout
+        while not self._connected and time.monotonic() < deadline:
+            await asyncio.sleep(0.1)
         return self._connected
 
     @property
@@ -317,7 +379,7 @@ class SerialHandler:
         loops call recv() on whatever `self._socket` currently is, so the
         inbound byte stream is split between them and neither ever assembles a
         whole ESP3 frame: receiving dies silently while sending still works,
-        and the log fills with several "Serial reader: still waiting for data"
+        and the log fills with several "Reader: still waiting for data"
         lines that share an elapsed time but not a packet count.
 
         Reported as #41 after reconnect loops, "restart services" and a failed
@@ -335,7 +397,7 @@ class SerialHandler:
             pass
         except Exception as e:
             logger.debug(f"Previous read loop ended with {e}")
-        logger.info("Serial reader: previous loop stopped")
+        logger.info("Reader: previous loop stopped")
 
     # How long a session has to last before it counts as usable on its own,
     # without having carried a single byte. An EnOcean gateway can be silent
@@ -352,7 +414,7 @@ class SerialHandler:
         in a zombie state, /health still reported connected, but no data
         flowed and nothing in the log said why.
         """
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         packet_count = 0
         backoff = 1.0
         skipped_bytes = 0
@@ -376,7 +438,7 @@ class SerialHandler:
             if generation is not None and generation != self._reader_generation:
                 # A newer loop owns the transport. Two readers split the byte
                 # stream and neither sees a whole frame (#41).
-                logger.info("Serial reader: superseded by a newer loop, stopping")
+                logger.info("Reader: superseded by a newer loop, stopping")
                 return
             try:
                 # Wait for sync byte (0x55) using run_in_executor
@@ -389,13 +451,17 @@ class SerialHandler:
                     idle = now - idle_since
                     if idle - idle_logged >= 30:
                         idle_logged = idle
-                        logger.info(
-                            f"Serial reader #{generation}: still waiting for data "
+                        # Routine while nothing transmits: 858 lines a night
+                        # at INFO in a field log (#51).
+                        logger.debug(
+                            f"Reader #{generation}: still waiting for data "
                             f"({idle:.0f}s elapsed, {packet_count} packets so far)"
                         )
+                    self._maybe_keepalive()
                     continue
 
                 idle_since = None
+                self._maybe_keepalive()
                 session_bytes += 1
                 backoff = 1.0  # a byte arrived, so the session is usable
 
@@ -470,7 +536,7 @@ class SerialHandler:
                     if self._response_future and not self._response_future.done():
                         self._response_future.set_result(packet_data)
                 elif packet_type == PACKET_TYPE_EVENT:
-                    logger.info(f"Event packet: {packet_data.hex()}")
+                    self._log_event(packet_data)
 
             except asyncio.CancelledError:
                 break
@@ -512,6 +578,53 @@ class SerialHandler:
                     await asyncio.sleep(1)
 
         logger.info("Serial read loop stopped")
+
+    def _log_event(self, packet_data: bytes):
+        code = packet_data[0] if packet_data else None
+        name = _EVENT_NAMES.get(code, "unknown event")
+        detail = packet_data[1:].hex()
+        line = f"Transceiver event 0x{code if code is not None else 0:02X} {name}" + (f" ({detail})" if detail else "")
+        # CO_DUTYCYCLE_LIMIT with 0x00 is the all clear after the limit.
+        if code in _EVENT_WARNINGS and not (code == 0x06 and packet_data[1:2] == b"\x00"):
+            logger.warning(line)
+        elif code == 0x08:
+            logger.debug(line)
+        else:
+            logger.info(line)
+
+    def _maybe_keepalive(self):
+        if (self.is_tcp and self._connected and not self._keepalive_running
+                and time.monotonic() - self._last_tx >= TCP_IDLE_KEEPALIVE_SECONDS):
+            self._keepalive_running = True
+            # A task, not awaited: only the read loop can deliver the answer.
+            asyncio.create_task(self._idle_keepalive())
+
+    async def _idle_keepalive(self):
+        try:
+            await self._send_command(CO_RD_VERSION)
+            self._keepalive_misses = 0
+            logger.debug("Idle keepalive: transceiver answered CO_RD_VERSION")
+        except (TransceiverBusyError, NotConnectedError):
+            pass  # busy is just as good; not connected is the reconnect's job
+        except TransportLostError as e:
+            logger.warning(f"Idle keepalive: {e}")
+        except CommandTimeoutError as e:
+            self._keepalive_misses += 1
+            if self._keepalive_misses < KEEPALIVE_MISSES_BEFORE_RECONNECT:
+                logger.warning(f"Idle keepalive: {e}")
+            else:
+                self._keepalive_misses = 0
+                logger.warning("Transceiver did not answer two keepalives in a row, "
+                               "reconnecting")
+                # The read loop sees the shutdown and takes its usual
+                # reconnect path.
+                if self._socket:
+                    try:
+                        self._socket.shutdown(socket.SHUT_RDWR)
+                    except OSError:
+                        pass
+        finally:
+            self._keepalive_running = False
 
     async def _close_transport(self):
         """Close the current serial/socket transport without touching task state."""
@@ -643,6 +756,15 @@ class SerialHandler:
 
         logger.debug(f"RX [{telegram.sender_hex}] RORG={telegram.rorg_hex} Data={telegram.data.hex().upper()} dBm={telegram.dbm}")
 
+        # Our own telegram, sent back by a repeater with our sender ID in it.
+        # It is not a device, so it stays out of the unknown device list and
+        # the INFO log (issue #51).
+        if self._is_own_sender(sender_id) and (
+                self.device_manager is None
+                or self.device_manager.get_device_by_address(telegram.sender_hex) is None):
+            logger.debug(f"RX [{telegram.sender_hex}] own telegram, repeated back")
+            return
+
         # Check if this is a teach-in telegram.
         # Only treat as teach-in if the sender is NOT already configured:
         # some non-standard devices (e.g. Eltako Staufix boiler sensor) send
@@ -652,7 +774,28 @@ class SerialHandler:
             self.device_manager is not None
             and self.device_manager.get_device_by_address(telegram.sender_hex) is not None
         )
-        if telegram.rorg == 0xD4:
+        # A valve (A5-20-01) answered at once, its teach-in query included:
+        # the valve listens for about a second after it transmits.
+        valve_teach = None
+        if telegram.rorg == 0xA5 and self.valve_control is not None:
+            valve_teach = self.valve_control.handle_rx(
+                telegram, teach_in_active=self._teach_in_callback is not None)
+
+        if valve_teach is not None:
+            is_teach_in = True
+            if self._teach_in_callback is not None:
+                d = telegram.data
+                await self._teach_in_callback({
+                    "sender_id": telegram.sender_hex,
+                    "rorg": telegram.rorg_hex,
+                    "func": f"{(d[0] >> 2) & 0x3F:02X}",
+                    "type": f"{((d[0] & 0x03) << 5) | ((d[1] >> 3) & 0x1F):02X}",
+                    "dbm": telegram.dbm,
+                    "teach_method": "4BS",
+                    # The valve now only takes commands from this sender ID.
+                    "response_sender": valve_teach["response_sender"],
+                })
+        elif telegram.rorg == 0xD4:
             # UTE (RORG 0xD4) teach-in queries, e.g. NodOn D2-05-00 in
             # bidirectional learn mode, must be answered with a UTE response
             # to complete pairing. This is handled independently of
@@ -667,10 +810,20 @@ class SerialHandler:
             if is_teach_in:
                 await self._handle_teach_in(telegram)
 
-        # Find matching device and process
-        device_name, eep_id, decoded = await self._process_telegram(telegram)
+        # Find matching device and process. A valve's teach-in query is not
+        # data: its DB3 read as a valve position gave 128 %.
+        if valve_teach is not None:
+            device_name, eep_id, decoded = None, None, None
+        else:
+            device_name, eep_id, decoded = await self._process_telegram(telegram)
 
         # Store in telegram buffer
+        if device_name is None and not is_teach_in and valve_teach is None:
+            # The whole frame as received, to tell a corrupted telegram from a
+            # real unknown sender (#51).
+            logger.debug(f"RX [{telegram.sender_hex}] raw ERP1 {data.hex().upper()} "
+                         f"opt {optional.hex().upper()}")
+
         if self.telegram_buffer:
             self.telegram_buffer.add(
                 sender_id=telegram.sender_hex,
@@ -690,6 +843,11 @@ class SerialHandler:
                 await callback(telegram)
             except Exception as e:
                 logger.error(f"Telegram callback error: {e}")
+
+    def _is_own_sender(self, sender_id: int) -> bool:
+        """True for the transceiver's base ID range (base ID + 0..127), the
+        sender IDs this app transmits with."""
+        return self._base_id is not None and 0 <= sender_id - self._base_id <= 0x7F
 
     def _is_teach_in(self, telegram: RadioTelegram) -> bool:
         """Check if telegram is a teach-in"""
@@ -769,7 +927,7 @@ class SerialHandler:
             f"channels={channels} bidir={bidirectional} resp_expected={response_expected}"
         )
 
-        response_sender = self.get_sender_id(self._ute_response_offset)
+        response_sender = self.sender_for(telegram.sender_hex)
 
         # Only bidirectional queries that expect a response get answered; a
         # unidirectional module just wants us to remember its EEP.
@@ -777,11 +935,14 @@ class SerialHandler:
             if response_sender is None:
                 logger.warning("UTE teach-in: base ID not read yet, cannot send response")
             else:
-                await self.send_ute_response(
-                    destination=telegram.sender_id,
-                    response_sender=response_sender,
-                    query_data=d,
-                )
+                # In a task of its own: this runs inside the read loop, which
+                # has to stay free to read the transceiver's acknowledgement
+                # of this very response. Awaited here, the acknowledgement was
+                # read only after the 300 ms wait had run out, so every UTE
+                # response was logged as unacknowledged and the read loop and
+                # the teach-in dialog stalled for that long (ADR-0029).
+                asyncio.create_task(self._send_ute_response_task(
+                    telegram.sender_id, response_sender, d))
 
         if self._teach_in_callback:
             await self._teach_in_callback({
@@ -799,6 +960,37 @@ class SerialHandler:
                 # configured with exactly this value for commands to reach it.
                 "response_sender": f"0x{response_sender:08X}" if response_sender else None,
             })
+
+    async def _send_ute_response_task(self, destination: int, response_sender: int,
+                                      query_data: bytes):
+        try:
+            await self.send_ute_response(destination=destination,
+                                         response_sender=response_sender,
+                                         query_data=query_data)
+        except Exception as e:
+            logger.error(f"UTE teach-in response to 0x{destination:08X} not sent: {e}")
+
+    async def send_vld_addressed(self, sender_id: int, data: bytes, destination: int,
+                                 label: str = "") -> bool:
+        """One VLD (D2) telegram to one device, e.g. a pilot wire command."""
+        packet = self._build_radio_packet(sender_id, 0xD2, data, destination, 0x00)
+        line = _radio_log_line(0xD2, data, destination)
+        async with self._tx_slot():
+            ok = await self._send_radio_packet(packet, label or "VLD", line)
+        logger.info(f"Sent {label}: {data.hex().upper()} to 0x{destination:08X} "
+                    f"from 0x{sender_id:08X}")
+        return ok
+
+    async def send_4bs_addressed(self, sender_id: int, data: bytes, destination: int,
+                                 label: str = "") -> bool:
+        """One 4BS telegram to one device, e.g. a valve's reply (ADR-0029)."""
+        packet = self._build_radio_packet(sender_id, 0xA5, data, destination, 0x00)
+        line = _radio_log_line(0xA5, data, destination)
+        async with self._tx_slot():
+            ok = await self._send_radio_packet(packet, label or "4BS", line)
+        logger.info(f"Sent {label}: {data.hex().upper()} to 0x{destination:08X} "
+                    f"from 0x{sender_id:08X}")
+        return ok
 
     async def send_ute_response(self, destination: int, response_sender: int,
                                 query_data: bytes) -> bool:
@@ -839,7 +1031,16 @@ class SerialHandler:
         # Find device by address
         device = self.device_manager.get_device_by_address(telegram.sender_hex)
         if not device:
-            logger.info(f"RX [{telegram.sender_hex}] Unknown device (not configured)")
+            now = time.monotonic()
+            last = self._unknown_logged.get(telegram.sender_id)
+            if last is None or now - last >= 3600:
+                if len(self._unknown_logged) > 1000:
+                    self._unknown_logged.clear()  # corrupted IDs, mostly
+                self._unknown_logged[telegram.sender_id] = now
+                logger.info(f"RX [{telegram.sender_hex}] Unknown device (not configured), "
+                            f"logged once an hour at INFO")
+            else:
+                logger.debug(f"RX [{telegram.sender_hex}] Unknown device (not configured)")
             return None, None, None
 
         # Get EEP profile
@@ -864,15 +1065,27 @@ class SerialHandler:
         # Either way the telegram still appeared in the device's telegram list
         # while the HA entity stayed "unknown" forever. Forum report on an
         # Eltako FL62NP.
-        rps_state = self._rps_actuator_state(telegram, device)
+        # A VLD actuator (D2-01, D2-05: OPUS, NodOn) reports its state in a D2
+        # status telegram of its own. A rocker telegram from its address is
+        # its local button, not a confirmation: read as one, an OPUS blind's
+        # button press set it open or closed until the real status followed
+        # (forum thread 1026367). The Eltako rules below are for non-D2 EEPs.
+        vld_actuator = str(device.rorg).upper().replace("0X", "") == "D2"
+        rps_state = None if vld_actuator else self._rps_actuator_state(telegram, device)
 
         # The same holds for an Eltako shutter actuator, which confirms with a
         # rocker telegram (end position, travel started) and reports the time
         # it ran in a 4BS telegram. Both come from the actuator's own address
         # whatever EEP it is configured under, so they are read before the
         # RORG guard can drop them (issue #39, ADR-0014).
-        cover_state = self._eltako_cover_state(telegram, device)
-        cover_travel = self._eltako_cover_travel(telegram, device)
+        cover_state = None if vld_actuator else self._eltako_cover_state(telegram, device)
+        cover_travel = None if vld_actuator else self._eltako_cover_travel(telegram, device)
+        if cover_state in ("opening", "closing"):
+            self._cover_motion[device.name] = "moving"
+            self._cover_stop_sent.pop(device.name, None)
+        elif cover_state is not None or cover_travel is not None:
+            self._cover_motion[device.name] = "stopped"
+            self._cover_stop_sent.pop(device.name, None)
 
         # Check RORG matches the EEP profile, FD62NPN sends F6+A5+D1 but
         # only A5 matches A5-38-08. Decoding F6/D1 with A5 profile = garbage.
@@ -888,7 +1101,7 @@ class SerialHandler:
             # Confirmation of an actuator taught in under another EEP. No field
             # decode is possible here, but the state it reports is.
             decoded = self._telegram_meta(telegram)
-            logger.debug(f"RX [{telegram.sender_hex}] RORG 0x{telegram.rorg:02X} does not match {device.eep_id}, taken as RPS actuator status only")
+            logger.debug(f"RX [{telegram.sender_hex}] RORG 0x{telegram.rorg:02X} does not match {device.eep_id}, read as actuator confirmation only")
         else:
             logger.debug(f"RX [{telegram.sender_hex}] RORG mismatch: got 0x{telegram.rorg:02X}, expected 0x{expected_rorg:02X} for {device.eep_id}, skipping decode")
             return device.name, device.eep_id, None
@@ -915,9 +1128,20 @@ class SerialHandler:
         if rps_state is not None:
             decoded["state"] = rps_state
             if device.actuator_type == "light":
-                # An RPS light actuator switches, it does not dim. Report the
-                # only two brightness values it can ever be in.
-                decoded["brightness"] = 100 if rps_state == "ON" else 0
+                if str(device.eep_id).upper().startswith("F6"):
+                    # An RPS light actuator switches, it does not dim. Report
+                    # the only two brightness values it can ever be in.
+                    decoded["brightness"] = 100 if rps_state == "ON" else 0
+                elif rps_state == "OFF":
+                    decoded["brightness"] = 0
+                else:
+                    # A dimmer (A5-38-08, e.g. FUD14 behind a FAM14) confirms
+                    # with a rocker telegram that says on, not how bright.
+                    # Keep the level it was set to; 100 % made a dimmer set
+                    # to 50 % show full brightness (forum post 84).
+                    prev = (self.mqtt_handler.get_last_state(device.name) or {}) if self.mqtt_handler else {}
+                    level = prev.get("brightness")
+                    decoded["brightness"] = level if isinstance(level, (int, float)) and level > 0 else 100
             logger.debug(f"RPS actuator status: {device.name} -> {rps_state}")
 
         # For light actuators, add HA-compatible state and brightness fields.
@@ -957,6 +1181,10 @@ class SerialHandler:
 
             for target in targets:
                 payload = dict(decoded)
+                if self.valve_control is not None and str(target.eep_id).upper() == "A5-20-01":
+                    payload.update(self.valve_control.state_fields(target.name))
+                if self.pilot_wire is not None and self.pilot_wire.meters(target):
+                    payload = self.pilot_wire.merge_state(target, payload)
                 if d2_01_status:
                     io = decoded.get("IO")
                     ch = int(getattr(target, "channel", 0) or 0)
@@ -1007,6 +1235,9 @@ class SerialHandler:
                         if target.actuator_type == "light" and "brightness" in prev:
                             payload["brightness"] = prev["brightness"]
 
+                if target.actuator_type == "light":
+                    keep_level_when_off(
+                        payload, self.mqtt_handler.get_last_state(target.name) or {})
                 await self.mqtt_handler.publish_state(target.name, payload)
                 logger.debug(f"TX MQTT [{target.name}] Published state to {self.mqtt_handler.prefix}/{target.name}/state")
 
@@ -1035,6 +1266,29 @@ class SerialHandler:
     # runtime expired, so the end positions are the only points where the
     # position is certain. They are the synchronisation points, which is how
     # Eltako's own GFVS software tracks the position. See ADR-0014.
+    # Travel reports came 0.2 to 0.4 s after a Stop (issue #49). A Stop with
+    # no answer after this long is taken as lost and may be sent again.
+    COVER_STOP_ANSWER_TIME = 2.0
+
+    def cover_stop_blocked(self, name: str) -> Optional[str]:
+        """Why a Stop must not be sent now, or None. Either the shutter's last
+        report since the last OPEN/CLOSE said it stands still, or a Stop went
+        out moments ago and its report has not come yet."""
+        if self._cover_motion.get(name) == "stopped":
+            return "the actuator reported it stopped"
+        sent = self._cover_stop_sent.get(name)
+        if sent is not None and time.monotonic() - sent < self.COVER_STOP_ANSWER_TIME:
+            return "a Stop was sent moments ago and is not answered yet"
+        return None
+
+    def cover_command_sent(self, name: str):
+        self._cover_motion.pop(name, None)
+        self._cover_stop_sent.pop(name, None)
+
+    def cover_stop_sent(self, name: str):
+        self._cover_motion.pop(name, None)
+        self._cover_stop_sent[name] = time.monotonic()
+
     _ELTAKO_COVER_RPS = {0x70: "open", 0x50: "closed", 0x01: "opening", 0x02: "closing"}
     _ELTAKO_COVER_INVERTED = {"open": "closed", "closed": "open",
                               "opening": "closing", "closing": "opening"}
@@ -1226,6 +1480,43 @@ class SerialHandler:
             "last_seen": datetime.now(timezone.utc).isoformat()
         }
 
+    @staticmethod
+    def _fields_for_command(fields, data_int: int, data_bits: int):
+        """Only the fields of the command this telegram carries.
+
+        A VLD profile (D2-01, D2-05) describes one telegram layout per
+        command ID, and EEP.xml tags each field with it. Decoded together,
+        the layouts overwrote each other: a D2-01-0C pilot wire reply (CMD 10,
+        "0A 02" = Eco) came out as output values and error levels (forum post
+        78). A group applies when its own CMD field, read where that layout
+        puts it, holds its ID. Fields without a command tag always apply, and
+        if no group matches everything is decoded as before. ADR-0032.
+        A5-38-08 names its command field COM, not CMD: without it a dimming
+        status (COM 2) was decoded with the switching fields too (#51).
+        """
+        groups: Dict[str, list] = {}
+        untagged = []
+        for f in fields:
+            cmd = f.get("command")
+            (groups.setdefault(cmd, []) if cmd is not None else untagged).append(f)
+        if not groups:
+            return fields
+        matched = []
+        for cmd, group in groups.items():
+            cmd_field = next((f for f in group if f.get("shortcut") in ("CMD", "COM")), None)
+            if cmd_field is None:
+                continue
+            shift = data_bits - cmd_field.get("offset", 0) - cmd_field.get("size", 4)
+            if shift < 0:
+                continue
+            value = (data_int >> shift) & ((1 << cmd_field.get("size", 4)) - 1)
+            try:
+                if value == int(cmd):
+                    matched.extend(group)
+            except (TypeError, ValueError):
+                continue
+        return untagged + matched if matched else fields
+
     def _decode_telegram(self, telegram: RadioTelegram, profile) -> Dict[str, Any]:
         """Decode telegram data using EEP profile"""
         decoded = self._telegram_meta(telegram)
@@ -1239,7 +1530,7 @@ class SerialHandler:
         data_int = int.from_bytes(telegram.data, 'big')
         data_bits = len(telegram.data) * 8
 
-        for field in profile.fields:
+        for field in self._fields_for_command(profile.fields, data_int, data_bits):
             shortcut = field.get("shortcut", "")
             offset = field.get("offset", 0)
             size = field.get("size", 8)
@@ -1324,7 +1615,7 @@ class SerialHandler:
         if gap > 0:
             await asyncio.sleep(gap)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         if self._serial:
             write = loop.run_in_executor(None, self._serial.write, packet)
         elif self._socket:
@@ -1363,7 +1654,7 @@ class SerialHandler:
         (switches and covers) silent and made a field log readable only by
         counting response packets.
         """
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         self._response_future = loop.create_future()
         try:
             await self._write_packet(packet)
@@ -1414,7 +1705,7 @@ class SerialHandler:
         packet = bytes([SYNC_BYTE]) + header + bytes([header_crc]) + packet_data + bytes([data_crc])
 
         async with self._tx_slot():
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             self._response_future = loop.create_future()
 
             try:
@@ -1463,7 +1754,7 @@ class SerialHandler:
 
         base_id = int.from_bytes(response[1:5], 'big')
         self._base_id = base_id
-        logger.info(f"USB300 Base ID: 0x{base_id:08X}")
+        logger.info(f"Transceiver base ID: 0x{base_id:08X}")
         return f"0x{base_id:08X}"
 
     @property
@@ -1472,6 +1763,32 @@ class SerialHandler:
         if self._base_id is None:
             return None
         return f"0x{self._base_id:08X}"
+
+    def sender_for(self, address: str) -> Optional[int]:
+        """The sender ID a module pairing from `address` is told to bind.
+
+        Its configured one if it has one, else the lowest gateway offset no
+        device uses. A fixed offset 1 put every D2 module on the sender of
+        the first Eltako actuator taught with offset 1, and Eltako actuators
+        act on a sender ID whatever the destination (forum post 84).
+        """
+        key = str(address).lower().replace("0x", "").zfill(8)
+        devices = list(self.device_manager.devices.values()) if self.device_manager else []
+        for d in devices:
+            if d.sender_id and str(d.address).lower().replace("0x", "").zfill(8) == key:
+                return int(str(d.sender_id).lower().replace("0x", ""), 16)
+        if key in self._pending_senders:
+            return self._pending_senders[key]
+        used = {str(d.sender_id).lower().replace("0x", "").zfill(8) for d in devices if d.sender_id}
+        used |= {f"{sid:08x}" for sid in self._pending_senders.values()}
+        for offset in range(1, 128):
+            sid = self.get_sender_id(offset)
+            if sid is None:
+                return None
+            if f"{sid:08x}" not in used:
+                self._pending_senders[key] = sid
+                return sid
+        return None
 
     def get_sender_id(self, offset: int = 1) -> Optional[int]:
         """Get a sender ID derived from base ID + offset (1-127)"""
@@ -1728,7 +2045,7 @@ class SerialHandler:
             val = max(0, min(255, dim_value))
             data = bytes([0x02, val, ramp_time & 0xFF, 0x0B])
 
-        logger.info(f"Sending A5-38-08 dimmer {command} (value={dim_value}, ramp={ramp_time}s) sender=0x{sender_id:08X}")
+        logger.info(f"Sending A5-38-08 dimmer {command} (value={data[1]}, ramp={ramp_time}s) sender=0x{sender_id:08X}")
 
         success = await self.send_telegram(
             sender_id=sender_id,

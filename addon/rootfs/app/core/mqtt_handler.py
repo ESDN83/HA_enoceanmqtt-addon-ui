@@ -115,9 +115,11 @@ class MQTTHandler:
 
     async def connect(self):
         """Connect to MQTT broker with LWT (Last Will and Testament)"""
-        self._loop = asyncio.get_event_loop()
+        self._loop = asyncio.get_running_loop()
 
-        self._client = mqtt.Client(client_id=self.client_id)
+        # paho-mqtt 2.x: the callback API version is explicit. VERSION2 hands
+        # the callbacks a ReasonCode and MQTT v5 properties.
+        self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=self.client_id)
 
         if self.username:
             self._client.username_pw_set(self.username, self.password)
@@ -179,9 +181,9 @@ class MQTTHandler:
             self._connected = False
             logger.info("Disconnected from MQTT broker (published offline status)")
 
-    def _on_connect(self, client, userdata, flags, rc):
+    def _on_connect(self, client, userdata, flags, reason_code, properties=None):
         """MQTT connect callback - called on initial connect and reconnects"""
-        if rc == 0:
+        if not reason_code.is_failure:
             self._connected = True
             logger.info(f"Connected to MQTT broker at {self.host}:{self.port}")
 
@@ -213,13 +215,13 @@ class MQTTHandler:
                 asyncio.run_coroutine_threadsafe(self._on_ha_birth(), self._loop)
 
         else:
-            logger.error(f"MQTT connection failed with code {rc}")
+            logger.error(f"MQTT connection failed: {reason_code}")
 
-    def _on_disconnect(self, client, userdata, rc):
+    def _on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties=None):
         """MQTT disconnect callback"""
         self._connected = False
-        if rc != 0:
-            logger.warning(f"MQTT connection lost (rc={rc}), will reconnect")
+        if reason_code.is_failure:
+            logger.warning(f"MQTT connection lost ({reason_code}), will reconnect")
 
     def _on_message(self, client, userdata, message):
         """MQTT message callback"""
@@ -391,11 +393,14 @@ class MQTTHandler:
         # Merge cached other-channel values for multi-channel devices
         state = self._merge_multichannel_state(device_name, state)
 
-        # Persist state for recovery (only if caching enabled).
+        # The last state is always kept in memory: the light level, the cover
+        # position and the meter checks build on it. Without the cache option
+        # it was never stored, and a dimmer switched off forgot its level
+        # (#52). The option decides only whether it survives a restart.
         # Writes are debounced: updates just mark the cache dirty and a
         # single background task flushes the full YAML every _save_interval.
+        self._last_states[device_name] = state
         if self.cache_states:
-            self._last_states[device_name] = state
             self._schedule_state_save()
 
         await self.publish(topic, state, retain=True)
@@ -507,6 +512,10 @@ class MQTTHandler:
             async with aiofiles.open(self._states_file, 'r') as f:
                 content = await f.read()
                 self._last_states = yaml.safe_load(content) or {}
+            # Saved by versions that marked the cached state itself.
+            for state in self._last_states.values():
+                if isinstance(state, dict):
+                    state.pop("_restored", None)
 
             logger.info(f"Loaded {len(self._last_states)} persisted device states into memory")
 
@@ -525,8 +534,10 @@ class MQTTHandler:
 
         for device_name, state in self._last_states.items():
             topic = f"{self.prefix}/{device_name}/state"
-            state["_restored"] = True
-            await self.publish(topic, state, retain=True)
+            # Only the republished copy is marked. Marking the cached state
+            # itself carried "_restored" into every later state built on it,
+            # such as the echo of the next command (#52).
+            await self.publish(topic, dict(state, _restored=True), retain=True)
             logger.debug(f"Restored state for {device_name}")
 
         logger.info(f"Republished {len(self._last_states)} cached device states")

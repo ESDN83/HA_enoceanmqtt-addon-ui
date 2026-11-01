@@ -6,7 +6,7 @@ A running app serves the same guide at `GET /api/ai/guide` (through HA Ingress, 
 
 ## Docs
 
-- [AI setup guide](addon-beta/rootfs/app/data/ai_guide.md): adding and teaching in devices, device pitfalls, diagnosis
+- [AI setup guide](addon/rootfs/app/data/ai_guide.md): adding and teaching in devices, device pitfalls, diagnosis
 - [User documentation](addon/DOCS.md): configuration, migration from Slim / ChristopheHD, troubleshooting
 - [Decision records](docs/adr/README.md): why devices are handled the way they are
 - [Changelog](addon/CHANGELOG.md)
