@@ -329,6 +329,20 @@ Teach-In" has to be clicked several times in a row:
   the shutter reaches an end position. The position is read-only for now.
 
 
+### Rocker Switches in Automations (F6-02-01, F6-02-02)
+
+- Each rocker gets a *Button* event entity and device triggers (from 1.8.6-beta1)
+- Per button (AI, AO, BI, BO): pressed, released, long pressed (held 0.6 s), released after long press
+- Automation: trigger *Device*, pick the rocker, pick e.g. *"Button AO" pressed*
+- Topic `enoceanmqtt/<device>/event`, not retained, so a restart fires nothing
+- Not for an actuator taught in as F6 (light/switch/cover), its rocker telegrams are confirmations
+
+### Smoke Detectors (F6-05-02)
+
+- Entities *Smoke* and *Battery Low* (from 1.8.6-beta1)
+- A battery-low telegram leaves *Smoke* as it was
+- Not yet confirmed on real hardware: please report in issue #58
+
 ### Radiator Valves (A5-20-01, e.g. Micropelt MVA004 / SAM)
 - The valve only listens for about a second after it transmits, so the app
   answers every telegram from it at once. A value you set in Home Assistant is

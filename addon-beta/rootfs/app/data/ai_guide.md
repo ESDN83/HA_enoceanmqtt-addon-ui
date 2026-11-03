@@ -119,9 +119,19 @@ ID taken from the telegram list after one press.
 ### Rocker switches and window handles (F6)
 - Rocker: `F6-02-01`. Window handles: `F6-10-00` (Window Handle) or
   `A5-14-09` / `A5-14-0A` (entity *Handle*: closed, tilted, open).
+- A rocker (`F6-02-01` / `F6-02-02`, no `actuator_type`) has a *Button*
+  event entity and device triggers: per button (AI, AO, BI, BO) `press`,
+  `release`, `long_press` (held 0.6 s, fires while held) and `long_release`.
+  Build automations on these, not on the *Button AI..BO* binary sensors.
+  Events go to `enoceanmqtt/<device>/event` (not retained), payload
+  `{"event_type": "AO_press", "button": "AO", "action": "press"}`.
 - An F6 actuator (Eltako relay) confirms its state with a rocker telegram:
   BO/AO on, BI/AI off. If the state shows the opposite, tick *Invert
   reported state* on the device, do not change the profile.
+
+### Smoke detectors (F6-05-02)
+- Entities *Smoke* (on = alarm) and *Battery Low*. A battery-low telegram
+  leaves *Smoke* unchanged. Not yet confirmed on real hardware (#58).
 
 ### Contacts and motion (D5, A5-07, A5-08)
 - `D5-00-01` binary sensor: on = open. A contact mounted the other way

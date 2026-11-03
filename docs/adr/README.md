@@ -46,3 +46,4 @@ Rules:
 - [0039](0039-meter-readings-need-confirmation.md) Implausible meter readings need a second reading
 - [0040](0040-light-off-keeps-last-level.md) A light that is off keeps reporting its last level
 - [0041](0041-device-list-view-in-browser.md) Device list sort and view are kept in the browser
+- [0042](0042-rocker-events-and-device-triggers.md) Rocker presses are events on their own topic

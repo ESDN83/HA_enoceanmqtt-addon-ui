@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.6-beta1] - 2026-11-03 (beta channel)
+
+### Added
+
+- **Rocker switches as device triggers and event entity.** F6-02-01 and
+  F6-02-02 rockers get a *Button* event entity and Home Assistant device
+  triggers per button (AI, AO, BI, BO): pressed, released, long pressed,
+  released after a long press. Automations no longer need templates on the
+  Button binary sensors. Issue #56.
+- **Smoke detector F6-05-02.** Entities Smoke and Battery Low. Testers
+  with a real detector wanted. Issue #58.
+
 ## [1.8.5] - 2026-11-01
 
 Promoted to stable: 1.8.5-beta1 to beta20, see below. The next beta

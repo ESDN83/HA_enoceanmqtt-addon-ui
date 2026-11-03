@@ -211,6 +211,24 @@ DEFAULT_MAPPINGS = {
         },
         **_rocker_button_binary_sensors()
     },
+    # RPS Smoke Detector (F6-05-02). SMO per EEP.xml: 0 alarm off, 16 alarm
+    # on, 48 energy low. An energy-low telegram says nothing about smoke, so
+    # Smoke renders empty (no update) for it (#58).
+    "F6-05-02": {
+        "SMO": {
+            "component": "binary_sensor",
+            "name": "Smoke",
+            "device_class": "smoke",
+            "value_template": "{{ {0: '0', 16: '1'}.get(value_json.SMO, '') if value_json.SMO is defined else '' }}"
+        },
+        "BAT": {
+            "component": "binary_sensor",
+            "name": "Battery Low",
+            "device_class": "battery",
+            "entity_category": "diagnostic",
+            "value_template": "{{ ('1' if value_json.SMO == 48 else '0') if value_json.SMO is defined else '' }}"
+        }
+    },
     # VLD Electronic Switch (D2-01-0F)
     "D2-01-0F": {
         "CMD": {
@@ -1430,6 +1448,12 @@ class MappingManager:
                     "config": config
                 })
 
+        # A rocker's presses as events and device triggers (#56, ADR-0042).
+        from core.rocker_events import is_rocker_eep, discovery_configs as rocker_configs
+        if not actuator_type and is_rocker_eep(eep_id):
+            configs.extend(rocker_configs(self.build_unique_id, eep_id, device_address,
+                                          device_sender, device_name, mqtt_prefix, device_info))
+
         if valve_controllable:
             configs.extend(self._valve_control_configs(
                 eep_id, device_address, device_name, mqtt_prefix, device_info, avail_config))
@@ -1503,6 +1527,8 @@ class MappingManager:
             "payload_not_available": "offline",
         }
         for item in configs:
+            if item["component"] == "device_automation":
+                continue  # a device trigger has no availability
             item["config"]["availability"] = [avail_config, gateway_avail]
             item["config"]["availability_mode"] = "all"
 
