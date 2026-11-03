@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.8.6-beta3] - 2026-11-03 (beta channel)
+
+### Fixed
+
+- **A restore or import left removed devices in Home Assistant.** Their
+  discovery configs are now cleared. Issue #63.
+- **New entity IDs ignored the device name.** Newer Home Assistant versions
+  no longer read `object_id`, so the add-on now also sends
+  `default_entity_id`. Existing entity IDs do not change. Issue #64.
+
+### Added
+
+- **Room is the suggested area of a new device.** Areas of existing devices
+  are not touched. Issue #64.
+
 ## [1.8.6-beta2] - 2026-11-03 (beta channel)
 
 ### Fixed

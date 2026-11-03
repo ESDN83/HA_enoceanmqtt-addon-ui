@@ -6,7 +6,7 @@ import os
 import logging
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse, StreamingResponse
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 import json
 import re
 import yaml
@@ -22,6 +22,48 @@ router = APIRouter()
 from app_version import VERSION
 
 logger = logging.getLogger(__name__)
+
+
+def _discovery_snapshot(request) -> Dict[str, List[tuple]]:
+    """(component, unique_id) of every configured device, by device name."""
+    state = request.app.state
+    dm, mqtt, mm = state.device_manager, state.mqtt_handler, state.mapping_manager
+    snapshot: Dict[str, List[tuple]] = {}
+    if not (dm and mqtt and mm):
+        return snapshot
+    for name, device in dm.devices.items():
+        try:
+            configs = mm.build_discovery_for_device(device, mqtt.prefix, dm.get_devices_by_address(device.address))
+            snapshot[name] = [(c["component"], c["unique_id"]) for c in configs]
+        except Exception as e:
+            logger.error(f"Discovery snapshot failed for {name}: {e}")
+    return snapshot
+
+
+async def _retract_removed_devices(request, before: Dict[str, List[tuple]]):
+    """Take devices the restore or import removed out of Home Assistant.
+
+    Their retained discovery configs would keep them there as dead entities
+    (#63). The startup cleanup cannot do it: it only touches configs of
+    addresses that are configured, on purpose (ADR-0026). A unique_id a current
+    device also publishes stays, which is what keeps a renamed device's
+    entities.
+    """
+    current = _discovery_snapshot(request)
+    removed = set(before) - set(current)
+    if not removed:
+        return
+    keep = {item for items in current.values() for item in items}
+    mqtt = request.app.state.mqtt_handler
+    for name in removed:
+        try:
+            for component, uid in before[name]:
+                if (component, uid) not in keep:
+                    await mqtt.remove_discovery_config(component=component, unique_id=uid)
+            await mqtt.clear_device_topics(name)
+        except Exception as e:
+            logger.error(f"Removing {name} after restore failed: {e}")
+    logger.info(f"Removed from Home Assistant after restore: {', '.join(sorted(removed))}")
 
 
 async def _republish_after_restore(request):
@@ -199,6 +241,7 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
                         devices_data = json.loads(raw)
                     else:
                         devices_data = yaml.safe_load(raw) or {}
+                    before = _discovery_snapshot(request)
                     devices_file = os.path.join(config_path, "devices.yaml")
                     os.makedirs(config_path, exist_ok=True)
                     async with aiofiles.open(devices_file, 'w') as f:
@@ -210,6 +253,7 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
                         await device_manager.load_devices()
                         imported["duplicates"] = device_manager.identity_clashes()
                         await _republish_after_restore(request)
+                        await _retract_removed_devices(request, before)
 
                 elif filename == "mapping.yaml":
                     # Import mappings
@@ -526,6 +570,7 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
                         devices_data = json.loads(raw)
                     else:
                         devices_data = yaml.safe_load(raw) or {}
+                    before = _discovery_snapshot(request)
                     devices_file = os.path.join(config_path, "devices.yaml")
                     async with aiofiles.open(devices_file, 'w') as f:
                         await f.write(yaml.dump(devices_data, default_flow_style=False, allow_unicode=True))
@@ -534,6 +579,7 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
                         await device_manager.load_devices()
                         imported["duplicates"] = device_manager.identity_clashes()
                         await _republish_after_restore(request)
+                        await _retract_removed_devices(request, before)
 
                 elif name == "mapping.yaml":
                     data = zf.read(name)

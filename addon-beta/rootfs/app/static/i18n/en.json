@@ -84,7 +84,7 @@
   "teach_in.address": "Address",
   "teach_in.description": "Description",
   "teach_in.description_placeholder": "Optional description",
-  "teach_in.description_hint": "Device name in Home Assistant. Leave the room out: Home Assistant puts the area in front of new entity IDs. Empty = the device name above.",
+  "teach_in.description_hint": "Name shown in Home Assistant, the room can stay out of it. Empty = the device name above. New entity IDs always come from the device name above.",
   "teach_in.room": "Room",
   "teach_in.room_placeholder": "e.g., Living Room",
   "teach_in.sender_id": "Sender ID (for bidirectional devices)",

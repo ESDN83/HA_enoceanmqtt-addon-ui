@@ -84,7 +84,7 @@
   "teach_in.address": "Adresse",
   "teach_in.description": "Beschreibung",
   "teach_in.description_placeholder": "Optionale Beschreibung",
-  "teach_in.description_hint": "Gerätename in Home Assistant. Ohne Raum: Home Assistant setzt den Bereich vor neue Entitäts-IDs. Leer = der Gerätename oben.",
+  "teach_in.description_hint": "Name in Home Assistant, der Raum kann entfallen. Leer = der Gerätename oben. Neue Entitäts-IDs kommen immer vom Gerätenamen oben.",
   "teach_in.room": "Raum",
   "teach_in.room_placeholder": "z. B. Wohnzimmer",
   "teach_in.sender_id": "Sender-ID (für bidirektionale Geräte)",

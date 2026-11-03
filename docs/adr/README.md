@@ -48,3 +48,4 @@ Rules:
 - [0041](0041-device-list-view-in-browser.md) Device list sort and view are kept in the browser
 - [0042](0042-rocker-events-and-device-triggers.md) Rocker presses are events on their own topic
 - [0043](0043-restore-replaces-and-device-identity.md) Restore replaces the device list; one address, sender, EEP and channel is one device
+- [0044](0044-default-entity-id-and-suggested-area.md) New entity IDs come from the device name, the room is the suggested area

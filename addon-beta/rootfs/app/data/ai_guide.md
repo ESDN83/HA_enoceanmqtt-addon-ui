@@ -62,12 +62,14 @@ saved. State topic `enoceanmqtt/<device name>/state`, commands on
    `actuator_type` (`switch`, `light`, `cover`) and a `sender_id`: the
    gateway base ID plus an offset, one offset per actuator. The actuator has
    to learn that sender, see teach-in below.
-5. Device names are a key, an MQTT topic and part of every entity ID. No
-   `/`, `#`, `+`. Renaming later changes the entity IDs. The name has to
-   be unique, so it often carries the room. `description`, if set, is the
-   device name in Home Assistant instead, and Home Assistant 2026.11+ puts
-   the area in front of new entity IDs: name `woonkamer_spots`, room
-   Woonkamer, description `Spots` gives `light.woonkamer_spots`.
+5. Device names are a key and an MQTT topic, and the base of the entity ID
+   of a new entity (`default_entity_id`). No `/`, `#`, `+`. The name has to be
+   unique, so it often carries the room. `description`, if set, is the name
+   shown in Home Assistant: name `woonkamer_spots`, description `Spots` gives
+   `light.woonkamer_spots`, shown as Spots. `room` is sent as
+   `suggested_area`, which Home Assistant only uses when it creates the
+   device. An entity ID never changes after creation, not on a rename in the
+   app either: rename it in Home Assistant if the old one is unwanted.
 6. One address, sender, profile and channel is one device. A second device
    with the same four is refused (400): both would claim the same entities.
 
@@ -80,6 +82,8 @@ A backup restore or a config import replaces the device list with the one in
 the file; devices that are not in it are gone. The response lists devices that
 share address, sender, profile and channel under `details.duplicates`, and the
 log warns at every start while they exist: delete all but one of each group.
+Devices the restore or import removed also leave Home Assistant: their discovery
+configs are cleared, unless a remaining device publishes the same unique ID.
 
 ## Teach-in of actuators
 

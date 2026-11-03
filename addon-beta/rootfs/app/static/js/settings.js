@@ -576,5 +576,5 @@ function legacyRemoveOld() {
 function warnDuplicateDevices(details) {
     const groups = (details && details.duplicates) || [];
     if (!groups.length) return;
-    showToast(`${t('backup.duplicates', 'Same address, profile and channel, keep only one of each')}: ${groups.map(g => g.join(' / ')).join('; ')}`, 'warning');
+    showToast(`${t('backup.duplicates', 'Same address, profile and channel, keep only one of each')}: ${escapeHtml(groups.map(g => g.join(' / ')).join('; '))}`, 'warning');
 }

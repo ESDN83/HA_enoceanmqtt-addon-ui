@@ -124,17 +124,19 @@ Export/import full configuration as YAML, upload custom EEP.xml, local backups
 view system information, restart services.
 
 A restore or import **replaces** the device list with the one in the backup.
-Devices added or renamed after that backup are gone afterwards, so take a
-fresh backup first. If the backup holds two devices with the same address,
+Devices added or renamed after that backup are gone afterwards, also from Home
+Assistant, so take a fresh backup first. If the backup holds two devices with the same address,
 profile, sender and channel, a warning names them: both claim the same Home
 Assistant entities, delete all but one.
 
 **Device names in Home Assistant.** The device name is the key and the MQTT
-topic, so it must be unique and often carries the room. Fill in
-*Description* to give the device a different name in Home Assistant. Since
-Home Assistant 2026.11 new entity IDs start with the area, so leave the room
-out there: name `woonkamer_spots`, room Woonkamer, description `Spots` gives
-`light.woonkamer_spots`. Existing entity IDs never change.
+topic, so it must be unique and often carries the room. New entity IDs are
+built from it. Fill in *Description* to show a different name in Home
+Assistant: name `woonkamer_spots`, description `Spots` gives
+`light.woonkamer_spots`, shown as Spots. *Room* is the suggested area of a new
+device. Existing entity IDs and areas never change. A name set in Home
+Assistant wins over Description; use "reset to default name" there to get
+Description back.
 
 ![Settings](https://github.com/user-attachments/assets/370072b1-7219-4566-a733-2c9e58b018fa)
 
