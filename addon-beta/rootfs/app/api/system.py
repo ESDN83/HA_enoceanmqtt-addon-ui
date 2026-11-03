@@ -208,6 +208,7 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
                     # Reload devices
                     if device_manager:
                         await device_manager.load_devices()
+                        imported["duplicates"] = device_manager.identity_clashes()
                         await _republish_after_restore(request)
 
                 elif filename == "mapping.yaml":
@@ -531,6 +532,7 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
                     imported["devices"] = True
                     if device_manager:
                         await device_manager.load_devices()
+                        imported["duplicates"] = device_manager.identity_clashes()
                         await _republish_after_restore(request)
 
                 elif name == "mapping.yaml":

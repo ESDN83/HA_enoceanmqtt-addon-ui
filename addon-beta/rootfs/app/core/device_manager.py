@@ -139,6 +139,11 @@ class DeviceManager:
             logger.info("No device configuration found - starting fresh")
         self._rebuild_address_map()
         await self._apply_migrations()
+        for names in self.identity_clashes():
+            logger.warning(
+                f"Devices {', '.join(names)} share address, sender, profile and channel: "
+                f"they claim the same Home Assistant entities. Delete all but one (#63)."
+            )
 
     # Up used to be the bottom half of the rocker on an F6 cover and down the
     # top one, the wrong way round for an Eltako directional pushbutton. 1.8.1
@@ -205,8 +210,14 @@ class DeviceManager:
                 content = await f.read()
                 data = yaml.safe_load(content) or {}
 
-                for name, device_data in data.items():
-                    self.devices[name] = Device.from_dict(name, device_data)
+                # Replace, never add to, what is loaded: a restore or import
+                # reloads into a running app, and a device that is not in the
+                # file any more must not survive in memory and be written
+                # back by the next save (#63).
+                self.devices = {
+                    name: Device.from_dict(name, device_data)
+                    for name, device_data in data.items()
+                }
 
             logger.info(f"Loaded {len(self.devices)} devices from YAML")
 
@@ -329,6 +340,30 @@ class DeviceManager:
         norm_addr = address.strip().upper().replace("0X", "")
         names = self._address_map.get(norm_addr) or []
         return [self.devices[n] for n in names if n in self.devices]
+
+    @staticmethod
+    def _identity(device: Device) -> tuple:
+        """What the HA unique_ids are built from (address, sender, EEP,
+        channel). Two devices with the same identity claim the same
+        entities, and whichever publishes last wins (#63)."""
+        def norm(a):
+            return str(a or "").strip().upper().replace("0X", "")
+        return (norm(device.address), norm(device.sender_id), device.eep_id.upper(), int(device.channel or 0))
+
+    def find_identity_clash(self, device: Device, exclude: str = "") -> Optional[str]:
+        """Name of another device with the same identity, or None."""
+        ident = self._identity(device)
+        for name, other in self.devices.items():
+            if name != exclude and name != device.name and self._identity(other) == ident:
+                return name
+        return None
+
+    def identity_clashes(self) -> List[List[str]]:
+        """Groups of configured devices that share one identity."""
+        groups: Dict[tuple, List[str]] = {}
+        for name, device in self.devices.items():
+            groups.setdefault(self._identity(device), []).append(name)
+        return [names for names in groups.values() if len(names) > 1]
 
     async def add_device(self, device: Device) -> bool:
         """Add a new device"""

@@ -36,6 +36,7 @@ async function importConfig(input) {
         });
         const result = await response.json();
         showToast(`${t('settings.import_success', 'Import successful')}: ${result.details.devices ? 'devices, ' : ''}${result.details.mappings ? 'mappings, ' : ''}${result.details.custom_profiles} custom profiles`, 'success');
+        warnDuplicateDevices(result.details);
         loadStatus();
     } catch (error) {
         showToast(t('settings.import_failed', 'Import failed'), 'danger');
@@ -153,6 +154,7 @@ function confirmRestoreBackup(filename) {
                 }
                 const result = await response.json();
                 showToast(`${t('backup.restored', 'Backup restored')}: ${result.details.devices ? t('nav.devices', 'devices') + ', ' : ''}${result.details.mappings ? t('nav.mappings', 'mappings') + ', ' : ''}${result.details.custom_profiles} ${t('backup.custom_profiles', 'custom profiles')}`, 'success');
+                warnDuplicateDevices(result.details);
                 loadStatus();
                 loadDevices();
                 loadProfiles();
@@ -567,4 +569,12 @@ function legacyRemoveOld() {
                 showToast(t('legacy.remove_failed', 'Removing failed') + ': ' + e.message, 'danger');
             }
         });
+}
+
+// A restored or imported file can hold two devices for one address, profile,
+// sender and channel. Both claim the same HA entities (#63), so say which.
+function warnDuplicateDevices(details) {
+    const groups = (details && details.duplicates) || [];
+    if (!groups.length) return;
+    showToast(`${t('backup.duplicates', 'Same address, profile and channel, keep only one of each')}: ${groups.map(g => g.join(' / ')).join('; ')}`, 'warning');
 }

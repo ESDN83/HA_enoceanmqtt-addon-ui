@@ -63,12 +63,23 @@ saved. State topic `enoceanmqtt/<device name>/state`, commands on
    gateway base ID plus an offset, one offset per actuator. The actuator has
    to learn that sender, see teach-in below.
 5. Device names are a key, an MQTT topic and part of every entity ID. No
-   `/`, `#`, `+`. Renaming later changes the entity IDs.
+   `/`, `#`, `+`. Renaming later changes the entity IDs. The name has to
+   be unique, so it often carries the room. `description`, if set, is the
+   device name in Home Assistant instead, and Home Assistant 2026.11+ puts
+   the area in front of new entity IDs: name `woonkamer_spots`, room
+   Woonkamer, description `Spots` gives `light.woonkamer_spots`.
+6. One address, sender, profile and channel is one device. A second device
+   with the same four is refused (400): both would claim the same entities.
 
 Interactive teach-in (web UI, Start Teach-In) detects 4BS and 1BS teach-in
 telegrams and D2 modules (UTE). Rocker switches and F6 window handles send no
 teach-in and are never detected there: they are added with Manual Entry, the
 ID taken from the telegram list after one press.
+
+A backup restore or a config import replaces the device list with the one in
+the file; devices that are not in it are gone. The response lists devices that
+share address, sender, profile and channel under `details.duplicates`, and the
+log warns at every start while they exist: delete all but one of each group.
 
 ## Teach-in of actuators
 

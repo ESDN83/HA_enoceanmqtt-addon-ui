@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.8.6-beta2] - 2026-11-03 (beta channel)
+
+### Fixed
+
+- **A backup restore or import merged instead of replacing.** Devices that
+  were not in the backup stayed, so a backup from before a rename gave both
+  names for the same address, and the duplicate took over the entities.
+  The device list is now exactly the one in the backup. Issue #63.
+
+### Changed
+
+- **Duplicate devices are refused.** Adding or editing a device to the same
+  address, sender, profile and channel as another one fails with a message.
+  Existing duplicates are named after a restore and in the log. Issue #63.
+- **Description is the Home Assistant device name**, now said at the field.
+  Since Home Assistant 2026.11 the area goes in front of new entity IDs, so a
+  room in the device name showed up twice. Issue #64.
+
 ## [1.8.6-beta1] - 2026-11-03 (beta channel)
 
 ### Added
