@@ -57,7 +57,7 @@ saved. State topic `enoceanmqtt/<device name>/state`, commands on
    (`/api/eep/search/...`); do not guess.
 3. Create it: `POST /api/devices` with `name`, `address` (`0x` + 8 hex),
    `rorg`, `func`, `type` (hex, e.g. `A5`, `20`, `01`), optional `room`,
-   `manufacturer`, `description`.
+   `manufacturer`, `model` (hardware type), `description`.
 4. Actuators (something that is switched or moved) also need
    `actuator_type` (`switch`, `light`, `cover`) and a `sender_id`: the
    gateway base ID plus an offset, one offset per actuator. The actuator has
@@ -68,8 +68,12 @@ saved. State topic `enoceanmqtt/<device name>/state`, commands on
    shown in Home Assistant: name `woonkamer_spots`, description `Spots` gives
    `light.woonkamer_spots`, shown as Spots. `room` is sent as
    `suggested_area`, which Home Assistant only uses when it creates the
-   device. An entity ID never changes after creation, not on a rename in the
-   app either: rename it in Home Assistant if the old one is unwanted.
+   device, and it creates the area if there is none of that name:
+   `GET /api/system/ha-areas` lists the existing ones. An entity ID never
+   changes after creation, not on a rename in the app either: rename it in
+   Home Assistant if the old one is unwanted. `model` is shown as the model in
+   Home Assistant, then with the profile as `model_id`; empty shows the profile.
+   The address is the serial number.
 6. One address, sender, profile and channel is one device. A second device
    with the same four is refused (400): both would claim the same entities.
 

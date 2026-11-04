@@ -52,6 +52,9 @@ class Device:
     # switch actuator only transmits when it is switched, so a watchdog would
     # declare a perfectly healthy one dead. See issue #37 and ADR-0011.
     availability_timeout: int = 0
+    # Hardware type, e.g. FUD14. Shown as the model in Home Assistant; empty
+    # shows the profile there, as before. See ADR-0045.
+    model: str = ""
 
     @property
     def eep_id(self) -> str:
@@ -88,7 +91,8 @@ class Device:
             position_control=bool(data.get("position_control", False)),
             press_time=int(data.get("press_time", 0) or 0),
             channel=int(data.get("channel", 0) or 0),
-            availability_timeout=int(data.get("availability_timeout", 0) or 0)
+            availability_timeout=int(data.get("availability_timeout", 0) or 0),
+            model=data.get("model", "") or ""
         )
 
 

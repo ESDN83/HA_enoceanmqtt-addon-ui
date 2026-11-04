@@ -206,7 +206,7 @@ function useCatalogDevice() {
     } else {
         showManualEntry();
         prefillDeviceForm({ eep: d.eep, actuator_type: d.actuator_type, manufacturer: d.manufacturer,
-                            description: (d.models || [])[0] || '' });
+                            model: (d.models || [])[0] || '' });
     }
 }
 
@@ -228,6 +228,7 @@ function prefillDeviceForm(v) {
     set('sender_id', v.sender_id);
     if (v.manufacturer && !/^Any\b/.test(v.manufacturer)) set('manufacturer', v.manufacturer);
     set('description', v.description);
+    set('model', v.model);
     if (v.actuator_type !== undefined) {
         set('actuator_type', v.actuator_type);
         const role = form.querySelector('[name="actuator_type"]');

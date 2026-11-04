@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.8.6-beta4] - 2026-11-04 (beta channel)
+
+### Added
+
+- **Model field.** Holds the hardware type, such as FUD14, and shows as the
+  model in Home Assistant, with the profile next to it. Empty shows the
+  profile as before. The address is sent as the serial number. Issue #64.
+- **Room suggests the existing Home Assistant areas**, so a typo does not
+  create a new area. Free text stays possible. Issue #64.
+
+### Changed
+
+- **The device catalog fills in Model, no longer Description**, so a new
+  device is not named after its hardware in Home Assistant.
+
 ## [1.8.6-beta3] - 2026-11-03 (beta channel)
 
 ### Fixed

@@ -88,6 +88,19 @@ async def _republish_after_restore(request):
         logger.error(f"Re-publish after restore failed: {e}")
 
 
+@router.get("/ha-areas")
+async def get_ha_areas() -> Dict[str, Any]:
+    """Area names in Home Assistant, to suggest for a device's room. Only a
+    convenience: without Home Assistant the list is empty and Room stays free
+    text."""
+    try:
+        (areas,) = await _ha_ws([{"type": "config/area_registry/list"}])
+        return {"areas": sorted((a["name"] for a in areas if a.get("name")), key=str.lower)}
+    except Exception as e:
+        logger.debug(f"Could not read Home Assistant areas: {e}")
+        return {"areas": []}
+
+
 @router.get("/status")
 async def get_status(request: Request) -> Dict[str, Any]:
     """Get system status"""

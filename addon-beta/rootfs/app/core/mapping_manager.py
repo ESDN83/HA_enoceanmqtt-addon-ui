@@ -1831,8 +1831,13 @@ class MappingManager:
             "identifiers": [f"enocean_{addr}"],
             "name": module_name or device.description or device.name,
             "manufacturer": device.manufacturer or "EnOcean",
-            "model": device.eep_id,
+            "model": device.model or device.eep_id,
+            "serial_number": device.address,
         }
+        # Only next to a Model: without one the profile already is the model,
+        # and Home Assistant would show it twice, "A5-38-08 (A5-38-08)".
+        if device.model:
+            info["model_id"] = device.eep_id
         # Home Assistant only uses this when it creates the device, so an area
         # chosen there is never overwritten (#64).
         if device.room:
