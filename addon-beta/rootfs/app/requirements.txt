@@ -22,4 +22,4 @@ aiofiles==25.1.0
 
 # Home Assistant WebSocket API (entity registry, api/system.py); was only
 # present as a transitive dependency of uvicorn[standard]
-websockets==17.3
+websockets==17.4
