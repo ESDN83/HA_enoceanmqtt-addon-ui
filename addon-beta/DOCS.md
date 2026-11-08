@@ -138,7 +138,9 @@ device; the field suggests the existing Home Assistant areas, and a new name
 creates a new area. Existing entity IDs and areas never change. A name set in
 Home Assistant wins over Description; use "reset to default name" there to get
 Description back. *Model* holds the hardware type, such as FUD14, and shows as
-"FUD14 (A5-38-08)" in Home Assistant; empty shows the profile. Picking a device
+"FUD14 (A5-38-08)" in Home Assistant; empty shows the profile. A two-channel
+module shows as one device named after the manufacturer and its Model, for
+example "NodOn SIN-2-2-01", or the profile when Model is empty. Picking a device
 from the catalog fills in Model, no longer Description.
 
 ![Settings](https://github.com/user-attachments/assets/370072b1-7219-4566-a733-2c9e58b018fa)

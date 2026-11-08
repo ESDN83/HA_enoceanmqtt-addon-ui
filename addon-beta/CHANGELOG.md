@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.8.7-beta1] - 2026-11-08 (beta channel)
+
+### Changed
+
+- **A two-channel module is named after its Model** when one is set, for
+  example "NodOn SIN-2-2-01" instead of "NodOn D2-01-12". Without a Model it
+  keeps the profile. Issue #64.
+- Libraries updated: websockets 17.4, python-multipart 0.0.33.
+
 ## [1.8.6] - 2026-11-08
 
 Promoted to stable: 1.8.6-beta1 to beta4, see below. The next beta starts

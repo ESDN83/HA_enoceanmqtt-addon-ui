@@ -1562,8 +1562,9 @@ class MappingManager:
         """
         if len(devices_on_address) > 1:
             entity_name = device.description or device.name
-            module_name = (f"{device.manufacturer} {device.eep_id}".strip()
-                           or f"EnOcean {device.eep_id}")
+            label = device.model or device.eep_id
+            module_name = (f"{device.manufacturer} {label}".strip()
+                           or f"EnOcean {label}")
             return entity_name, module_name
         return None, None
 
