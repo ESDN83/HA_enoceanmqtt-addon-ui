@@ -225,12 +225,58 @@ configs are cleared, unless a remaining device publishes the same unique ID.
 - *Command Pending* on means the valve has not been answered with the new
   value yet. Wait one radio interval before suspecting a problem.
 
+### Radiator valves A5-20-04 and A5-20-06 (since 1.8.7, not confirmed on hardware)
+- Paired and answered like A5-20-01: interactive teach-in, the valve's
+  teach-in query is answered and the sender ID stored.
+- A5-20-04: Target Temperature 10-30 °C, no Summer Mode. Entities Valve
+  Position, Temperature, Feed Temperature, Local Set Point, Failure, Failure
+  Code, Battery Low, Button Lock.
+- A5-20-06: Target Temperature 0-40 °C in 0.5 °C steps, Summer Mode.
+  Entities Valve Position, Temperature or Feed Temperature (whichever the
+  valve reports), Local Offset or Local Set Point, Window Open, Actuator
+  Obstructed, Battery Low, Energy Input, Radio Errors, Weak Radio Signal.
+
+### Multi-sensors D2-14-30 and D2-14-41 (since 1.8.7, not confirmed on hardware)
+- Sensors only, added with Manual Entry. D2-14-30: Smoke, Temperature,
+  Humidity, Comfort, Air Analysis, Battery Low and maintenance flags.
+  D2-14-41: Temperature, Humidity, Illuminance, Contact, acceleration.
+
+### Ventilation units D2-50-00/01/10/11 (since 1.8.7, not confirmed on hardware)
+- Paired with interactive teach-in (UTE), it needs the sender ID it was
+  paired with. *Ventilation Mode* (off, level 1-4, automatic, on demand,
+  supply air only, exhaust air only) and *Request Status*; all other values
+  as sensors, from the basic and the extended status.
+
+### Secure devices (VAES, since 1.8.7, not confirmed on hardware)
+- Create the device with its profile first, or start interactive teach-in,
+  then trigger the device's secure teach-in. The key is stored, then every
+  secure telegram is verified (CMAC, rolling code) and decrypted. Only
+  receiving, no pre-shared key. Telegrams that fail the check are dropped
+  with a warning. Deleting the device deletes the key.
+
+### Remote Commissioning, QR code pairing (OPUS BRiDGE, since 1.8.7, experimental)
+- For actuators that pair through their QR label instead of a button. Create
+  the device (address, D2 profile, role, a free sender ID), then on its page
+  *Pair with QR code*: `POST /api/gateway/recom-pair/<device name>` with
+  `{"qr": "<label text>"}`. The app unlocks the device with the label's
+  security code, writes its sender ID at the next free index of the inbound
+  link table (learned wall switches stay) and locks it again.
+- Never ask the user to paste the QR code or security code into a chat or a
+  public post. It unlocks the device.
+
 ### Pilot wire heating modules (D2-01-0C, NodOn SIN-2-FP-21)
 - Paired with interactive teach-in, it needs a sender ID.
 - Entity *Pilot Wire Mode*: Off, Comfort, Eco, Anti-freeze, Comfort-1,
   Comfort-2. No separate on/off switch.
 - Power (W) and Energy (kWh) are queried after every mode change and every
   five minutes; the module does not send them by itself.
+
+## Automation blueprints
+- `GET /api/system/blueprints` lists the blueprints that fit configured
+  devices (rocker to light, smoke alarm notification, window pauses
+  heating); `POST /api/system/blueprints/<id>/install` saves one in Home
+  Assistant. Nothing is installed without that call: an unused blueprint is
+  a problem report in Spook. An installed blueprint is not overwritten.
 
 ## Moving from EnOcean MQTT Slim or ChristopheHD enocean-mqtt
 

@@ -16,6 +16,10 @@ from typing import Optional, Callable, List, Dict, Any
 from dataclasses import dataclass
 
 from core.rocker_events import is_rocker
+from core.valve_control import is_valve
+from core.ventilation import is_ventilation, merge_state as merge_ventilation_state
+from core.secure import RORG_SEC, RORG_SEC_ENCAPS, RORG_SEC_TI
+from core.recom import RORG_SYS_EX
 
 logger = logging.getLogger(__name__)
 
@@ -221,6 +225,10 @@ class SerialHandler:
         self.pilot_wire = None
         # Rocker button events and device triggers (#56, ADR-0042); set by main.
         self.rocker_events = None
+        # Keys of secure devices (core.secure.SecureDevices), set by main
+        self.secure = None
+        # Remote Commissioning (core.recom.Recom), set by main
+        self.recom = None
         self._base_id: Optional[int] = None
         self._response_future: Optional[asyncio.Future] = None
         # Guards every conversation with the transceiver, radio telegrams and
@@ -758,7 +766,9 @@ class SerialHandler:
             dbm=dbm
         )
 
-        logger.debug(f"RX [{telegram.sender_hex}] RORG={telegram.rorg_hex} Data={telegram.data.hex().upper()} dBm={telegram.dbm}")
+        # A secure teach-in carries the device key: never in the log (#62).
+        shown = "(secure teach-in, not logged)" if rorg == RORG_SEC_TI else telegram.data.hex().upper()
+        logger.debug(f"RX [{telegram.sender_hex}] RORG={telegram.rorg_hex} Data={shown} dBm={telegram.dbm}")
 
         # Our own telegram, sent back by a repeater with our sender ID in it.
         # It is not a device, so it stays out of the unknown device list and
@@ -768,6 +778,40 @@ class SerialHandler:
                 or self.device_manager.get_device_by_address(telegram.sender_hex) is None):
             logger.debug(f"RX [{telegram.sender_hex}] own telegram, repeated back")
             return
+
+        # Remote Commissioning answers (SYS_EX, #67, ADR-0047)
+        if telegram.rorg == RORG_SYS_EX and self.recom is not None:
+            self.recom.handle_rx(telegram)
+            return
+
+        # Secure telegrams (#62, ADR-0046). A secure teach-in stores the key:
+        # only while a teach-in session runs or for a configured address, so
+        # nobody in range can plant a key unasked. Secure data is verified
+        # and decrypted, then handled as the plain telegram it carries.
+        if self.secure is not None and telegram.rorg in (RORG_SEC_TI, RORG_SEC, RORG_SEC_ENCAPS):
+            configured = (self.device_manager is not None
+                          and self.device_manager.get_device_by_address(telegram.sender_hex) is not None)
+            if telegram.rorg == RORG_SEC_TI:
+                if configured or self._teach_in_callback is not None:
+                    self.secure.teach_in(telegram.sender_hex, telegram.data)
+                else:
+                    logger.info(f"Secure teach-in from {telegram.sender_hex} ignored, no teach-in session")
+                return
+            plain = self.secure.decrypt(telegram.sender_hex, telegram.rorg, telegram.data)
+            if plain is None:
+                if not self.secure.known(telegram.sender_hex):
+                    logger.info(f"Secure telegram from {telegram.sender_hex}: no key, teach the device in first")
+                return
+            inner_rorg, inner_data = plain
+            if inner_rorg is None:
+                # 0x30 carries no RORG: decode with the configured profile
+                device = self.device_manager.get_device_by_address(telegram.sender_hex) if configured else None
+                if device is None:
+                    return
+                inner_rorg = int(str(device.rorg), 16)
+            telegram = RadioTelegram(rorg=inner_rorg, data=inner_data, sender_id=sender_id,
+                                     status=telegram.status, dbm=telegram.dbm)
+            logger.debug(f"RX [{telegram.sender_hex}] decrypted RORG={telegram.rorg_hex} Data={telegram.data.hex().upper()}")
 
         # Check if this is a teach-in telegram.
         # Only treat as teach-in if the sender is NOT already configured:
@@ -973,6 +1017,15 @@ class SerialHandler:
                                          query_data=query_data)
         except Exception as e:
             logger.error(f"UTE teach-in response to 0x{destination:08X} not sent: {e}")
+
+    async def send_radio_addressed(self, rorg: int, sender_id: int, data: bytes, destination: int,
+                                   label: str = "", secret: bool = False) -> bool:
+        """One telegram of any RORG to one device, e.g. a SYS_EX part (#67).
+        secret keeps the data out of the log (a security code)."""
+        packet = self._build_radio_packet(sender_id, rorg, data, destination, 0x00)
+        line = _radio_log_line(rorg, b"" if secret else data, destination)
+        async with self._tx_slot():
+            return await self._send_radio_packet(packet, label or f"RORG {rorg:02X}", line)
 
     async def send_vld_addressed(self, sender_id: int, data: bytes, destination: int,
                                  label: str = "") -> bool:
@@ -1185,8 +1238,10 @@ class SerialHandler:
 
             for target in targets:
                 payload = dict(decoded)
-                if self.valve_control is not None and str(target.eep_id).upper() == "A5-20-01":
+                if self.valve_control is not None and is_valve(target):
                     payload.update(self.valve_control.state_fields(target.name))
+                if is_ventilation(target) and self.mqtt_handler is not None:
+                    payload = merge_ventilation_state(self.mqtt_handler.get_last_state(target.name), payload)
                 if self.pilot_wire is not None and self.pilot_wire.meters(target):
                     payload = self.pilot_wire.merge_state(target, payload)
                 if d2_01_status:
@@ -1498,7 +1553,9 @@ class SerialHandler:
         puts it, holds its ID. Fields without a command tag always apply, and
         if no group matches everything is decoded as before. ADR-0032.
         A5-38-08 names its command field COM, not CMD: without it a dimming
-        status (COM 2) was decoded with the switching fields too (#51).
+        status (COM 2) was decoded with the switching fields too (#51). D2-50
+        ventilation units and D2-06-01 name it MT (message type): a basic
+        status came out with the extended status fields over it (#61).
         """
         groups: Dict[str, list] = {}
         untagged = []
@@ -1509,7 +1566,7 @@ class SerialHandler:
             return fields
         matched = []
         for cmd, group in groups.items():
-            cmd_field = next((f for f in group if f.get("shortcut") in ("CMD", "COM")), None)
+            cmd_field = next((f for f in group if f.get("shortcut") in ("CMD", "COM", "MT")), None)
             if cmd_field is None:
                 continue
             shift = data_bits - cmd_field.get("offset", 0) - cmd_field.get("size", 4)

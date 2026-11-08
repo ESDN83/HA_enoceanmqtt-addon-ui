@@ -578,3 +578,41 @@ function warnDuplicateDevices(details) {
     if (!groups.length) return;
     showToast(`${t('backup.duplicates', 'Same address, profile and channel, keep only one of each')}: ${escapeHtml(groups.map(g => g.join(' / ')).join('; '))}`, 'warning');
 }
+
+// Blueprints are offered only for devices that exist, and installed only on
+// request: an unused blueprint is a problem report in Spook (#57).
+async function loadBlueprints() {
+    const card = document.getElementById('blueprints-card');
+    const list = document.getElementById('blueprint-list');
+    if (!card || !list) return;
+    try {
+        const resp = await fetch(getApiUrl('/api/system/blueprints'));
+        const data = await resp.json();
+        const items = data.blueprints || [];
+        card.style.display = items.length ? '' : 'none';
+        list.innerHTML = items.map(bp => {
+            const devices = escapeHtml(bp.devices.join(', '));
+            const action = bp.installed
+                ? `<span class="badge bg-success">${t('blueprint.installed', 'Installed')}</span>`
+                : `<button class="btn btn-sm btn-primary" onclick="installBlueprint('${escapeHtml(bp.id)}', this)" ${data.ha_reachable ? '' : 'disabled'}>${t('blueprint.install', 'Install')}</button>`;
+            return `<div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                <div><strong>${escapeHtml(bp.name)}</strong><br><small class="text-muted">${t('blueprint.for', 'For')}: ${devices}</small></div>
+                <div>${action}</div></div>`;
+        }).join('');
+    } catch (e) {
+        card.style.display = 'none';
+    }
+}
+
+async function installBlueprint(id, btn) {
+    if (btn) btn.disabled = true;
+    try {
+        const resp = await fetch(getApiUrl(`/api/system/blueprints/${encodeURIComponent(id)}/install`), {method: 'POST'});
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(data.detail || resp.statusText);
+        showToast(t('blueprint.done', 'Blueprint is in Home Assistant'), 'success');
+    } catch (e) {
+        showToast(t('blueprint.failed', 'Blueprint not installed') + ': ' + e.message, 'danger');
+    }
+    loadBlueprints();
+}

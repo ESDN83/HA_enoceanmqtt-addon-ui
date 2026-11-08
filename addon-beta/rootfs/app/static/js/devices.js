@@ -354,11 +354,11 @@ function isTwoChannelEep(rorg, func, type) {
     const ty = String(type || '').toUpperCase().padStart(2, '0');
     return r === 'D2' && f === '01' && (ty === '11' || ty === '12');
 }
-// A radiator valve (A5-20-01) stays a sensor in the role dropdown but is
+// A radiator valve (A5-20-01, -04, -06) stays a sensor in the role dropdown but is
 // answered from a sender ID of the gateway, set at teach-in (ADR-0029).
 function isValveForm() {
     const v = n => ((document.querySelector(`[name="${n}"]`) || {}).value || '').toUpperCase().replace('0X', '');
-    return v('rorg') === 'A5' && v('func').padStart(2, '0') === '20' && v('type').padStart(2, '0') === '01';
+    return v('rorg') === 'A5' && v('func').padStart(2, '0') === '20' && ['01', '04', '06'].includes(v('type').padStart(2, '0'));
 }
 
 function toggleSenderIdField(select) {
@@ -769,6 +769,19 @@ async function showDeviceDetail(name) {
                     </div>
                 </div>
 
+                ${device.rorg === 'D2' && device.sender_id ? `
+                <div class="card mb-3">
+                    <div class="card-header"><i class="bi bi-qr-code"></i> ${t('recom.title', 'Pair with QR code')}</div>
+                    <div class="card-body">
+                        <p class="small text-muted mb-2">${t('recom.hint', 'For actuators paired by their QR label, e.g. OPUS BRiDGE: enter the text of the QR code. The app writes its sender ID into the device; wall switches the device has learned stay. Experimental, not confirmed on a real device yet.')}</p>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="recom-qr" autocomplete="off" placeholder="30S...+1P...+11Z...">
+                            <button class="btn btn-primary" onclick="recomPair(${escapeHtml(JSON.stringify(device.name))})">${t('recom.pair', 'Pair')}</button>
+                        </div>
+                        <div id="recom-result" class="small mt-2"></div>
+                    </div>
+                </div>` : ''}
+
                 ${device.actuator_type ? `
                 <div class="card mb-3">
                     <div class="card-header bg-warning bg-opacity-25">
@@ -901,5 +914,28 @@ async function loadHaAreas() {
         list.replaceChildren(...areas.map(name => Object.assign(document.createElement('option'), { value: name })));
     } catch (e) {
         _haAreasLoaded = false;
+    }
+}
+
+// Remote Commissioning from the QR label (#67). The code in the label unlocks
+// the device; it goes to the app once and is not kept here or there.
+async function recomPair(name) {
+    const field = document.getElementById('recom-qr');
+    const out = document.getElementById('recom-result');
+    const qr = (field.value || '').trim();
+    field.value = '';
+    if (!qr) return;
+    out.textContent = t('recom.running', 'Pairing, this takes a few seconds...');
+    try {
+        const resp = await fetch(getApiUrl(`/api/gateway/recom-pair/${encodeURIComponent(name)}`), {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({qr})
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(data.detail || resp.statusText);
+        out.textContent = (data.status === 'already_linked'
+            ? t('recom.already', 'Already paired, nothing changed.')
+            : t('recom.done', 'Paired.')) + ' ' + (data.steps || []).join(', ');
+    } catch (e) {
+        out.textContent = t('recom.failed', 'Pairing failed') + ': ' + e.message;
     }
 }

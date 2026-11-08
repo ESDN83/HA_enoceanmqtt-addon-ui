@@ -1,0 +1,58 @@
+blueprint:
+  name: EnOcean smoke alarm notification
+  description: >-
+    Run actions when an EnOcean smoke detector set up in EnOcean MQTT UI
+    reports smoke, by default a persistent notification.
+  domain: automation
+  author: EnOcean MQTT UI
+  source_url: https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/blob/main/addon/rootfs/app/data/blueprints/enocean_smoke_notify.yaml
+  homeassistant:
+    min_version: "2024.10.0"
+  input:
+    smoke_sensor:
+      name: Smoke detector
+      selector:
+        entity:
+          domain: binary_sensor
+          device_class: smoke
+          multiple: true
+    alarm_actions:
+      name: When smoke is detected
+      default:
+        - action: persistent_notification.create
+          data:
+            title: Smoke alarm
+            message: "{{ trigger.to_state.name }} detects smoke."
+      selector:
+        action: {}
+    clear_actions:
+      name: When the alarm is over
+      default: []
+      selector:
+        action: {}
+
+mode: queued
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input smoke_sensor
+    not_from: unavailable
+    to: "on"
+    id: alarm
+  - trigger: state
+    entity_id: !input smoke_sensor
+    from: "on"
+    to: "off"
+    id: clear
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: alarm
+        sequence: !input alarm_actions
+      - conditions:
+          - condition: trigger
+            id: clear
+        sequence: !input clear_actions

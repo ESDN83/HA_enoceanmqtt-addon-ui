@@ -459,5 +459,8 @@ async def delete_device(name: str, request: Request) -> Dict[str, str]:
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Failed to remove discovery for {name}: {e}")
+    serial_handler = getattr(request.app.state, "serial_handler", None)
+    if getattr(serial_handler, "secure", None) is not None and not device_manager.get_devices_by_address(address):
+        serial_handler.secure.forget(address)  # a secure key outlives no device (#62)
 
     return {"status": "deleted"}

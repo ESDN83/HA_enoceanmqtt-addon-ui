@@ -1,0 +1,83 @@
+blueprint:
+  name: EnOcean window pauses heating
+  description: >-
+    Switch a climate entity off while a window is open, and back on when it
+    closes. Works with a window contact (binary sensor) or an EnOcean window
+    handle (sensor: Open, Tilted, Closed) set up in EnOcean MQTT UI.
+  domain: automation
+  author: EnOcean MQTT UI
+  source_url: https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/blob/main/addon/rootfs/app/data/blueprints/enocean_window_heating.yaml
+  homeassistant:
+    min_version: "2024.10.0"
+  input:
+    window:
+      name: Window contact or handle
+      selector:
+        entity:
+          filter:
+            - domain: binary_sensor
+              device_class: [window, door, opening]
+            - domain: sensor
+              integration: mqtt
+    climate_target:
+      name: Heating
+      selector:
+        target:
+          entity:
+            domain: climate
+    open_delay:
+      name: Open for at least
+      default: 30
+      selector:
+        number:
+          min: 0
+          max: 600
+          unit_of_measurement: seconds
+    resume_mode:
+      name: Mode after closing
+      default: heat
+      selector:
+        select:
+          options: [heat, auto, heat_cool]
+
+# One run per opening: it only switches back on what it switched off itself.
+mode: single
+max_exceeded: silent
+
+variables:
+  window: !input window
+  open_delay: !input open_delay
+  # A contact is "on" when open; a handle reports Open or Tilted.
+  open_states: ["on", "Open", "Tilted", "open", "tilted"]
+
+triggers:
+  - trigger: state
+    entity_id: !input window
+    not_from: unavailable
+    not_to: unavailable
+
+conditions:
+  - "{{ trigger.to_state.state in open_states and trigger.from_state.state not in open_states }}"
+
+actions:
+  - wait_for_trigger:
+      - trigger: state
+        entity_id: !input window
+        to: ["off", "Closed", "closed"]
+    timeout:
+      seconds: "{{ open_delay }}"
+    continue_on_timeout: true
+  # Closed again within the delay: leave the heating alone.
+  - condition: "{{ wait.trigger is none }}"
+  - action: climate.set_hvac_mode
+    target: !input climate_target
+    data:
+      hvac_mode: "off"
+  - wait_for_trigger:
+      - trigger: state
+        entity_id: !input window
+        to: ["off", "Closed", "closed"]
+  - action: climate.set_hvac_mode
+    target: !input climate_target
+    data:
+      hvac_mode: !input resume_mode

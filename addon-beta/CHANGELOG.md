@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.8.7-beta2] - 2026-11-08 (beta channel)
+
+Built from the EnOcean specifications and other implementations, not yet
+confirmed on real hardware. Testers wanted for every item.
+
+### Check after updating
+
+- **A5-20-04 and A5-20-06 valves** get new entities with proper units; the
+  generic ones from before are removed.
+- **Secure device keys are not in backups yet**: after a restore a secure
+  device needs a new secure teach-in.
+
+### Added
+
+- **Radiator valves A5-20-04 and A5-20-06**, controlled like A5-20-01.
+  Issue #60.
+- **Multi-sensors D2-14-30 and D2-14-41** with proper entities. Issue #59.
+- **Ventilation units D2-50-00/01/10/11**: mode select, status request and
+  all reported values. Issue #61.
+- **Automation blueprints from the UI**: rocker to light, smoke alarm
+  notification, window pauses heating, offered only for devices you have and
+  installed on request. Issue #57.
+- **Secure telegrams (VAES)**: secure teach-in, CMAC and rolling code check,
+  decryption. Receiving only. Issue #62.
+- **QR code pairing (Remote Commissioning)** for OPUS BRiDGE and similar
+  actuators. Experimental. Issue #67.
+
+### Fixed
+
+- **D2-50 and D2-06-01 telegrams were decoded with every message layout at
+  once**; their message type field now selects the layout.
+
 ## [1.8.7-beta1] - 2026-11-08 (beta channel)
 
 ### Changed

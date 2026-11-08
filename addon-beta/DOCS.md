@@ -383,6 +383,61 @@ Teach-In" has to be clicked several times in a row:
   every few hours.
 
 
+### Radiator Valves A5-20-04 and A5-20-06
+
+Paired and controlled like A5-20-01 above. Built from the EnOcean profile and
+two other implementations, not yet confirmed on a real valve; please report
+how it works.
+
+- **A5-20-04**: Target Temperature 10-30 °C, Valve Setpoint, Control Mode;
+  no Summer Mode. Feed temperature, local set point, failure code, battery
+  and button lock as sensors.
+- **A5-20-06** (e.g. Micropelt MVA-005): Target Temperature 0-40 °C in
+  0.5 °C steps, Summer Mode. Window open, actuator obstructed, battery and
+  radio status as sensors.
+
+### Multi-Sensors D2-14-30 and D2-14-41
+
+Added with Manual Entry. D2-14-30 reports smoke, temperature, humidity,
+comfort and air analysis plus maintenance flags; D2-14-41 temperature,
+humidity, illuminance, a contact and acceleration. Not yet confirmed on real
+hardware.
+
+### Ventilation Units D2-50 (Heat Recovery)
+
+Paired with interactive teach-in. The unit gets a **Ventilation Mode** select
+(off, level 1-4, automatic, on demand, supply air only, exhaust air only)
+and a **Request Status** button; temperatures, air flows, fan speeds, filter
+maintenance, heaters and bypass as sensors. Not yet confirmed on a real unit.
+
+### Secure Devices (Encrypted Telegrams)
+
+Devices that send encrypted telegrams (VAES with CMAC and rolling code) work
+after their secure teach-in: create the device with its profile, or start
+Teach-In, then trigger the secure teach-in on the device. The key stays in
+the app's data folder and is deleted with the device. Receiving only, and no
+pre-shared key. Not yet confirmed on a real device.
+
+### OPUS BRiDGE and Other QR Code Pairing
+
+Some actuators, such as OPUS BRiDGE, are not paired with a button but through
+the security code on their QR label (Remote Commissioning). Create the device
+with its address, profile (e.g. D2-01-03), role and a free sender ID, then
+open it and use **Pair with QR code**: enter the text of the QR code. The app
+writes its sender ID into the device's link table next to the wall switches
+it already has, which stay. Experimental: built from the EnOcean
+specification, not yet confirmed on a real device. Never post the QR code or
+its security code publicly, it unlocks the device.
+
+### Automation Blueprints
+
+Under **Settings, Automation Blueprints** the app offers ready-made
+automations for devices you have: a rocker controls a light (tap on/off, hold
+to dim), a smoke alarm notification, a window that pauses heating. A
+blueprint is installed in Home Assistant only when you press Install, so no
+unused blueprints pile up. Create an automation from it in Home Assistant
+under Settings, Automations, Blueprints.
+
 ### Pilot Wire Heating Modules (D2-01-0C, e.g. NodOn SIN-2-FP-21)
 - Pair the module with **Teach-In**; it needs a Sender ID, which the teach-in
   fills in.

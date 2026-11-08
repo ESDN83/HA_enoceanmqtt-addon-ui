@@ -88,6 +88,52 @@ async def _republish_after_restore(request):
         logger.error(f"Re-publish after restore failed: {e}")
 
 
+@router.get("/blueprints")
+async def list_blueprints(request: Request) -> Dict[str, Any]:
+    """Blueprints that fit a configured device, and whether Home Assistant
+    already has them (#57). Only these are offered in the UI."""
+    from core import blueprints as bps
+    dm = request.app.state.device_manager
+    mm = request.app.state.mapping_manager
+    devices = list(dm.devices.values()) if dm else []
+    installed = None
+    try:
+        (existing,) = await _ha_ws([{"type": "blueprint/list", "domain": "automation"}])
+        installed = set(existing or {})
+    except Exception as e:
+        logger.debug(f"Could not list Home Assistant blueprints: {e}")
+    out = []
+    for bp in bps.BLUEPRINTS:
+        names = bps.matching_devices(bp, devices, mm)
+        if not names:
+            continue
+        out.append({"id": bp["id"], "name": bp["name"], "devices": names,
+                    "installed": None if installed is None else bps.ha_path(bp) in installed})
+    return {"blueprints": out, "ha_reachable": installed is not None}
+
+
+@router.post("/blueprints/{bp_id}/install")
+async def install_blueprint(bp_id: str, request: Request) -> Dict[str, Any]:
+    """Save one blueprint in Home Assistant, on the user's button press. An
+    existing one is left as it is (#57, ADR-0046)."""
+    from core import blueprints as bps
+    bp = bps.find(bp_id)
+    if bp is None:
+        raise HTTPException(status_code=404, detail="Unknown blueprint")
+    dm = request.app.state.device_manager
+    if not bps.matching_devices(bp, list(dm.devices.values()) if dm else [], request.app.state.mapping_manager):
+        raise HTTPException(status_code=400, detail="No matching device is configured")
+    try:
+        await _ha_ws([{"type": "blueprint/save", "domain": "automation",
+                       "path": bps.ha_path(bp), "yaml": bps.read_yaml(bp)}])
+    except Exception as e:
+        if "already" in str(e).lower():
+            return {"status": "exists", "path": bps.ha_path(bp)}
+        raise HTTPException(status_code=502, detail=f"Home Assistant refused the blueprint: {e}")
+    logger.info(f"Blueprint installed in Home Assistant: {bps.ha_path(bp)}")
+    return {"status": "installed", "path": bps.ha_path(bp)}
+
+
 @router.get("/ha-areas")
 async def get_ha_areas() -> Dict[str, Any]:
     """Area names in Home Assistant, to suggest for a device's room. Only a

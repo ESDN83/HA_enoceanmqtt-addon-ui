@@ -30,7 +30,10 @@ from core.eep_manager import EEPManager
 from core.mapping_manager import MappingManager
 from core.valve_control import ValveControl, is_valve
 from core.pilot_wire import PilotWire, is_pilot, ENTITY_MODE as PILOT_ENTITY_MODE
+from core.ventilation import Ventilation, is_ventilation
 from core.rocker_events import RockerEvents
+from core.secure import SecureDevices
+from core.recom import Recom
 from core.telegram_buffer import TelegramBuffer
 from core.command_queue import CommandQueue
 
@@ -81,6 +84,7 @@ telegram_buffer: TelegramBuffer = None
 command_queue: CommandQueue = None
 valve_control: "ValveControl" = None
 pilot_wire: "PilotWire" = None
+ventilation: "Ventilation" = None
 availability_task: asyncio.Task = None
 # Last availability the watchdog published per device, so the retained topic is
 # only rewritten on a change, plus the moment the add-on came up (#37).
@@ -100,7 +104,7 @@ _queue_trailing: Optional[asyncio.Task] = None
 async def lifespan(app: FastAPI):
     """Application lifespan - startup and shutdown"""
     global mqtt_handler, serial_handler, device_manager, eep_manager, mapping_manager, telegram_buffer
-    global availability_task, command_queue, valve_control, pilot_wire
+    global availability_task, command_queue, valve_control, pilot_wire, ventilation
 
     logger.info("Starting EnOcean MQTT Add-on...")
 
@@ -189,9 +193,12 @@ async def lifespan(app: FastAPI):
         pilot_wire = PilotWire(serial_handler, device_manager, mqtt_handler, eep_manager)
         serial_handler.pilot_wire = pilot_wire
         pilot_wire.start()
+        ventilation = Ventilation(serial_handler, mqtt_handler)
 
         # Rocker button events and device triggers (#56, ADR-0042).
         serial_handler.rocker_events = RockerEvents(mqtt_handler)
+        serial_handler.secure = SecureDevices(CONFIG_PATH)
+        serial_handler.recom = Recom(serial_handler)
 
         try:
             # connect() logs the same sentence itself. Logging it twice from
@@ -792,6 +799,12 @@ async def _handle_device_command(device_name: str, payload: str, entity: str = N
         valve = device_manager.get_device(device_name)
         if is_valve(valve):
             await valve_control.handle_command(valve, payload, entity)
+            return
+
+    # A ventilation unit (D2-50) takes a mode or a status request (ADR-0046).
+    if ventilation is not None and device_manager is not None:
+        unit = device_manager.get_device(device_name)
+        if is_ventilation(unit) and await ventilation.handle_command(unit, payload, entity):
             return
 
     # A pilot wire module's mode is its own command (CMD 8), whatever role

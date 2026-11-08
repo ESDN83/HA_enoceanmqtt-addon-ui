@@ -1,0 +1,90 @@
+blueprint:
+  name: EnOcean rocker controls a light
+  description: >-
+    Tap a rocker button to switch a light on or off, hold it to dim.
+    For a rocker set up in EnOcean MQTT UI: pick its Button event entity.
+    Press the rocker once and look at the event entity's event_type to see
+    which button is which.
+  domain: automation
+  author: EnOcean MQTT UI
+  source_url: https://github.com/ESDN83/HA_enoceanmqtt-addon-ui/blob/main/addon/rootfs/app/data/blueprints/enocean_rocker_light.yaml
+  homeassistant:
+    min_version: "2024.10.0"
+  input:
+    rocker:
+      name: Rocker
+      description: The rocker's Button event entity.
+      selector:
+        entity:
+          domain: event
+          integration: mqtt
+    light_target:
+      name: Light
+      selector:
+        target:
+          entity:
+            domain: light
+    on_button:
+      name: Button for on and brighter
+      default: AI
+      selector:
+        select:
+          options: [AI, AO, BI, BO]
+    off_button:
+      name: Button for off and darker
+      default: AO
+      selector:
+        select:
+          options: [AI, AO, BI, BO]
+    dim_step:
+      name: Dim step
+      description: Brightness change every 0.4 s while a button is held.
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 50
+          unit_of_measurement: "%"
+
+# A new event restarts the run, so releasing the button ends the dimming loop.
+mode: restart
+max_exceeded: silent
+
+variables:
+  on_button: !input on_button
+  off_button: !input off_button
+  dim_step: !input dim_step
+
+triggers:
+  - trigger: state
+    entity_id: !input rocker
+    not_from: unavailable
+    not_to: unavailable
+
+actions:
+  # The event type is an attribute that repeats from press to press, so it
+  # is read here instead of filtered in the trigger.
+  - variables:
+      event_type: "{{ trigger.to_state.attributes.event_type }}"
+  - choose:
+      - conditions: "{{ event_type == on_button ~ '_release' }}"
+        sequence:
+          - action: light.turn_on
+            target: !input light_target
+      - conditions: "{{ event_type == off_button ~ '_release' }}"
+        sequence:
+          - action: light.turn_off
+            target: !input light_target
+      - conditions: "{{ event_type in [on_button ~ '_long_press', off_button ~ '_long_press'] }}"
+        sequence:
+          - variables:
+              step: "{{ dim_step if event_type.startswith(on_button) else -dim_step }}"
+          - repeat:
+              while: "{{ repeat.index <= 25 }}"
+              sequence:
+                - action: light.turn_on
+                  target: !input light_target
+                  data:
+                    brightness_step_pct: "{{ step }}"
+                - delay:
+                    milliseconds: 400

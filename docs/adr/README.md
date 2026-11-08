@@ -50,3 +50,5 @@ Rules:
 - [0043](0043-restore-replaces-and-device-identity.md) Restore replaces the device list; one address, sender, EEP and channel is one device
 - [0044](0044-default-entity-id-and-suggested-area.md) New entity IDs come from the device name, the room is the suggested area
 - [0045](0045-model-field-and-room-suggestions.md) Model field, serial number and Room suggestions
+- [0046](0046-profiles-blueprints-secure.md) Profiles, blueprints and secure telegrams without a tester
+- [0047](0047-remote-commissioning-qr-pairing.md) QR code pairing through Remote Commissioning

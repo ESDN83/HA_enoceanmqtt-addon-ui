@@ -15,6 +15,7 @@ import logging
 from typing import Dict, List, Optional, Any
 import yaml
 import aiofiles
+from core.valve_control import is_valve_eep, TEMP_RANGE as VALVE_TEMP_RANGE, SUMMER_EEPS as VALVE_SUMMER_EEPS
 
 logger = logging.getLogger(__name__)
 
@@ -880,6 +881,279 @@ DEFAULT_MAPPINGS = {
             "entity_category": "diagnostic"
         }
     },
+    # Radiator valves A5-20-04 and A5-20-06 (issue #60, ADR-0046). EEP.xml
+    # gives these fields raw (0..255), so the scaling is done here, as in
+    # FHEM and openHAB. A shortcut that is not an EEP field (LSP, FAIL, BAT,
+    # FEED) is a second view of a field whose meaning a status bit selects.
+    "A5-20-04": {
+        "CP": {
+            "component": "sensor",
+            "name": "Valve Position",
+            "unit_of_measurement": "%",
+            "state_class": "measurement",
+            "icon": "mdi:valve"
+        },
+        "TMPFC": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "°C",
+            "state_class": "measurement",
+            "value_template": "{{ (value_json.TMPFC * 20 / 255 + 10) | round(1) if value_json.FL == 0 and value_json.MST == 0 else None }}"
+        },
+        "FTS": {
+            "component": "sensor",
+            "name": "Feed Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "°C",
+            "state_class": "measurement",
+            "value_template": "{{ (value_json.FTS * 60 / 255 + 20) | round(1) if value_json.TS == 0 and value_json.MST == 0 else None }}"
+        },
+        "LSP": {
+            "component": "sensor",
+            "name": "Local Set Point",
+            "device_class": "temperature",
+            "unit_of_measurement": "°C",
+            "value_template": "{{ ((value_json.FTS * 20 / 255 + 10) * 2) | round / 2 if value_json.TS == 1 else None }}"
+        },
+        "FL": {
+            "component": "binary_sensor",
+            "name": "Failure",
+            "device_class": "problem"
+        },
+        "FAIL": {
+            "component": "sensor",
+            "name": "Failure Code",
+            "entity_category": "diagnostic",
+            "icon": "mdi:alert-circle-outline",
+            "value_template": "{% set c = {17: 'measurement error', 18: 'battery empty', 20: 'frost protection', 33: 'blocked valve', 36: 'end point detection error', 40: 'no valve', 49: 'not taught in', 53: 'no response from controller', 54: 'teach-in error'} %}{{ (c.get(value_json.TMPFC | int, 'code ' ~ (value_json.TMPFC | int))) if value_json.FL == 1 else 'none' }}"
+        },
+        "BAT": {
+            "component": "binary_sensor",
+            "name": "Battery Low",
+            "device_class": "battery",
+            "entity_category": "diagnostic",
+            "value_template": "{{ '1' if value_json.FL == 1 and (value_json.TMPFC | int) == 18 else '0' }}"
+        },
+        "BLS": {
+            "component": "binary_sensor",
+            "name": "Button Lock",
+            "device_class": "lock",
+            "entity_category": "diagnostic",
+            "value_template": "{{ '0' if value_json.BLS == 1 else '1' }}"
+        }
+    },
+    "A5-20-06": {
+        "CV": {
+            "component": "sensor",
+            "name": "Valve Position",
+            "unit_of_measurement": "%",
+            "state_class": "measurement",
+            "icon": "mdi:valve"
+        },
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "°C",
+            "state_class": "measurement",
+            "value_template": "{{ (value_json.TMP / 2) | round(1) if value_json.TSL == 0 else None }}"
+        },
+        "FEED": {
+            "component": "sensor",
+            "name": "Feed Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "°C",
+            "state_class": "measurement",
+            "value_template": "{{ (value_json.TMP / 2) | round(1) if value_json.TSL == 1 else None }}"
+        },
+        "LO": {
+            "component": "sensor",
+            "name": "Local Offset",
+            "unit_of_measurement": "K",
+            "icon": "mdi:thermometer-plus",
+            "value_template": "{% set v = value_json.LO | int %}{{ (v - 128 if v > 63 else v) if value_json.LOM == 0 else None }}"
+        },
+        "LSP": {
+            "component": "sensor",
+            "name": "Local Set Point",
+            "device_class": "temperature",
+            "unit_of_measurement": "°C",
+            "value_template": "{{ (value_json.LO / 2) | round(1) if value_json.LOM == 1 else None }}"
+        },
+        "DWO": {
+            "component": "binary_sensor",
+            "name": "Window Open",
+            "device_class": "window"
+        },
+        "ACO": {
+            "component": "binary_sensor",
+            "name": "Actuator Obstructed",
+            "device_class": "problem"
+        },
+        "ES": {
+            "component": "binary_sensor",
+            "name": "Battery Low",
+            "device_class": "battery",
+            "entity_category": "diagnostic",
+            "value_template": "{{ '1' if value_json.ES == 0 else '0' }}"
+        },
+        "ENIE": {
+            "component": "binary_sensor",
+            "name": "Energy Input",
+            "entity_category": "diagnostic"
+        },
+        "RCE": {
+            "component": "binary_sensor",
+            "name": "Radio Errors",
+            "device_class": "problem",
+            "entity_category": "diagnostic"
+        },
+        "RSS": {
+            "component": "binary_sensor",
+            "name": "Weak Radio Signal",
+            "device_class": "problem",
+            "entity_category": "diagnostic"
+        }
+    },
+    # Multi-sensors D2-14-30 and D2-14-41 (issue #59, ADR-0046). EEP.xml
+    # scales the measured values already; this gives them device classes and
+    # turns status codes into readable or boolean entities.
+    "D2-14-30": {
+        "SMA0": {
+            "component": "binary_sensor",
+            "name": "Smoke",
+            "device_class": "smoke"
+        },
+        "TMP8": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "°C",
+            "state_class": "measurement"
+        },
+        "HUM": {
+            "component": "sensor",
+            "name": "Humidity",
+            "device_class": "humidity",
+            "unit_of_measurement": "%",
+            "state_class": "measurement"
+        },
+        "HCI": {
+            "component": "sensor",
+            "name": "Comfort",
+            "icon": "mdi:sofa-outline",
+            "value_template": "{{ value_json.HCI_text if value_json.HCI is defined else None }}"
+        },
+        "IAQTH": {
+            "component": "sensor",
+            "name": "Air Analysis",
+            "icon": "mdi:air-filter",
+            "value_template": "{{ value_json.IAQTH_text if value_json.IAQTH is defined else None }}"
+        },
+        "ES": {
+            "component": "binary_sensor",
+            "name": "Battery Low",
+            "device_class": "battery",
+            "entity_category": "diagnostic",
+            "value_template": "{{ '1' if (value_json.ES | int) >= 2 else '0' }}"
+        },
+        "SMA1": {
+            "component": "binary_sensor",
+            "name": "Sensor Fault",
+            "device_class": "problem",
+            "entity_category": "diagnostic"
+        },
+        "SMA2": {
+            "component": "binary_sensor",
+            "name": "Maintenance Due",
+            "device_class": "problem",
+            "entity_category": "diagnostic"
+        },
+        "SMA3": {
+            "component": "binary_sensor",
+            "name": "Humidity Out of Range",
+            "device_class": "problem",
+            "entity_category": "diagnostic"
+        },
+        "SMA4": {
+            "component": "binary_sensor",
+            "name": "Temperature Out of Range",
+            "device_class": "problem",
+            "entity_category": "diagnostic"
+        },
+        "SMA5": {
+            "component": "sensor",
+            "name": "Time Since Maintenance",
+            "entity_category": "diagnostic",
+            "icon": "mdi:wrench-clock",
+            "value_template": "{{ value_json.SMA5 if value_json.SMA5 is defined and (value_json.SMA5 | int) != 255 else None }}"
+        },
+        "RPLT": {
+            "component": "sensor",
+            "name": "Remaining Lifetime",
+            "entity_category": "diagnostic",
+            "icon": "mdi:timer-sand",
+            "value_template": "{{ value_json.RPLT if value_json.RPLT is defined and (value_json.RPLT | int) != 255 else None }}"
+        }
+    },
+    "D2-14-41": {
+        "TMP": {
+            "component": "sensor",
+            "name": "Temperature",
+            "device_class": "temperature",
+            "unit_of_measurement": "°C",
+            "state_class": "measurement"
+        },
+        "HUM": {
+            "component": "sensor",
+            "name": "Humidity",
+            "device_class": "humidity",
+            "unit_of_measurement": "%",
+            "state_class": "measurement"
+        },
+        "ILL": {
+            "component": "sensor",
+            "name": "Illuminance",
+            "device_class": "illuminance",
+            "unit_of_measurement": "lx",
+            "state_class": "measurement"
+        },
+        "CO": {
+            "component": "binary_sensor",
+            "name": "Contact",
+            "device_class": "opening",
+            "value_template": "{{ '1' if value_json.CO == 0 else '0' }}"
+        },
+        "ACC": {
+            "component": "sensor",
+            "name": "Acceleration Status",
+            "entity_category": "diagnostic",
+            "icon": "mdi:axis-arrow",
+            "value_template": "{{ value_json.ACC_text if value_json.ACC is defined else None }}"
+        },
+        "ACX": {
+            "component": "sensor",
+            "name": "Acceleration X",
+            "unit_of_measurement": "g",
+            "state_class": "measurement",
+            "entity_category": "diagnostic"
+        },
+        "ACY": {
+            "component": "sensor",
+            "name": "Acceleration Y",
+            "unit_of_measurement": "g",
+            "state_class": "measurement",
+            "entity_category": "diagnostic"
+        },
+        "ACZ": {
+            "component": "sensor",
+            "name": "Acceleration Z",
+            "unit_of_measurement": "g",
+            "state_class": "measurement",
+            "entity_category": "diagnostic"
+        }
+    },
     # 4BS Digital Input (A5-30), from arno0392 fork
     "A5-30-01": {
         "DI0": {
@@ -1109,6 +1383,95 @@ def _normalize_eep(eep_id: str) -> str:
     return eep_id.lower().replace("-", "")
 
 
+
+# Ventilation units D2-50 (issue #61, ADR-0046). The four types share most
+# fields; each gets only the ones its EEP.xml layout has. Guarded templates:
+# a basic and an extended status carry different fields (MT 2 / MT 3).
+def _guard(field, expr=None):
+    expr = expr or f"value_json.{field}"
+    return f"{{{{ {expr} if value_json.{field} is defined else None }}}}"
+
+
+def _vent_temp(name):
+    return {"component": "sensor", "name": name, "device_class": "temperature",
+            "unit_of_measurement": "°C", "state_class": "measurement"}
+
+
+def _vent_flag(name, device_class=None, diagnostic=True):
+    d = {"component": "binary_sensor", "name": name}
+    if device_class:
+        d["device_class"] = device_class
+    if diagnostic:
+        d["entity_category"] = "diagnostic"
+    return d
+
+
+_VENT_FIELDS = {
+    "OMS": {"component": "sensor", "name": "Operation Mode", "icon": "mdi:fan",
+            "value_template": _guard("OMS", "value_json.OMS_text")},
+    "OUTT": _vent_temp("Outdoor Air Temperature"),
+    "SPLYT": _vent_temp("Supply Air Temperature"),
+    "INT": _vent_temp("Indoor Air Temperature"),
+    "EXHT": _vent_temp("Exhaust Air Temperature"),
+    "SPLYFF": {"component": "sensor", "name": "Supply Air Flow", "unit_of_measurement": "m³/h",
+               "device_class": "volume_flow_rate", "state_class": "measurement"},
+    "EXHFF": {"component": "sensor", "name": "Exhaust Air Flow", "unit_of_measurement": "m³/h",
+              "device_class": "volume_flow_rate", "state_class": "measurement"},
+    "SPLYFS": {"component": "sensor", "name": "Supply Fan Speed", "unit_of_measurement": "rpm",
+               "state_class": "measurement", "icon": "mdi:fan"},
+    "EXHFS": {"component": "sensor", "name": "Exhaust Fan Speed", "unit_of_measurement": "rpm",
+              "state_class": "measurement", "icon": "mdi:fan"},
+    "AQS1": {"component": "sensor", "name": "Air Quality 1", "unit_of_measurement": "%",
+             "state_class": "measurement", "icon": "mdi:air-filter",
+             "value_template": "{{ value_json.AQS1 if value_json.AQS1 is defined and (value_json.AQS1 | int) != 127 else None }}"},
+    "AQS2": {"component": "sensor", "name": "Air Quality 2", "unit_of_measurement": "%",
+             "state_class": "measurement", "icon": "mdi:air-filter",
+             "value_template": "{{ value_json.AQS2 if value_json.AQS2 is defined and (value_json.AQS2 | int) != 127 else None }}"},
+    "FMS": _vent_flag("Filter Maintenance", "problem", diagnostic=False),
+    "DMS": _vent_flag("Defrost"),
+    "CPS": _vent_flag("Cooling Protection"),
+    "OHS": _vent_flag("Outdoor Air Heater"),
+    "SHS": _vent_flag("Supply Air Heater"),
+    "DHS": _vent_flag("Drain Heater"),
+    "TOMS": _vent_flag("Timer Mode"),
+    "WTPS": _vent_flag("Weekly Timer"),
+    "RTCS": _vent_flag("Room Temperature Control"),
+    "SFP": _vent_flag("Supply Air Flap", "opening"),
+    "EFP": _vent_flag("Exhaust Air Flap", "opening"),
+    "HBS": _vent_flag("Heat Exchanger Bypass", "opening", diagnostic=False),
+    "SMS": _vent_flag("Summer Bypass"),
+    "MSS": {"component": "sensor", "name": "Master/Slave", "entity_category": "diagnostic",
+            "value_template": _guard("MSS", "value_json.MSS_text")},
+    "SVI": {"component": "sensor", "name": "Software Version", "entity_category": "diagnostic",
+            "value_template": _guard("SVI", "value_json.SVI | int")},
+    "OHC": {"component": "sensor", "name": "Operating Hours", "unit_of_measurement": "h",
+            "device_class": "duration", "state_class": "total_increasing",
+            "entity_category": "diagnostic", "value_template": _guard("OHC", "value_json.OHC | int")},
+    "FS": {"component": "sensor", "name": "Fault Bits", "entity_category": "diagnostic",
+           "icon": "mdi:alert-circle-outline", "value_template": _guard("FS", "value_json.FS | int")},
+    "IMS": {"component": "sensor", "name": "Info Bits", "entity_category": "diagnostic",
+            "value_template": _guard("IMS", "value_json.IMS | int")},
+}
+_VENT_TYPES = {
+    "D2-50-00": ["OMS", "SFP", "EFP", "DMS", "CPS", "DHS", "TOMS", "FMS", "AQS1", "MSS",
+                 "OUTT", "SPLYT", "SPLYFF", "EXHFF", "SPLYFS", "EXHFS", "SVI", "OHC", "IMS", "FS"],
+    "D2-50-01": ["OMS", "SFP", "EFP", "DMS", "CPS", "OHS", "DHS", "TOMS", "FMS", "AQS1", "MSS",
+                 "OUTT", "SPLYT", "SPLYFF", "EXHFF", "SPLYFS", "EXHFS", "SVI", "OHC", "IMS", "FS"],
+    "D2-50-10": ["OMS", "DMS", "CPS", "OHS", "SHS", "TOMS", "FMS", "WTPS", "RTCS", "AQS1", "AQS2",
+                 "OUTT", "SPLYT", "INT", "EXHT", "SPLYFF", "EXHFF", "SPLYFS", "EXHFS",
+                 "SVI", "OHC", "IMS", "FS"],
+    "D2-50-11": ["OMS", "SMS", "HBS", "DMS", "CPS", "OHS", "SHS", "TOMS", "FMS", "WTPS", "RTCS",
+                 "AQS1", "AQS2", "OUTT", "SPLYT", "INT", "EXHT", "SPLYFF", "EXHFF", "SPLYFS",
+                 "EXHFS", "SVI", "OHC", "IMS", "FS"],
+}
+for _eep, _fields in _VENT_TYPES.items():
+    _m = {}
+    for _f in _fields:
+        _d = dict(_VENT_FIELDS[_f])
+        _d.setdefault("value_template", _guard(_f))
+        _m[_f] = _d
+    DEFAULT_MAPPINGS[_eep] = _m
+
 class MappingManager:
     """Manages EEP to MQTT/HA entity mappings"""
 
@@ -1252,7 +1615,7 @@ class MappingManager:
         # A valve (A5-20-01) gets its sender ID only at teach-in, and that ID
         # is the gateway's, not the valve's. Keeping it out of the unique_id
         # keeps the entities when it is assigned (ADR-0029).
-        is_valve = str(eep_id).upper() == "A5-20-01" and not actuator_type
+        is_valve = is_valve_eep(eep_id) and not actuator_type
         valve_controllable = is_valve and bool(device_sender)
         if is_valve:
             device_sender = ""
@@ -1477,6 +1840,13 @@ class MappingManager:
             configs.extend(self._pilot_wire_configs(
                 eep_id, device_address, device_sender, device_name, mqtt_prefix,
                 device_info, avail_config, pilot_mode=pilot_mode, meters=meters))
+
+        # A ventilation unit takes a mode and a status request once paired
+        # (needs its sender ID, ADR-0046).
+        from core.ventilation import is_ventilation_eep, discovery_configs as vent_configs
+        if not actuator_type and is_ventilation_eep(eep_id) and device_sender:
+            configs.extend(vent_configs(self.build_unique_id, eep_id, device_address, device_sender,
+                                        device_name, mqtt_prefix, device_info, avail_config))
 
         # Auto-add diagnostic entities for every device: RSSI + Last Seen
         state_topic = f"{mqtt_prefix}/{device_name}/state"
@@ -1746,12 +2116,13 @@ class MappingManager:
         valve has already taken.
         """
         state_topic = f"{mqtt_prefix}/{device_name}/state"
+        t_min, t_max = VALVE_TEMP_RANGE.get(str(eep_id).upper(), (0.0, 40.0))
         entities = [
             ("number", "SET_VALVE", "valve_setpoint", {
                 "name": "Valve Setpoint", "min": 0, "max": 100, "step": 1,
                 "unit_of_measurement": "%", "mode": "slider", "icon": "mdi:valve"}),
             ("number", "SET_TEMP", "target_temperature", {
-                "name": "Target Temperature", "min": 0, "max": 40, "step": 0.5,
+                "name": "Target Temperature", "min": t_min, "max": t_max, "step": 0.5,
                 "unit_of_measurement": "°C", "device_class": "temperature", "mode": "box"}),
             ("select", "SET_MODE", "mode", {
                 "name": "Control Mode", "options": ["valve", "temperature"],
@@ -1760,6 +2131,8 @@ class MappingManager:
                 "name": "Summer Mode", "payload_on": "ON", "payload_off": "OFF",
                 "icon": "mdi:white-balance-sunny", "entity_category": "config"}),
         ]
+        if str(eep_id).upper() not in VALVE_SUMMER_EEPS:
+            entities = [e for e in entities if e[1] != "SET_SUMMER"]
         # Read-only: whether a set value still waits for the valve's next
         # telegram, and when the valve last got an answer (forum post 75).
         status = [

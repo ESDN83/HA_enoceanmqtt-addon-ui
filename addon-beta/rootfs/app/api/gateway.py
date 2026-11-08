@@ -448,3 +448,40 @@ async def test_connection(request: Request) -> Dict[str, Any]:
         "success": True,
         "message": "Already connected"
     }
+
+
+class RecomPairRequest(BaseModel):
+    """QR label text of the device, for Remote Commissioning (#67)."""
+    qr: str
+
+
+@router.post("/recom-pair/{name:path}")
+async def recom_pair(name: str, req: RecomPairRequest, request: Request) -> Dict[str, Any]:
+    """Write the device's sender ID into its link table using the security
+    code from its QR label (OPUS BRiDGE and other Remote Commissioning
+    devices, ADR-0047). The code is used for this call only."""
+    from core.recom import parse_qr, RecomError
+    serial_handler = request.app.state.serial_handler
+    device_manager = request.app.state.device_manager
+    if not serial_handler or not serial_handler.is_connected or serial_handler.recom is None:
+        raise HTTPException(status_code=503, detail="EnOcean gateway not connected")
+    device = device_manager.get_device(name) if device_manager else None
+    if device is None:
+        raise HTTPException(status_code=404, detail=f"Device '{name}' not found")
+    if not device.sender_id:
+        raise HTTPException(status_code=400, detail="The device needs a sender ID first")
+    label = parse_qr(req.qr)
+    if label is None:
+        raise HTTPException(status_code=400, detail="This is not an EnOcean QR code with a security code (30S...+11Z...)")
+    address = int(device.address.replace("0x", "").replace("0X", ""), 16)
+    if int(label["address"], 16) != address:
+        raise HTTPException(status_code=400, detail=f"The QR code belongs to {label['address']}, not to this device ({device.address})")
+    sender = int(device.sender_id.replace("0x", "").replace("0X", ""), 16)
+    try:
+        result = await serial_handler.recom.pair(address, label["code"], sender, device.eep_id,
+                                                 int(device.channel or 0))
+    except RecomError as e:
+        logger.warning(f"Remote Commissioning of {name} failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Pairing failed: {e}")
+    logger.info(f"Remote Commissioning of {name}: {result['status']} ({'; '.join(result['steps'])})")
+    return result

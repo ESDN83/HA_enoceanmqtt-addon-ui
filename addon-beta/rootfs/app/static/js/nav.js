@@ -52,6 +52,6 @@ function navigateTo(page) {
     // Load page-specific data
     if (page === 'devices') loadDevices();
     if (page === 'profiles') loadProfiles();
-    if (page === 'settings') { loadBackups(); loadEepInfo(); loadMqttConfig(); loadLegacySources(); }
+    if (page === 'settings') { loadBackups(); loadBlueprints(); loadEepInfo(); loadMqttConfig(); loadLegacySources(); }
     if (page === 'teach-in') resetTeachInPage();
 }

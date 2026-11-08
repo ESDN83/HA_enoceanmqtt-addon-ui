@@ -1,6 +1,6 @@
 """
 Radiator valves that only listen right after they transmit (A5-20-01, e.g.
-Micropelt MVA004 / SAM). ADR-0029.
+Micropelt MVA004 / SAM; A5-20-04 and A5-20-06, issue #60). ADR-0029, ADR-0046.
 
 The valve sends its state every few minutes and then listens for about one
 second. A command at any other time is never heard, so the gateway answers
@@ -17,6 +17,16 @@ implementations (FHEM 10_EnOcean.pm, embyt enocean-mqtt):
 - reply: DB3 setpoint (valve % or temperature over 0..255 = 0..40 C),
   DB2 room temperature (0x00 = use the valve's own sensor), DB1 summer bit
   0x08 and setpoint selection 0x04 (temperature), DB0 0x08 (data)
+
+A5-20-04 and A5-20-06 are answered the same way, with their own reply
+(EEP.xml direction 2, cross-checked against FHEM and, for -04, openHAB):
+
+- A5-20-04: DB3 valve %, DB2 temperature over 0..255 = 10..30 C, DB1 wake-up
+  cycle (index 9 = 300 s) and 0x80 when the valve is to regulate to the
+  temperature itself (FHEM; openHAB never sets it), DB0 0x08. No summer mode.
+- A5-20-06: DB3 valve % or temperature x 2 (0..40 C), DB2 room temperature
+  0xFF (use the valve's own sensor, FHEM), DB1 summer 0x08 and setpoint
+  selection 0x04, DB0 0x08.
 """
 
 import asyncio
@@ -31,6 +41,11 @@ import yaml
 logger = logging.getLogger(__name__)
 
 VALVE_EEP = "A5-20-01"
+VALVE_EEPS = ("A5-20-01", "A5-20-04", "A5-20-06")
+# Target temperature range per profile
+TEMP_RANGE = {"A5-20-01": (0.0, 40.0), "A5-20-04": (10.0, 30.0), "A5-20-06": (0.0, 40.0)}
+SUMMER_EEPS = ("A5-20-01", "A5-20-06")
+A5_20_04_WAKE_UP = 9  # EEP index: 300 s
 TEACH_IN_RESPONSE_DB0 = 0xF0
 
 MODE_VALVE = "valve"
@@ -63,9 +78,22 @@ def teach_in_response(query: bytes) -> bytes:
     return bytes(query[:3]) + bytes([TEACH_IN_RESPONSE_DB0])
 
 
-def reply_payload(values: Dict[str, Any]) -> bytes:
+def reply_payload(values: Dict[str, Any], eep: str = VALVE_EEP) -> bytes:
     """The four data bytes the valve gets after each of its telegrams."""
-    if values.get("mode") == MODE_TEMPERATURE:
+    eep = str(eep).upper()
+    lo, hi = TEMP_RANGE.get(eep, (0.0, 40.0))
+    temp = min(max(float(values.get("temperature", 21.0)), lo), hi)
+    valve = min(max(int(round(float(values.get("valve", 0)))), 0), 100)
+    temp_mode = values.get("mode") == MODE_TEMPERATURE
+    if eep == "A5-20-04":
+        tsp = round((temp - 10.0) * 255 / 20)
+        return bytes([valve, tsp, (0x80 if temp_mode else 0x00) | A5_20_04_WAKE_UP, 0x08])
+    if eep == "A5-20-06":
+        flags = 0x08 if values.get("summer") else 0x00
+        if temp_mode:
+            return bytes([round(temp * 2), 0xFF, flags | 0x04, 0x08])
+        return bytes([valve, 0xFF, flags, 0x08])
+    if temp_mode:
         temp = min(max(float(values.get("temperature", 21.0)), 0.0), 40.0)
         setpoint = round(temp * 255 / 40)
         flags = 0x04
@@ -77,8 +105,12 @@ def reply_payload(values: Dict[str, Any]) -> bytes:
     return bytes([setpoint, 0x00, flags, 0x08])
 
 
+def is_valve_eep(eep_id) -> bool:
+    return str(eep_id or "").upper() in VALVE_EEPS
+
+
 def is_valve(device) -> bool:
-    return device is not None and str(device.eep_id).upper() == VALVE_EEP
+    return device is not None and is_valve_eep(device.eep_id)
 
 
 class ValveControl:
@@ -151,9 +183,9 @@ class ValveControl:
         data = telegram.data
         device = self.device_manager.get_device_by_address(telegram.sender_hex)
         if is_teach_in_query(data):
-            if query_eep(data) != VALVE_EEP:
+            if not is_valve_eep(query_eep(data)):
                 return None
-            if device is not None and not is_valve(device):
+            if device is not None and str(device.eep_id).upper() != query_eep(data):
                 return None
             if device is None and not teach_in_active:
                 logger.info(f"Valve teach-in from {telegram.sender_hex} ignored, no teach-in session")
@@ -170,7 +202,7 @@ class ValveControl:
 
         if is_valve(device) and device.sender_id and (data[3] & 0x08):
             sender = int(device.sender_id.replace("0x", "").replace("0X", ""), 16)
-            payload = reply_payload(self.values(device.name))
+            payload = reply_payload(self.values(device.name), device.eep_id)
             version = self._version.get(device.name, 0)
             asyncio.create_task(self._reply(device.name, sender, payload, telegram.sender_id, version))
         return None
@@ -230,13 +262,14 @@ class ValveControl:
                 v["valve"] = min(max(int(round(float(p))), 0), 100)
                 v["mode"] = MODE_VALVE
             elif entity == ENTITY_TEMPERATURE:
-                v["temperature"] = round(min(max(float(p), 0.0), 40.0), 1)
+                lo, hi = TEMP_RANGE.get(str(device.eep_id).upper(), (0.0, 40.0))
+                v["temperature"] = round(min(max(float(p), lo), hi), 1)
                 v["mode"] = MODE_TEMPERATURE
             elif entity == ENTITY_MODE:
                 if p.lower() not in MODES:
                     raise ValueError(p)
                 v["mode"] = p.lower()
-            elif entity == ENTITY_SUMMER:
+            elif entity == ENTITY_SUMMER and str(device.eep_id).upper() in SUMMER_EEPS:
                 v["summer"] = p.upper() in ("ON", "1", "TRUE")
             else:
                 logger.warning(f"Valve {device.name}: unknown command entity {entity!r}")
