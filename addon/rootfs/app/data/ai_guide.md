@@ -57,18 +57,37 @@ saved. State topic `enoceanmqtt/<device name>/state`, commands on
    (`/api/eep/search/...`); do not guess.
 3. Create it: `POST /api/devices` with `name`, `address` (`0x` + 8 hex),
    `rorg`, `func`, `type` (hex, e.g. `A5`, `20`, `01`), optional `room`,
-   `manufacturer`, `description`.
+   `manufacturer`, `model` (hardware type), `description`.
 4. Actuators (something that is switched or moved) also need
    `actuator_type` (`switch`, `light`, `cover`) and a `sender_id`: the
    gateway base ID plus an offset, one offset per actuator. The actuator has
    to learn that sender, see teach-in below.
-5. Device names are a key, an MQTT topic and part of every entity ID. No
-   `/`, `#`, `+`. Renaming later changes the entity IDs.
+5. Device names are a key and an MQTT topic, and the base of the entity ID
+   of a new entity (`default_entity_id`). No `/`, `#`, `+`. The name has to be
+   unique, so it often carries the room. `description`, if set, is the name
+   shown in Home Assistant: name `woonkamer_spots`, description `Spots` gives
+   `light.woonkamer_spots`, shown as Spots. `room` is sent as
+   `suggested_area`, which Home Assistant only uses when it creates the
+   device, and it creates the area if there is none of that name:
+   `GET /api/system/ha-areas` lists the existing ones. An entity ID never
+   changes after creation, not on a rename in the app either: rename it in
+   Home Assistant if the old one is unwanted. `model` is shown as the model in
+   Home Assistant, then with the profile as `model_id`; empty shows the profile.
+   The address is the serial number.
+6. One address, sender, profile and channel is one device. A second device
+   with the same four is refused (400): both would claim the same entities.
 
 Interactive teach-in (web UI, Start Teach-In) detects 4BS and 1BS teach-in
 telegrams and D2 modules (UTE). Rocker switches and F6 window handles send no
 teach-in and are never detected there: they are added with Manual Entry, the
 ID taken from the telegram list after one press.
+
+A backup restore or a config import replaces the device list with the one in
+the file; devices that are not in it are gone. The response lists devices that
+share address, sender, profile and channel under `details.duplicates`, and the
+log warns at every start while they exist: delete all but one of each group.
+Devices the restore or import removed also leave Home Assistant: their discovery
+configs are cleared, unless a remaining device publishes the same unique ID.
 
 ## Teach-in of actuators
 
@@ -119,9 +138,19 @@ ID taken from the telegram list after one press.
 ### Rocker switches and window handles (F6)
 - Rocker: `F6-02-01`. Window handles: `F6-10-00` (Window Handle) or
   `A5-14-09` / `A5-14-0A` (entity *Handle*: closed, tilted, open).
+- A rocker (`F6-02-01` / `F6-02-02`, no `actuator_type`) has a *Button*
+  event entity and device triggers: per button (AI, AO, BI, BO) `press`,
+  `release`, `long_press` (held 0.6 s, fires while held) and `long_release`.
+  Build automations on these, not on the *Button AI..BO* binary sensors.
+  Events go to `enoceanmqtt/<device>/event` (not retained), payload
+  `{"event_type": "AO_press", "button": "AO", "action": "press"}`.
 - An F6 actuator (Eltako relay) confirms its state with a rocker telegram:
   BO/AO on, BI/AI off. If the state shows the opposite, tick *Invert
   reported state* on the device, do not change the profile.
+
+### Smoke detectors (F6-05-02)
+- Entities *Smoke* (on = alarm) and *Battery Low*. A battery-low telegram
+  leaves *Smoke* unchanged. Not yet confirmed on real hardware (#58).
 
 ### Contacts and motion (D5, A5-07, A5-08)
 - `D5-00-01` binary sensor: on = open. A contact mounted the other way

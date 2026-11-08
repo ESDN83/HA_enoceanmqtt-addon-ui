@@ -93,7 +93,7 @@ function _statusBadge(d) {
 
 function _searchText(device) {
     return [device.name, device.address, `${device.rorg}-${device.func}-${device.type}`,
-        device.actuator_type, device.room, device.description, device.sender_id
+        device.actuator_type, device.room, device.description, device.model, device.sender_id
     ].filter(Boolean).join(' ').toLowerCase();
 }
 
@@ -629,6 +629,7 @@ async function editDevice(name) {
         document.querySelector('[name="room"]').value = device.room || '';
         document.querySelector('[name="actuator_type"]').value = device.actuator_type || '';
         document.querySelector('[name="manufacturer"]').value = device.manufacturer || '';
+        document.querySelector('[name="model"]').value = device.model || '';
         // Reuse the role dropdown's own rules for which extra fields
         // are visible. This block used to carry its own copy that only
         // showed "invert" for covers, so editing a switch never
@@ -754,6 +755,7 @@ async function showDeviceDetail(name) {
                                     ${device.sender_id ? `<tr><th>${t('device.sender_id', 'Sender ID')}</th><td><code>${escapeHtml(device.sender_id)}</code></td></tr>` : ''}
                                     ${device.actuator_type ? `<tr><th>${t('device.device_role', 'Device Role')}</th><td><span class="badge bg-warning text-dark">${escapeHtml(device.actuator_type)}</span></td></tr>` : ''}
                                     ${device.manufacturer ? `<tr><th>${t('device.manufacturer', 'Manufacturer')}</th><td>${escapeHtml(device.manufacturer)}</td></tr>` : ''}
+                                    ${device.model ? `<tr><th>${t('device.model', 'Model')}</th><td>${escapeHtml(device.model)}</td></tr>` : ''}
                                 </table>
                             </div>
                             <div class="col-md-6">
@@ -884,4 +886,20 @@ function filterDevices() {
     document.querySelectorAll('#device-list .device-group').forEach(head => {
         head.style.display = visible.has(head.dataset.group) ? '' : 'none';
     });
+}
+
+// Suggestions for Room from Home Assistant's areas, read once per page load. A
+// typo in Room would create a new area (#64); free text stays possible.
+let _haAreasLoaded = false;
+async function loadHaAreas() {
+    if (_haAreasLoaded) return;
+    _haAreasLoaded = true;
+    try {
+        const resp = await fetch(getApiUrl('/api/system/ha-areas'));
+        const { areas } = await resp.json();
+        const list = document.getElementById('ha-areas');
+        list.replaceChildren(...areas.map(name => Object.assign(document.createElement('option'), { value: name })));
+    } catch (e) {
+        _haAreasLoaded = false;
+    }
 }

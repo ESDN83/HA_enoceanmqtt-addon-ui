@@ -15,6 +15,8 @@ from contextlib import asynccontextmanager
 from typing import Optional, Callable, List, Dict, Any
 from dataclasses import dataclass
 
+from core.rocker_events import is_rocker
+
 logger = logging.getLogger(__name__)
 
 # ESP3 Protocol constants
@@ -217,6 +219,8 @@ class SerialHandler:
         self.valve_control = None
         # Pilot wire modules (D2-01-0C, ADR-0032); set by main.
         self.pilot_wire = None
+        # Rocker button events and device triggers (#56, ADR-0042); set by main.
+        self.rocker_events = None
         self._base_id: Optional[int] = None
         self._response_future: Optional[asyncio.Future] = None
         # Guards every conversation with the transceiver, radio telegrams and
@@ -1240,6 +1244,8 @@ class SerialHandler:
                         payload, self.mqtt_handler.get_last_state(target.name) or {})
                 await self.mqtt_handler.publish_state(target.name, payload)
                 logger.debug(f"TX MQTT [{target.name}] Published state to {self.mqtt_handler.prefix}/{target.name}/state")
+                if self.rocker_events is not None and is_rocker(target):
+                    await self.rocker_events.handle(target, decoded, telegram.status)
 
         return device.name, device.eep_id, decoded
 

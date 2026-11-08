@@ -2,6 +2,7 @@
 Devices API - CRUD operations for EnOcean devices
 """
 
+import dataclasses
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, field_validator
 from typing import Optional, List, Dict, Any
@@ -31,6 +32,7 @@ class DeviceCreate(BaseModel):
     description: Optional[str] = ""
     room: Optional[str] = ""
     manufacturer: Optional[str] = ""
+    model: Optional[str] = ""
     actuator_type: Optional[str] = ""  # "light", "switch", "cover", or ""
     invert: Optional[bool] = False  # cover: reverse Open/Close + position
     travel_time: Optional[int] = 0  # cover: full travel time in seconds, 0 = unknown
@@ -53,6 +55,7 @@ class DeviceUpdate(BaseModel):
     description: Optional[str] = None
     room: Optional[str] = None
     manufacturer: Optional[str] = None
+    model: Optional[str] = None
     actuator_type: Optional[str] = None
     invert: Optional[bool] = None
     travel_time: Optional[int] = None
@@ -180,6 +183,19 @@ async def get_device(name: str, request: Request) -> Dict[str, Any]:
     return device.to_dict()
 
 
+def _refuse_identity_clash(device_manager, candidate, exclude: str = ""):
+    """400 if another device has the same address, sender, profile and
+    channel: both would claim the same Home Assistant entities (#63)."""
+    clash = device_manager.find_identity_clash(candidate, exclude=exclude)
+    if clash:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"Device '{clash}' already uses address {candidate.address} with profile "
+                    f"{candidate.eep_id}, the same sender and channel. Both would claim the same "
+                    f"Home Assistant entities."),
+        )
+
+
 @router.post("")
 async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any]:
     """Create a new device"""
@@ -205,6 +221,7 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
         description=device.description or "",
         room=device.room or "",
         manufacturer=device.manufacturer or "",
+        model=(device.model or "").strip(),
         actuator_type=device.actuator_type or "",
         invert=bool(device.invert),
         travel_time=max(0, int(device.travel_time or 0)),
@@ -213,6 +230,8 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
         channel=int(device.channel or 0),
         availability_timeout=max(0, int(device.availability_timeout or 0))
     )
+
+    _refuse_identity_clash(device_manager, new_device)
 
     success = await device_manager.add_device(new_device)
     if not success:
@@ -263,6 +282,8 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
         update_data["room"] = update.room
     if update.manufacturer is not None:
         update_data["manufacturer"] = update.manufacturer
+    if update.model is not None:
+        update_data["model"] = update.model.strip()
     if update.actuator_type is not None:
         update_data["actuator_type"] = update.actuator_type
     if update.invert is not None:
@@ -277,6 +298,11 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
         update_data["availability_timeout"] = max(0, int(update.availability_timeout))
     if update.channel is not None:
         update_data["channel"] = int(update.channel)
+
+    identity_fields = {k: v for k, v in update_data.items()
+                       if k in ("address", "sender_id", "rorg", "func", "type", "channel")}
+    if identity_fields:
+        _refuse_identity_clash(device_manager, dataclasses.replace(device, **identity_fields), exclude=name)
 
     # Snapshot the current discovery identity BEFORE mutating the device.
     # update_device mutates the Device in place, so we capture the old

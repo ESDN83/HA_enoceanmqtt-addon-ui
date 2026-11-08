@@ -349,7 +349,7 @@ Teach-In" has to be clicked several times in a row:
 
 ### Rocker Switches in Automations (F6-02-01, F6-02-02)
 
-- Each rocker gets a *Button* event entity and device triggers (from 1.8.6-beta1)
+- Each rocker gets a *Button* event entity and device triggers (from 1.8.6)
 - Per button (AI, AO, BI, BO): pressed, released, long pressed (held 0.6 s), released after long press
 - Automation: trigger *Device*, pick the rocker, pick e.g. *"Button AO" pressed*
 - Topic `enoceanmqtt/<device>/event`, not retained, so a restart fires nothing
@@ -357,7 +357,7 @@ Teach-In" has to be clicked several times in a row:
 
 ### Smoke Detectors (F6-05-02)
 
-- Entities *Smoke* and *Battery Low* (from 1.8.6-beta1)
+- Entities *Smoke* and *Battery Low* (from 1.8.6)
 - A battery-low telegram leaves *Smoke* as it was
 - Not yet confirmed on real hardware: please report in issue #58
 

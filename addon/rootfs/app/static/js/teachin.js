@@ -163,7 +163,7 @@ function saveActuatorAsDevice() {
         actuator_type: a.actuator_type,
         eep: picked ? picked.eep : (a.actuator_type === 'light' ? 'A5-38-08' : 'F6-02-01'),
         manufacturer: picked ? picked.manufacturer : 'Eltako',
-        description: picked ? (picked.models || [])[0] : '',
+        model: picked ? (picked.models || [])[0] : '',
     });
 }
 async function sendRepeatTeachIn() {
@@ -356,6 +356,7 @@ function offerSecondChannel(saved) {
             set('description', saved.description || '');
             set('room', saved.room || '');
             set('manufacturer', saved.manufacturer || '');
+            set('model', saved.model || '');
             const roleField = form.querySelector('[name="actuator_type"]');
             if (roleField) {
                 roleField.value = saved.actuator_type || 'switch';

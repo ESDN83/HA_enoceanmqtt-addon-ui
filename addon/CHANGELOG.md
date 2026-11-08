@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.8.6] - 2026-11-08
+
+Rockers as device triggers, a fixed backup restore, and device names, models
+and areas in Home Assistant. Four beta builds, tested on GitHub with 36 real
+devices.
+
+### Check after updating
+
+- **A restore now replaces the device list.** Devices that are not in the
+  backup are removed, also from Home Assistant. Take a fresh backup before
+  restoring an old one.
+- **Description is the device name in Home Assistant**, as it has been since
+  1.7.0. A name set in Home Assistant still wins.
+- **New entity IDs come from the device name.** Existing entity IDs do not
+  change.
+
+### Added
+
+- **Rockers (F6-02-01/02) as device triggers and event entity**: pressed,
+  released, long pressed, released after a long press, per button. Issue #56.
+- **Smoke detector F6-05-02** with Smoke and Battery Low. Not tested with a
+  real detector yet, testers wanted. Issue #58.
+- **Model field** for the hardware type, shown as the model in Home
+  Assistant. The device catalog fills it in instead of Description. Issue #64.
+- **Room suggests the existing Home Assistant areas** and is sent as the
+  suggested area of a new device. Issue #64.
+- **Serial number** is the address.
+
+### Fixed
+
+- **A restore or import merged instead of replacing**, which could leave two
+  devices on one address and break automations. Issue #63.
+- **Devices removed by a restore stayed in Home Assistant.** Issue #63.
+- **Two devices with the same address, profile, sender and channel** are
+  refused now; existing ones are named after a restore and in the log.
+- **New entity IDs ignored the device name** on current Home Assistant, which
+  no longer reads `object_id`. `default_entity_id` is sent now. Issue #64.
+
 ## [1.8.5] - 2026-11-01
 
 Radiator valves, pilot wire and metering modules, a setup guide for Add

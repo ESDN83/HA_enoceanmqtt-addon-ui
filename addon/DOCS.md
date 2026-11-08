@@ -123,6 +123,24 @@ Export/import full configuration as YAML, upload custom EEP.xml, local backups
 (create/list/restore/delete, includes devices, mappings, custom profiles, and overrides),
 view system information, restart services.
 
+A restore or import **replaces** the device list with the one in the backup.
+Devices added or renamed after that backup are gone afterwards, also from Home
+Assistant, so take a fresh backup first. If the backup holds two devices with the same address,
+profile, sender and channel, a warning names them: both claim the same Home
+Assistant entities, delete all but one.
+
+**Device names in Home Assistant.** The device name is the key and the MQTT
+topic, so it must be unique and often carries the room. New entity IDs are
+built from it. Fill in *Description* to show a different name in Home
+Assistant: name `woonkamer_spots`, description `Spots` gives
+`light.woonkamer_spots`, shown as Spots. *Room* is the suggested area of a new
+device; the field suggests the existing Home Assistant areas, and a new name
+creates a new area. Existing entity IDs and areas never change. A name set in
+Home Assistant wins over Description; use "reset to default name" there to get
+Description back. *Model* holds the hardware type, such as FUD14, and shows as
+"FUD14 (A5-38-08)" in Home Assistant; empty shows the profile. Picking a device
+from the catalog fills in Model, no longer Description.
+
 ![Settings](https://github.com/user-attachments/assets/370072b1-7219-4566-a733-2c9e58b018fa)
 
 ## Configuration
@@ -328,6 +346,20 @@ Teach-In" has to be clicked several times in a row:
   number of seconds for a full run, and the position is synchronised whenever
   the shutter reaches an end position. The position is read-only for now.
 
+
+### Rocker Switches in Automations (F6-02-01, F6-02-02)
+
+- Each rocker gets a *Button* event entity and device triggers (from 1.8.6)
+- Per button (AI, AO, BI, BO): pressed, released, long pressed (held 0.6 s), released after long press
+- Automation: trigger *Device*, pick the rocker, pick e.g. *"Button AO" pressed*
+- Topic `enoceanmqtt/<device>/event`, not retained, so a restart fires nothing
+- Not for an actuator taught in as F6 (light/switch/cover), its rocker telegrams are confirmations
+
+### Smoke Detectors (F6-05-02)
+
+- Entities *Smoke* and *Battery Low* (from 1.8.6)
+- A battery-low telegram leaves *Smoke* as it was
+- Not yet confirmed on real hardware: please report in issue #58
 
 ### Radiator Valves (A5-20-01, e.g. Micropelt MVA004 / SAM)
 - The valve only listens for about a second after it transmits, so the app

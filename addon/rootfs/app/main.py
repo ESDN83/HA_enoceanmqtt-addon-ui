@@ -30,6 +30,7 @@ from core.eep_manager import EEPManager
 from core.mapping_manager import MappingManager
 from core.valve_control import ValveControl, is_valve
 from core.pilot_wire import PilotWire, is_pilot, ENTITY_MODE as PILOT_ENTITY_MODE
+from core.rocker_events import RockerEvents
 from core.telegram_buffer import TelegramBuffer
 from core.command_queue import CommandQueue
 
@@ -188,6 +189,9 @@ async def lifespan(app: FastAPI):
         pilot_wire = PilotWire(serial_handler, device_manager, mqtt_handler, eep_manager)
         serial_handler.pilot_wire = pilot_wire
         pilot_wire.start()
+
+        # Rocker button events and device triggers (#56, ADR-0042).
+        serial_handler.rocker_events = RockerEvents(mqtt_handler)
 
         try:
             # connect() logs the same sentence itself. Logging it twice from

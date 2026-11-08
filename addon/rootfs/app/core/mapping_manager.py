@@ -211,6 +211,24 @@ DEFAULT_MAPPINGS = {
         },
         **_rocker_button_binary_sensors()
     },
+    # RPS Smoke Detector (F6-05-02). SMO per EEP.xml: 0 alarm off, 16 alarm
+    # on, 48 energy low. An energy-low telegram says nothing about smoke, so
+    # Smoke renders empty (no update) for it (#58).
+    "F6-05-02": {
+        "SMO": {
+            "component": "binary_sensor",
+            "name": "Smoke",
+            "device_class": "smoke",
+            "value_template": "{{ {0: '0', 16: '1'}.get(value_json.SMO, '') if value_json.SMO is defined else '' }}"
+        },
+        "BAT": {
+            "component": "binary_sensor",
+            "name": "Battery Low",
+            "device_class": "battery",
+            "entity_category": "diagnostic",
+            "value_template": "{{ ('1' if value_json.SMO == 48 else '0') if value_json.SMO is defined else '' }}"
+        }
+    },
     # VLD Electronic Switch (D2-01-0F)
     "D2-01-0F": {
         "CMD": {
@@ -1064,6 +1082,15 @@ DEFAULT_MAPPINGS = {
     },
 }
 
+def _set_default_entity_id(item: Dict[str, Any]):
+    """Newer Home Assistant ignores object_id and only reads default_entity_id
+    for the entity ID of a new entity. object_id stays for older versions. An
+    existing entity keeps its ID whatever is sent here (#64, ADR-0044)."""
+    object_id = item["config"].get("object_id")
+    if object_id:
+        item["config"]["default_entity_id"] = f"{item['component']}.{object_id}"
+
+
 def _normalize_address(address: str) -> str:
     """Normalize address to 8-char lowercase hex without 0x prefix.
     e.g., '0x05834FA4' -> '05834fa4'
@@ -1430,6 +1457,12 @@ class MappingManager:
                     "config": config
                 })
 
+        # A rocker's presses as events and device triggers (#56, ADR-0042).
+        from core.rocker_events import is_rocker_eep, discovery_configs as rocker_configs
+        if not actuator_type and is_rocker_eep(eep_id):
+            configs.extend(rocker_configs(self.build_unique_id, eep_id, device_address,
+                                          device_sender, device_name, mqtt_prefix, device_info))
+
         if valve_controllable:
             configs.extend(self._valve_control_configs(
                 eep_id, device_address, device_name, mqtt_prefix, device_info, avail_config))
@@ -1503,8 +1536,11 @@ class MappingManager:
             "payload_not_available": "offline",
         }
         for item in configs:
+            if item["component"] == "device_automation":
+                continue  # a device trigger has no availability
             item["config"]["availability"] = [avail_config, gateway_avail]
             item["config"]["availability_mode"] = "all"
+            _set_default_entity_id(item)
 
         return configs
 
@@ -1577,6 +1613,7 @@ class MappingManager:
                     "name": name,
                     "unique_id": uid,
                     "object_id": f"enocean_gateway_{suffix}",
+                    "default_entity_id": f"{component}.enocean_gateway_{suffix}",
                     "state_topic": state_topic,
                     "entity_category": "diagnostic",
                     # Enabled: the add-on option already decided that this
@@ -1790,9 +1827,19 @@ class MappingManager:
         single-device behaviour (device name = its description/name).
         """
         addr = _normalize_address(device.address)
-        return {
+        info = {
             "identifiers": [f"enocean_{addr}"],
             "name": module_name or device.description or device.name,
             "manufacturer": device.manufacturer or "EnOcean",
-            "model": device.eep_id,
+            "model": device.model or device.eep_id,
+            "serial_number": device.address,
         }
+        # Only next to a Model: without one the profile already is the model,
+        # and Home Assistant would show it twice, "A5-38-08 (A5-38-08)".
+        if device.model:
+            info["model_id"] = device.eep_id
+        # Home Assistant only uses this when it creates the device, so an area
+        # chosen there is never overwritten (#64).
+        if device.room:
+            info["suggested_area"] = device.room
+        return info

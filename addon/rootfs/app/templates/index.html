@@ -525,10 +525,12 @@
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label" data-i18n="teach_in.description">Description</label>
                                     <input type="text" class="form-control" name="description" data-i18n-placeholder="teach_in.description_placeholder" placeholder="Optional description">
+                                    <small class="text-muted" data-i18n="teach_in.description_hint">Name shown in Home Assistant, the room can stay out of it. Empty = the device name above. New entity IDs always come from the device name above.</small>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label" data-i18n="teach_in.room">Room</label>
-                                    <input type="text" class="form-control" name="room" data-i18n-placeholder="teach_in.room_placeholder" placeholder="e.g., Living Room">
+                                    <input type="text" class="form-control" name="room" list="ha-areas" autocomplete="off" onfocus="loadHaAreas()" data-i18n-placeholder="teach_in.room_placeholder" placeholder="e.g., Living Room">
+                                    <datalist id="ha-areas"></datalist>
                                 </div>
                             </div>
                             <div class="row">
@@ -583,6 +585,11 @@
                             <div class="mb-3">
                                 <label class="form-label" data-i18n="teach_in.manufacturer">Manufacturer</label>
                                 <input type="text" class="form-control" name="manufacturer" data-i18n-placeholder="teach_in.manufacturer_placeholder" placeholder="e.g., Eltako, Thermokon, Kessel">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" data-i18n="teach_in.model">Model</label>
+                                <input type="text" class="form-control" name="model" data-i18n-placeholder="teach_in.model_placeholder" placeholder="e.g., FUD14, PTM 210">
+                                <small class="text-muted" data-i18n="teach_in.model_hint">Hardware type, shown as the model in Home Assistant. Empty = the profile.</small>
                             </div>
 
                             <div class="mb-3">
