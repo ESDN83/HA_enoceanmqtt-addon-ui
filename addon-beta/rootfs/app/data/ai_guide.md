@@ -252,7 +252,9 @@ configs are cleared, unless a remaining device publishes the same unique ID.
   then trigger the device's secure teach-in. The key is stored, then every
   secure telegram is verified (CMAC, rolling code) and decrypted. Only
   receiving, no pre-shared key. Telegrams that fail the check are dropped
-  with a warning. Deleting the device deletes the key.
+  with a warning. Deleting the device deletes the key. Backups and exports
+  carry the keys (`secure_devices.yaml`); a restore keeps a key the app
+  already has for that address and drops keys of devices it removed.
 
 ### Remote Commissioning, QR code pairing (OPUS BRiDGE, since 1.8.7, experimental)
 - For actuators that pair through their QR label instead of a button. Create

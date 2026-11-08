@@ -24,6 +24,21 @@ from app_version import VERSION
 logger = logging.getLogger(__name__)
 
 
+def _restore_secure_keys(request, data) -> int:
+    """Secure device keys from a backup or import (#62). Also drops keys of
+    devices the restore removed."""
+    serial_handler = getattr(request.app.state, "serial_handler", None)
+    secure = getattr(serial_handler, "secure", None)
+    dm = request.app.state.device_manager
+    if secure is None or dm is None:
+        return 0
+    configured = [d.address for d in dm.devices.values() if d.address]
+    if data is None:
+        secure.prune(configured)
+        return 0
+    return secure.restore(data, configured)
+
+
 def _discovery_snapshot(request) -> Dict[str, List[tuple]]:
     """(component, unique_id) of every configured device, by device name."""
     state = request.app.state
@@ -251,6 +266,11 @@ async def export_all(request: Request):
         if os.path.exists(overrides_file):
             zf.write(overrides_file, "mapping_overrides.yaml")
 
+        # Keys of secure devices (#62)
+        secure_file = os.path.join(config_path, "secure_devices.yaml")
+        if os.path.exists(secure_file):
+            zf.write(secure_file, "secure_devices.yaml")
+
         # Add export metadata
         metadata = {
             "exported_at": datetime.now().isoformat(),
@@ -291,6 +311,7 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
             "eep_xml": False
         }
 
+        secure_data = None
         with zipfile.ZipFile(zip_buffer, 'r') as zf:
             for filename in zf.namelist():
                 if filename in ("devices.json", "devices.yaml"):
@@ -354,6 +375,11 @@ async def import_all(file: UploadFile = File(...), request: Request = None) -> D
                     async with aiofiles.open(overrides_path, 'w') as f:
                         await f.write(yaml.dump(overrides_data, default_flow_style=False, allow_unicode=True))
                     imported["mapping_overrides"] = True
+
+                elif filename == "secure_devices.yaml":
+                    secure_data = yaml.safe_load(zf.read(filename)) or {}
+
+        imported["secure_keys"] = _restore_secure_keys(request, secure_data)
 
         # Reinitialize EEP manager if any EEP-related data was imported
         eep_manager = request.app.state.eep_manager
@@ -549,6 +575,11 @@ async def create_backup(request: Request) -> Dict[str, Any]:
         if os.path.exists(overrides_file):
             zf.write(overrides_file, "mapping_overrides.yaml")
 
+        # Keys of secure devices (#62): without them a restore needs a new teach-in
+        secure_file = os.path.join(config_path, "secure_devices.yaml")
+        if os.path.exists(secure_file):
+            zf.write(secure_file, "secure_devices.yaml")
+
         # Metadata
         metadata = {
             "exported_at": datetime.now().isoformat(),
@@ -613,6 +644,7 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
     }
 
     try:
+        secure_data = None
         with zipfile.ZipFile(filepath, 'r') as zf:
             # A backup holds the complete set of the user's profiles and the
             # removed-bundled marks, so a restore replaces them rather than
@@ -671,6 +703,11 @@ async def restore_backup(filename: str, request: Request) -> Dict[str, Any]:
                     async with aiofiles.open(overrides_path, 'w') as f:
                         await f.write(yaml.dump(overrides_data, default_flow_style=False, allow_unicode=True))
                     imported["mapping_overrides"] = True
+
+                elif name == "secure_devices.yaml":
+                    secure_data = yaml.safe_load(zf.read(name)) or {}
+
+        imported["secure_keys"] = _restore_secure_keys(request, secure_data)
 
         # Reinitialize EEP manager if any EEP-related data was restored
         if eep_manager and (imported.get("eep_xml") or imported.get("custom_profiles", 0) > 0

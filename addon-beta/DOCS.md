@@ -415,8 +415,10 @@ maintenance, heaters and bypass as sensors. Not yet confirmed on a real unit.
 Devices that send encrypted telegrams (VAES with CMAC and rolling code) work
 after their secure teach-in: create the device with its profile, or start
 Teach-In, then trigger the secure teach-in on the device. The key stays in
-the app's data folder and is deleted with the device. Receiving only, and no
-pre-shared key. Not yet confirmed on a real device.
+the app's data folder and is deleted with the device. Backups and exports
+include the keys, so a restored secure device works without a new teach-in:
+keep backups private. Receiving only, and no pre-shared key. Not yet
+confirmed on a real device.
 
 ### OPUS BRiDGE and Other QR Code Pairing
 

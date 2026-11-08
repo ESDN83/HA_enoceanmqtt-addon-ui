@@ -20,7 +20,8 @@ As in the EnOcean Security Specification, cross-checked against FHEM
 Only receiving is supported, without a pre-shared key: the teach-in of a
 device that encrypts it with a PSK is refused, and the app never sends
 secure telegrams. Keys stay in /data/secure_devices.yaml and are never
-logged.
+logged. Backups and exports carry the file, so a restored secure device
+works without a new teach-in; treat a backup as secret.
 
 AES-128 is implemented here (encryption only, all VAES and CMAC need) rather
 than adding a native dependency to the image; tests check it against the
@@ -29,7 +30,7 @@ FIPS-197 and RFC 4493 vectors.
 
 import logging
 import os
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -163,6 +164,35 @@ class SecureDevices:
             os.replace(tmp, self._file)
         except Exception as e:
             logger.error(f"Could not write {self._file}: {e}")
+
+    @property
+    def file(self) -> str:
+        return self._file
+
+    def restore(self, data: Dict[str, Dict[str, Any]], configured: List[str]) -> int:
+        """Take keys from a backup. A key the app already has for an address
+        wins: it is the one the device uses now, with the newer rolling code
+        (a restored older RLC could fall outside the window). Keys of
+        addresses that are not configured afterwards are dropped. Returns the
+        number of keys taken from the backup."""
+        taken = 0
+        for address, entry in (data or {}).items():
+            address = _addr(address)
+            if address in self._devices or not isinstance(entry, dict) or len(str(entry.get("key", ""))) != 32:
+                continue
+            self._devices[address] = entry
+            taken += 1
+        self.prune(configured)
+        self._save()
+        return taken
+
+    def prune(self, configured: List[str]):
+        keep = {_addr(a) for a in configured}
+        gone = [a for a in self._devices if a not in keep]
+        for address in gone:
+            del self._devices[address]
+        if gone:
+            self._save()
 
     def known(self, address: str) -> bool:
         return _addr(address) in self._devices

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.7-beta3] - 2026-11-08 (beta channel)
+
+### Added
+
+- **Secure device keys are in backups and exports.** A restored secure
+  device works without a new teach-in; a key the app already has for an
+  address is kept. Keep backups private. Issue #62.
+
 ## [1.8.7-beta2] - 2026-11-08 (beta channel)
 
 Built from the EnOcean specifications and other implementations, not yet

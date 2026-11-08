@@ -33,7 +33,9 @@ the fake transceiver, and to let field reports correct them.
 
 - None of it is confirmed on hardware; the docs say so and no catalog entry
   is made (ADR-0034).
-- A secure key is not in backups: after a restore a secure device needs a new
-  teach-in.
+- Since 1.8.7-beta3 backups and exports carry the keys. A restore adds the
+  keys of addresses the app has no key for and keeps the ones it has: those
+  are what the device uses now, with the newer rolling code. Keys of devices
+  the restore removed are dropped. A backup is therefore secret.
 - Existing A5-20-04/-06 devices change entities: the generic EEP.xml
   entities give way to the new mapping.
