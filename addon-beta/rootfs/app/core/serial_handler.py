@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 # ESP3 Protocol constants
 SYNC_BYTE = 0x55
 PACKET_TYPE_RADIO = 0x01
+RORG_ADT = 0xA6  # addressed destination telegram
 PACKET_TYPE_RESPONSE = 0x02
 PACKET_TYPE_EVENT = 0x04
 PACKET_TYPE_COMMON_COMMAND = 0x05
@@ -744,6 +745,15 @@ class SerialHandler:
 
         # Extract actual data (between RORG and sender ID)
         payload = data[1:-5]
+
+        # An addressed telegram can arrive ADT-encapsulated (RORG 0xA6:
+        # original RORG, its data, destination ID). Remote Commissioning
+        # answers are addressed, so they may come this way (#67).
+        if rorg == RORG_ADT and len(payload) >= 6:
+            logger.debug(f"RX [0x{sender_id:08X}] ADT to 0x{int.from_bytes(payload[-4:], 'big'):08X}, "
+                         f"inner RORG {payload[0]:02X}")
+            rorg = payload[0]
+            payload = payload[1:-4]
 
         # Get signal strength from optional data
         # ESP3 RADIO_ERP1 optional data: SubTelNum (1), Destination ID (4),

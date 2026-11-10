@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.8.7-beta4] - 2026-11-10 (beta channel)
+
+### Fixed
+
+- **QR code pairing got no answer from real OPUS BRiDGE devices** ("no
+  answer to function 0x006"). Remote Commissioning telegrams were sent
+  shorter than the 16 bytes the EnOcean specification requires, so the
+  device ignored the ping. Addressed answers that arrive encapsulated (ADT)
+  are now unpacked too. Issue #67.
+
 ## [1.8.7-beta3] - 2026-11-08 (beta channel)
 
 ### Added

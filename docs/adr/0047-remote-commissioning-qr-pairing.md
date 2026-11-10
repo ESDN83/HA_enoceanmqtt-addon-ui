@@ -15,7 +15,11 @@ manual teach-in is for wall switches. Homegear and Mediola pair them that way.
   get and set link table, apply changes, acknowledge) specifications. No other
   implementation's code is used (Homegear's license forbids derived works).
 - SYS_EX telegrams are built in the app and sent as addressed radio
-  telegrams, so it works with any transceiver and TCP gateway.
+  telegrams, so it works with any transceiver and TCP gateway. Every one has
+  the full 8-byte data field, padded with zeros (ERP1 SYS_EX is 16 bytes).
+  beta2/3 sent shorter ones; a real OPUS BRiDGE answered none of them, and
+  the fake transceiver now ignores them as well. Received ADT telegrams
+  (RORG 0xA6) are unpacked, as addressed answers may arrive that way.
 - The app's entry goes to the first index after the used ones, read first, so
   learned wall switches are never overwritten. Nothing is written when the
   sender ID is already there. The device is locked again in every case.

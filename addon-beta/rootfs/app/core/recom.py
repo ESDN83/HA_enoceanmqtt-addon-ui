@@ -9,7 +9,10 @@ code is used.
 
 SYS_EX (RORG 0xC5), one message in chained telegrams: msg_id (SEQ 2 bits,
 IDX 6 bits), then for IDX 0 data length (9 bits), manufacturer ID (11 bits),
-function (12 bits) and 4 payload bytes, for IDX > 0 8 payload bytes.
+function (12 bits) and 4 payload bytes, for IDX > 0 8 payload bytes. The
+data field is always 8 bytes, filled from the left: an ERP1 SYS_EX telegram
+is 16 bytes long. 1.8.7-beta2/3 sent shorter ones, and real OPUS BRiDGE
+devices did not answer them (forum, post 20).
 
 Pairing:
 1. UNLOCK (0x001) with the security code from the QR label, twice
@@ -70,11 +73,11 @@ def sysex_telegrams(function: int, payload: bytes, seq: int,
     """The data fields (msg_id + up to 8 bytes) of one SYS_EX message."""
     header = ((len(payload) & 0x1FF) << 23) | ((manufacturer & 0x7FF) << 12) | (function & 0xFFF)
     first = header.to_bytes(4, "big") + payload[:4]
-    out = [bytes([(seq << 6) | 0]) + first]
+    out = [bytes([(seq << 6) | 0]) + first.ljust(8, b"\x00")]
     rest = payload[4:]
     idx = 1
     while rest:
-        out.append(bytes([(seq << 6) | idx]) + rest[:8])
+        out.append(bytes([(seq << 6) | idx]) + rest[:8].ljust(8, b"\x00"))
         rest = rest[8:]
         idx += 1
     return out
