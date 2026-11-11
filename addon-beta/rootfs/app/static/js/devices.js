@@ -106,13 +106,93 @@ function _wireActions(el, device) {
     el.querySelector('.device-actions').addEventListener('click', e => e.stopPropagation());
     el.querySelector('[data-action="edit"]').addEventListener('click', () => editDevice(device.name));
     el.querySelector('[data-action="delete"]').addEventListener('click', () => deleteDevice(device.name));
+    const clone = el.querySelector('[data-action="clone-channel"]');
+    if (clone) clone.addEventListener('click', () => cloneMissingChannel(device, parseInt(clone.dataset.channel, 10)));
+}
+
+// Two-channel modules (D2-01-11, D2-01-12) are one device per output with the
+// same address, profile and sender ID (ADR-0005). The wizard offers the second
+// channel right after a teach-in, but a module that was added by hand, imported
+// from another app or converted from a sensor has only one. ADR-0048.
+const DEVICE_NAME_MAX = 64;
+const _CHANNEL_CLONE_FIELDS = ['address', 'rorg', 'func', 'type', 'sender_id', 'description',
+    'room', 'manufacturer', 'model', 'actuator_type', 'invert', 'availability_timeout'];
+
+function _sameEep(a, b) {
+    const eep = d => `${d.rorg}-${d.func}-${d.type}`.toUpperCase().replace(/0X/g, '');
+    return eep(a) === eep(b);
+}
+
+// The channel (0 or 1) that is still missing for this device's module, or null
+// when it is not a two-channel module or both channels are configured.
+function _missingChannel(device, devices) {
+    if (!isTwoChannelEep(device.rorg, device.func, device.type)) return null;
+    const addr = String(device.address || '').toUpperCase();
+    const used = new Set((devices || [])
+        .filter(d => String(d.address || '').toUpperCase() === addr && _sameEep(d, device))
+        .map(d => (parseInt(d.channel || 0, 10) === 1 ? 1 : 0)));
+    if (used.size !== 1) return null;
+    return used.has(0) ? 1 : 0;
+}
+
+// "<name> CH1" / "<name> CH2". A channel suffix the source name already has
+// (" CH1", "-ch2") is replaced, not stacked. Longer than DEVICE_NAME_MAX: the
+// end of the name is cut so the suffix always fits.
+function channelCloneName(name, channel) {
+    const suffix = ` CH${channel + 1}`;
+    const base = Array.from(String(name || '').trim().replace(/[\s_-]*ch\s*[12]$/i, ''));
+    const room = DEVICE_NAME_MAX - suffix.length;
+    return (base.length > room ? base.slice(0, room).join('').trimEnd() : base.join('')) + suffix;
+}
+
+function cloneMissingChannel(device, channel) {
+    const name = channelCloneName(device.name, channel);
+    const n = channel + 1;
+    showConfirmDialog(
+        t('device.clone_channel_title', 'Add channel {n}?').replace('{n}', n),
+        escapeHtml(t('device.clone_channel_body',
+            'A device "{name}" is created for channel {n} of this module, with the same address, profile, sender ID and settings. You can rename it afterwards.'))
+            .replace('{name}', `<strong>${escapeHtml(name)}</strong>`).replace('{n}', n),
+        t('device.clone_channel', 'Add channel {n}').replace('{n}', n),
+        'btn-primary',
+        async () => {
+            const payload = { name, channel };
+            _CHANNEL_CLONE_FIELDS.forEach(k => { if (device[k] !== undefined && device[k] !== null) payload[k] = device[k]; });
+            try {
+                const response = await fetch(getApiUrl('/api/devices'), {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    let msg = t('device.save_failed', 'Failed to save device');
+                    try { msg = apiErrorText((await response.json()).detail, msg); } catch (e) { /* keep */ }
+                    throw new Error(msg);
+                }
+                showToast(t('device.clone_channel_done', 'Channel {n} added').replace('{n}', n), 'success');
+                loadDevices();
+            } catch (error) {
+                showToast(error.message, 'danger');
+            }
+        }
+    );
+}
+
+function _cloneChannelButton(channel) {
+    if (channel === null) return '';
+    const label = escapeHtml(t('device.clone_channel', 'Add channel {n}').replace('{n}', channel + 1));
+    return `<button class="btn btn-sm btn-outline-success" data-action="clone-channel" data-channel="${channel}" title="${label}" aria-label="${label}">
+            <i class="bi bi-copy"></i>
+        </button>`;
 }
 
 // Not a btn-group: that pulls adjacent buttons together with a negative
 // margin so their outlines share an edge, which reads as the pencil and the
 // bin overlapping. A flex row with a gap keeps them visibly separate.
-const _deviceActionsHtml = `
+function _deviceActionsHtml(device) {
+    return `
     <div class="d-flex gap-1 device-actions">
+        ${_cloneChannelButton(_missingChannel(device, _deviceListCache))}
         <button class="btn btn-sm btn-outline-primary" data-action="edit" title="Edit">
             <i class="bi bi-pencil"></i>
         </button>
@@ -120,6 +200,7 @@ const _deviceActionsHtml = `
             <i class="bi bi-trash"></i>
         </button>
     </div>`;
+}
 
 function _deviceCard(device, group) {
     const card = document.createElement('div');
@@ -134,7 +215,7 @@ function _deviceCard(device, group) {
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <h5 class="card-title mb-1">${escapeHtml(device.name)}</h5>
-                    ${_deviceActionsHtml}
+                    ${_deviceActionsHtml(device)}
                 </div>
                 <p class="card-text mb-1">
                     <code class="text-muted">${escapeHtml(device.address)}</code>
@@ -169,7 +250,7 @@ function _deviceRow(device, group) {
         <td class="d-none d-md-table-cell">${device.room ? escapeHtml(device.room) : ''}</td>
         <td>${_statusBadge(device)}</td>
         <td class="text-nowrap"><small class="text-muted">${escapeHtml(_relativeTime(device._last_seen))}</small></td>
-        <td class="text-end">${_deviceActionsHtml}</td>`;
+        <td class="text-end">${_deviceActionsHtml(device)}</td>`;
     row.addEventListener('click', () => showDeviceDetail(device.name));
     _wireActions(row, device);
     return row;
@@ -727,6 +808,16 @@ async function showDeviceDetail(name) {
         // not exist.
         const prefix = await getMqttPrefix();
 
+        // The other channel of a two-channel module is a separate device, so
+        // the full list decides whether it is still missing (ADR-0048).
+        let missingChannel = null;
+        if (isTwoChannelEep(device.rorg, device.func, device.type)) {
+            try {
+                const lRes = await fetch(getApiUrl('/api/devices'));
+                if (lRes.ok) missingChannel = _missingChannel(device, await lRes.json());
+            } catch (e) { /* no button */ }
+        }
+
         // Build detail view in the devices page
         const container = document.getElementById('device-list');
         container.innerHTML = `
@@ -738,6 +829,10 @@ async function showDeviceDetail(name) {
                     <button class="btn btn-outline-primary btn-sm ms-2" data-action="edit">
                         <i class="bi bi-pencil"></i> ${t('device.edit', 'Edit Device')}
                     </button>
+                    ${missingChannel !== null ? `
+                    <button class="btn btn-outline-success btn-sm ms-2" data-action="clone-channel">
+                        <i class="bi bi-copy"></i> ${escapeHtml(t('device.clone_channel', 'Add channel {n}').replace('{n}', missingChannel + 1))}
+                    </button>` : ''}
                 </div>
 
                 <div class="card mb-3">
@@ -844,6 +939,8 @@ async function showDeviceDetail(name) {
         // Same reason as the device cards: the name stays out of the markup and
         // is carried by the closure instead (#36).
         container.querySelector('[data-action="edit"]').addEventListener('click', () => editDevice(device.name));
+        container.querySelector('[data-action="clone-channel"]')?.addEventListener('click',
+            () => cloneMissingChannel(device, missingChannel));
         container.querySelectorAll('[data-test-command]').forEach(btn =>
             btn.addEventListener('click', () => testActuator(device.name, btn.dataset.testCommand)));
     } catch (error) {

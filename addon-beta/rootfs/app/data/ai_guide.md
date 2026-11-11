@@ -193,7 +193,10 @@ configs are cleared, unless a remaining device publishes the same unique ID.
   announces (e.g. `D2-01-12`).
 - **Two-channel modules** (`D2-01-11`, `D2-01-12`): one device per output,
   same `address` and `sender_id`, `channel` 0 and 1. The wizard offers the
-  second channel after saving the first. In Home Assistant they are one
+  second channel after saving the first. When only one channel exists, the
+  device list and the device page offer *Add channel 1/2*: it POSTs a copy of
+  the device to `/api/devices` with the other `channel` and the name plus
+  ` CH1`/` CH2` (cut to 64 characters). In Home Assistant they are one
   device, named manufacturer plus `model` (or the profile when `model` is
   empty), with one entity per channel named after its `description`.
 - Rocker telegrams are not used as state for D2 devices; they report state
