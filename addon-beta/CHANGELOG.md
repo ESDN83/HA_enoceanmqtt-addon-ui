@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased] (beta channel)
+
+### Added
+
+- **Radio repeater over Remote Commissioning.** D2 modules get a *Radio
+  repeater* card to read the repeater setting and set it to off, level 1 or
+  level 2 (Set Repeater Functions 0x251), read back afterwards. For NodOn
+  in-wall modules, whose repeater has no button: it works in the 5 minutes
+  after the module is powered up, or with a security code. Experimental.
+  ADR-0049.
+
 ## [1.8.7-beta4] - 2026-11-10 (beta channel)
 
 ### Fixed

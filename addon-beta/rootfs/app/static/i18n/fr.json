@@ -460,5 +460,21 @@
   "devices.col_role": "Rôle",
   "devices.col_room": "Pièce",
   "devices.col_status": "Statut",
-  "devices.col_last_seen": "Vu en dernier"
+  "devices.col_last_seen": "Vu en dernier",
+  "repeater.title": "Répéteur radio",
+  "repeater.hint": "Un module alimenté sur secteur peut relayer les télégrammes des appareils hors de portée de la passerelle. Cela passe par la configuration à distance (Remote Commissioning). Un module sans code de sécurité (les modules encastrés NodOn, par exemple) ne répond que dans les 5 minutes qui suivent sa mise sous tension : coupez puis rétablissez son circuit, puis cliquez sur un bouton ici. Expérimental.",
+  "repeater.code": "Code de sécurité",
+  "repeater.code_placeholder": "facultatif : 8 chiffres hexadécimaux ou étiquette QR",
+  "repeater.read": "Lire",
+  "repeater.off": "Désactivé",
+  "repeater.level1": "Niveau 1",
+  "repeater.level2": "Niveau 2",
+  "repeater.running": "Dialogue avec le module, cela prend quelques secondes...",
+  "repeater.state_off": "désactivé",
+  "repeater.state_level": "niveau {n}",
+  "repeater.state_filtered": "filtré, niveau {n}",
+  "repeater.current": "Répéteur : {state}",
+  "repeater.changed": "Répéteur : {before} → {after}",
+  "repeater.not_applied": "Le module n'a pas conservé la valeur demandée.",
+  "repeater.failed": "Répéteur injoignable"
 }

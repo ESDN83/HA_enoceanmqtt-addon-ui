@@ -782,6 +782,25 @@ async function showDeviceDetail(name) {
                     </div>
                 </div>` : ''}
 
+                ${device.rorg === 'D2' ? `
+                <div class="card mb-3" id="repeater-card">
+                    <div class="card-header"><i class="bi bi-broadcast"></i> ${t('repeater.title', 'Radio repeater')}</div>
+                    <div class="card-body">
+                        <p class="small text-muted mb-2">${t('repeater.hint', 'A mains-powered module can relay telegrams for devices out of the gateway\'s range. This uses Remote Commissioning. A module without a security code (NodOn in-wall modules, for example) only answers in the 5 minutes after it is powered up: switch its circuit off and on, then press a button here. Experimental.')}</p>
+                        <div class="input-group mb-2">
+                            <span class="input-group-text">${t('repeater.code', 'Security code')}</span>
+                            <input type="password" class="form-control" id="repeater-code" autocomplete="off" placeholder="${escapeHtml(t('repeater.code_placeholder', 'optional: 8 hex digits or QR label'))}">
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-sm btn-outline-secondary" data-repeater="read"><i class="bi bi-search"></i> ${t('repeater.read', 'Read')}</button>
+                            <button class="btn btn-sm btn-outline-danger" data-repeater="off">${t('repeater.off', 'Off')}</button>
+                            <button class="btn btn-sm btn-outline-primary" data-repeater="level1">${t('repeater.level1', 'Level 1')}</button>
+                            <button class="btn btn-sm btn-outline-primary" data-repeater="level2">${t('repeater.level2', 'Level 2')}</button>
+                        </div>
+                        <div id="repeater-result" class="small mt-2"></div>
+                    </div>
+                </div>` : ''}
+
                 ${device.actuator_type ? `
                 <div class="card mb-3">
                     <div class="card-header bg-warning bg-opacity-25">
@@ -844,6 +863,8 @@ async function showDeviceDetail(name) {
         // Same reason as the device cards: the name stays out of the markup and
         // is carried by the closure instead (#36).
         container.querySelector('[data-action="edit"]').addEventListener('click', () => editDevice(device.name));
+        container.querySelectorAll('[data-repeater]').forEach(btn => btn.addEventListener('click',
+            () => recomRepeater(device.name, btn.dataset.repeater === 'read' ? null : btn.dataset.repeater)));
         container.querySelectorAll('[data-test-command]').forEach(btn =>
             btn.addEventListener('click', () => testActuator(device.name, btn.dataset.testCommand)));
     } catch (error) {
@@ -914,6 +935,52 @@ async function loadHaAreas() {
         list.replaceChildren(...areas.map(name => Object.assign(document.createElement('option'), { value: name })));
     } catch (e) {
         _haAreasLoaded = false;
+    }
+}
+
+// Repeater over Remote Commissioning (ADR-0049). mode null only reads. The
+// security code goes to the app for this call only, like the QR pairing.
+function _repeaterText(r) {
+    if (!r) return '';
+    const state = r.function === 'off' ? t('repeater.state_off', 'off')
+        : r.function === 'on' ? t('repeater.state_level', 'level {n}').replace('{n}', r.level)
+        : r.function === 'filtered' ? t('repeater.state_filtered', 'filtered, level {n}').replace('{n}', r.level)
+        : r.function;
+    return `${state} (${r.raw})`;
+}
+
+async function recomRepeater(name, mode) {
+    const field = document.getElementById('repeater-code');
+    const out = document.getElementById('repeater-result');
+    const code = (field.value || '').trim();
+    const buttons = document.querySelectorAll('[data-repeater]');
+    buttons.forEach(b => { b.disabled = true; });
+    out.className = 'small mt-2';
+    out.textContent = t('repeater.running', 'Talking to the module, this takes a few seconds...');
+    try {
+        const resp = await fetch(getApiUrl(`/api/gateway/recom-repeater/${encodeURIComponent(name)}`), {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({mode, code: code || null})
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(apiErrorText(data.detail, resp.statusText));
+        let text = t('repeater.current', 'Repeater: {state}').replace('{state}', _repeaterText(data.after || data.before));
+        if (data.after) {
+            text = t('repeater.changed', 'Repeater: {before} → {after}')
+                .replace('{before}', _repeaterText(data.before)).replace('{after}', _repeaterText(data.after));
+            if (!data.applied) {
+                text += '. ' + t('repeater.not_applied', 'The module did not keep the requested value.');
+                out.className = 'small mt-2 text-warning';
+            } else {
+                out.className = 'small mt-2 text-success';
+            }
+        }
+        out.textContent = text;
+    } catch (e) {
+        out.className = 'small mt-2 text-danger';
+        out.textContent = t('repeater.failed', 'Repeater not reached') + ': ' + e.message;
+    } finally {
+        buttons.forEach(b => { b.disabled = false; });
     }
 }
 

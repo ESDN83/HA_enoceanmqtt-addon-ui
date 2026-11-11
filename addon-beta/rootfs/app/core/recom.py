@@ -24,6 +24,11 @@ Pairing:
    CHANGES (0x226); both acknowledged with 0x240
 6. LOCK (0x002)
 
+Repeater (ADR-0049): PING, GET REPEATER FUNCTIONS (0x250 -> 0x850), SET
+REPEATER FUNCTIONS (0x251, no answer), then 0x250 again to read back. With
+a security code wrapped in UNLOCK and LOCK; without one, in the unlock period
+after the device is powered up.
+
 The security code unlocks the device: it is used for this run only, never
 stored and never logged.
 """
@@ -52,8 +57,50 @@ FN_GET_LINK_RESPONSE = 0x811
 FN_SET_LINK = 0x212
 FN_APPLY = 0x226
 FN_ACK = 0x240
+# Repeater (Remote Commissioning v1.3, A 1.1 and A 1.2), ADR-0049
+FN_GET_REPEATER = 0x250
+FN_GET_REPEATER_RESPONSE = 0x850
+FN_SET_REPEATER = 0x251
 
-_QR = re.compile(r"30S[0-9A-F]{4}([0-9A-F]{8})\+1P([0-9A-F]+)(?:\+.*?)?\+11Z([0-9A-F]{8})", re.I)
+# One byte, fields from the most significant bit as the spec lists them:
+# repeater function (2 bits: 0 off, 1 on, 2 filtered), repeater level
+# (2 bits: 1 or 2), filter structure (1 bit: 0 AND, 1 OR), 3 bits unused.
+REPEATER_MODES = {"off": (0, 0), "level1": (1, 1), "level2": (1, 2)}
+_REPEATER_FUNCTIONS = {0: "off", 1: "on", 2: "filtered"}
+
+
+def repeater_byte(function: int, level: int, filter_or: bool = False) -> int:
+    return ((function & 0x3) << 6) | ((level & 0x3) << 4) | ((1 if filter_or else 0) << 3)
+
+
+def parse_repeater(payload: bytes) -> Dict[str, Any]:
+    """The Get Repeater Functions answer, decoded, with the raw byte kept so a
+    device that orders the bits differently can still be read."""
+    if not payload:
+        raise RecomError("empty repeater answer")
+    b = payload[0]
+    function, level = (b >> 6) & 0x3, (b >> 4) & 0x3
+    return {"function": _REPEATER_FUNCTIONS.get(function, f"unknown ({function})"),
+            "level": level if function else 0,
+            "filter": "or" if (b >> 3) & 1 else "and",
+            "raw": f"0x{b:02X}"}
+
+
+def parse_code(text: str) -> Optional[int]:
+    """A security code typed as 8 hex digits, or the QR label text."""
+    text = (text or "").strip()
+    if not text:
+        return None
+    label = parse_qr(text)
+    if label is not None:
+        return label["code"]
+    hexa = text.lower().replace("0x", "")
+    if re.fullmatch(r"[0-9a-f]{1,8}", hexa):
+        return int(hexa, 16)
+    raise ValueError("The security code is 8 hex digits, or the text of the QR label")
+
+
+_QR =re.compile(r"30S[0-9A-F]{4}([0-9A-F]{8})\+1P([0-9A-F]+)(?:\+.*?)?\+11Z([0-9A-F]{8})", re.I)
 
 
 def parse_qr(text: str) -> Optional[Dict[str, Any]]:
@@ -209,3 +256,55 @@ class Recom:
                 await self._send(sender, destination, FN_LOCK, code_bytes)
             except Exception as e:
                 logger.warning(f"ReCom lock of 0x{destination:08X} not sent: {e}")
+
+    async def repeater(self, destination: int, sender: int, code: Optional[int] = None,
+                       mode: Optional[str] = None) -> Dict[str, Any]:
+        """Read the device's repeater setting and, with a mode, change it.
+
+        With a security code the device is unlocked first and locked again
+        at the end. Without one, it only answers in the unlock period after
+        power-up (5 minutes, Remote Management 2.91): a module without a QR
+        label, like the NodOn in-wall modules, is set right after switching
+        its circuit off and on again. The setting is read back after the
+        write, so the result shows what the device really kept.
+        """
+        if mode is not None and mode not in REPEATER_MODES:
+            raise RecomError(f"unknown repeater mode '{mode}'")
+        steps: List[str] = []
+        code_bytes = code.to_bytes(4, "big") if code is not None else None
+        result: Dict[str, Any] = {"steps": steps}
+        try:
+            if code_bytes is not None:
+                for _ in range(2):  # recommended: repeat UNLOCK
+                    await self._send(sender, destination, FN_UNLOCK, code_bytes)
+                    await asyncio.sleep(0.2)
+                steps.append("unlocked")
+            try:
+                await self._ask(sender, destination, FN_PING, b"", FN_PING_RESPONSE)
+            except RecomError:
+                raise RecomError(
+                    "no answer: the module is locked or out of range. Without a security "
+                    "code it only answers in the 5 minutes after it is powered up")
+            steps.append("ping answered")
+            before = parse_repeater(await self._ask(sender, destination, FN_GET_REPEATER, b"",
+                                                    FN_GET_REPEATER_RESPONSE))
+            result["before"] = before
+            steps.append(f"repeater {before['function']} {before['raw']}")
+            if mode is not None:
+                function, level = REPEATER_MODES[mode]
+                value = repeater_byte(function, level)
+                await self._send(sender, destination, FN_SET_REPEATER, bytes([value]))
+                steps.append(f"set 0x{value:02X}")
+                await asyncio.sleep(0.5)
+                after = parse_repeater(await self._ask(sender, destination, FN_GET_REPEATER, b"",
+                                                       FN_GET_REPEATER_RESPONSE))
+                result["after"] = after
+                result["applied"] = after["raw"] == f"0x{value:02X}"
+                steps.append(f"read back {after['raw']}")
+            return result
+        finally:
+            if code_bytes is not None:
+                try:
+                    await self._send(sender, destination, FN_LOCK, code_bytes)
+                except Exception as e:
+                    logger.warning(f"ReCom lock of 0x{destination:08X} not sent: {e}")

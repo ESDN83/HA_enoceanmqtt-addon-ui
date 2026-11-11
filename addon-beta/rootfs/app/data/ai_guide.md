@@ -266,6 +266,18 @@ configs are cleared, unless a remaining device publishes the same unique ID.
 - Never ask the user to paste the QR code or security code into a chat or a
   public post. It unlocks the device.
 
+### Radio repeater over Remote Commissioning (beta, experimental, ADR-0049)
+- D2 devices have a *Radio repeater* card: `POST /api/gateway/recom-repeater/<device name>`
+  with `{"mode": null | "off" | "level1" | "level2", "code": null | "<8 hex or QR text>"}`.
+  `mode` null only reads. The answer has `before`, and after a change `after`
+  and `applied` (the value read back equals the one written).
+- Use it when a device has a weak RSSI (about -80 dBm or worse) and commands
+  need several tries: turn the repeater on in a mains-powered module between
+  the gateway and that device. Level 1 is the usual choice.
+- A module without a security code (NodOn in-wall modules) answers only in
+  the 5 minutes after power-up: the user switches its circuit off and on,
+  then presses the button. "no answer" outside that window is expected.
+
 ### Pilot wire heating modules (D2-01-0C, NodOn SIN-2-FP-21)
 - Paired with interactive teach-in, it needs a sender ID.
 - Entity *Pilot Wire Mode*: Off, Comfort, Eco, Anti-freeze, Comfort-1,

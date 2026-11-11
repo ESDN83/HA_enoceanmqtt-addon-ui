@@ -431,6 +431,27 @@ it already has, which stay. Experimental: built from the EnOcean
 specification, not yet confirmed on a real device. Never post the QR code or
 its security code publicly, it unlocks the device.
 
+### Radio Repeater (Remote Commissioning)
+
+A mains-powered D2 module can relay telegrams for devices that the gateway
+barely reaches (RSSI around -80 dBm or worse, commands that need two or three
+tries). NodOn in-wall modules have this repeater, off by default, and no
+button to turn it on. Open the module that sits between the gateway and the
+far device and use the **Radio repeater** card:
+
+- **Read** shows the current setting, **Off**, **Level 1** and **Level 2**
+  change it. The app reads the setting back afterwards, so the result shows
+  what the module really kept. Level 1 is enough in most homes: level 2
+  repeats telegrams that were repeated once already.
+- A module with a security code (QR label) is unlocked with it: enter the 8
+  hex digits or the label text. It is used for that call only.
+- A module without a security code, such as the NodOn in-wall modules, only
+  answers in the 5 minutes after it is powered up. Switch its circuit off and
+  on at the breaker, then press the button within 5 minutes.
+
+Experimental: built from the EnOcean Remote Commissioning specification
+(Set Repeater Functions 0x251), not yet confirmed on a real device.
+
 ### Automation Blueprints
 
 Under **Settings, Automation Blueprints** the app offers ready-made

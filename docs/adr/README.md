@@ -52,3 +52,4 @@ Rules:
 - [0045](0045-model-field-and-room-suggestions.md) Model field, serial number and Room suggestions
 - [0046](0046-profiles-blueprints-secure.md) Profiles, blueprints and secure telegrams without a tester
 - [0047](0047-remote-commissioning-qr-pairing.md) QR code pairing through Remote Commissioning
+- [0049](0049-repeater-over-remote-commissioning.md) Radio repeater over Remote Commissioning

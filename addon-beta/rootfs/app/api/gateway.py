@@ -485,3 +485,44 @@ async def recom_pair(name: str, req: RecomPairRequest, request: Request) -> Dict
         raise HTTPException(status_code=502, detail=f"Pairing failed: {e}")
     logger.info(f"Remote Commissioning of {name}: {result['status']} ({'; '.join(result['steps'])})")
     return result
+
+
+class RecomRepeaterRequest(BaseModel):
+    """Repeater of a device over Remote Commissioning (ADR-0049). mode None
+    only reads; code is the security code (8 hex digits or the QR label),
+    left empty for a device in its unlock period after power-up."""
+    mode: Optional[str] = None
+    code: Optional[str] = None
+
+
+@router.post("/recom-repeater/{name:path}")
+async def recom_repeater(name: str, req: RecomRepeaterRequest, request: Request) -> Dict[str, Any]:
+    """Read or set the repeater of a mains-powered device, e.g. a NodOn
+    in-wall module, so it relays telegrams for devices out of the gateway's
+    range. The code is used for this call only."""
+    from core.recom import parse_code, RecomError, REPEATER_MODES
+    serial_handler = request.app.state.serial_handler
+    device_manager = request.app.state.device_manager
+    if not serial_handler or not serial_handler.is_connected or serial_handler.recom is None:
+        raise HTTPException(status_code=503, detail="EnOcean gateway not connected")
+    device = device_manager.get_device(name) if device_manager else None
+    if device is None:
+        raise HTTPException(status_code=404, detail=f"Device '{name}' not found")
+    if req.mode is not None and req.mode not in REPEATER_MODES:
+        raise HTTPException(status_code=400, detail=f"mode is one of {', '.join(REPEATER_MODES)}")
+    try:
+        code = parse_code(req.code or "")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    address = int(device.address.replace("0x", "").replace("0X", ""), 16)
+    sender = (int(device.sender_id.replace("0x", "").replace("0X", ""), 16)
+              if device.sender_id else serial_handler.get_sender_id(1))
+    if sender is None:
+        raise HTTPException(status_code=503, detail="Base ID not read yet")
+    try:
+        result = await serial_handler.recom.repeater(address, sender, code, req.mode)
+    except RecomError as e:
+        logger.warning(f"Repeater of {name}: {e}")
+        raise HTTPException(status_code=502, detail=str(e))
+    logger.info(f"Repeater of {name}: {'; '.join(result['steps'])}")
+    return result
