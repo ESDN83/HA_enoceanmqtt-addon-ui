@@ -115,7 +115,10 @@ function _wireActions(el, device) {
 // channel right after a teach-in, but a module that was added by hand, imported
 // from another app or converted from a sensor has only one. ADR-0048.
 const DEVICE_NAME_MAX = 64;
-const _CHANNEL_CLONE_FIELDS = ['address', 'rorg', 'func', 'type', 'sender_id', 'description',
+// Not the description: on a two-channel module it names the channel's entity,
+// so a copy gave both switches the same name in Home Assistant. Without one the
+// new channel is named after its device name until it is given its own.
+const _CHANNEL_CLONE_FIELDS = ['address', 'rorg', 'func', 'type', 'sender_id',
     'room', 'manufacturer', 'model', 'actuator_type', 'invert', 'availability_timeout'];
 
 function _sameEep(a, b) {
@@ -150,9 +153,11 @@ function cloneMissingChannel(device, channel) {
     const n = channel + 1;
     showConfirmDialog(
         t('device.clone_channel_title', 'Add channel {n}?').replace('{n}', n),
+        // Function replacements: a "$&" or "$'" in a device name is text here,
+        // not a replacement pattern.
         escapeHtml(t('device.clone_channel_body',
             'A device "{name}" is created for channel {n} of this module, with the same address, profile, sender ID and settings. You can rename it afterwards.'))
-            .replace('{name}', `<strong>${escapeHtml(name)}</strong>`).replace('{n}', n),
+            .replace('{name}', () => `<strong>${escapeHtml(name)}</strong>`).replace('{n}', () => n),
         t('device.clone_channel', 'Add channel {n}').replace('{n}', n),
         'btn-primary',
         async () => {

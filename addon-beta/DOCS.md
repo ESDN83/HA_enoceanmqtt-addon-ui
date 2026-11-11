@@ -151,7 +151,8 @@ button. It creates the other channel with the same address, profile, sender
 ID, role, room and settings, named after the device with ` CH1` or ` CH2` at
 the end. A channel suffix the name already has is replaced, and a name longer
 than 64 characters is cut so the suffix fits. Device names are limited to 64
-characters in the form.
+characters in the form. The description is not copied: it names the
+channel's switch in Home Assistant, so give the new channel its own.
 
 ![Settings](https://github.com/user-attachments/assets/370072b1-7219-4566-a733-2c9e58b018fa)
 
