@@ -143,6 +143,16 @@ module shows as one device named after the manufacturer and its Model, for
 example "NodOn SIN-2-2-01", or the profile when Model is empty. Picking a device
 from the catalog fills in Model, no longer Description.
 
+**Two-channel modules with one channel missing.** A two-channel module
+(D2-01-11, D2-01-12) needs one device per output. When only one of the two is
+configured, for example after a manual entry, an import or a change from
+sensor to light, the device list and the device page show an *Add channel*
+button. It creates the other channel with the same address, profile, sender
+ID, role, room and settings, named after the device with ` CH1` or ` CH2` at
+the end. A channel suffix the name already has is replaced, and a name longer
+than 64 characters is cut so the suffix fits. Device names are limited to 64
+characters in the form.
+
 ![Settings](https://github.com/user-attachments/assets/370072b1-7219-4566-a733-2c9e58b018fa)
 
 ## Configuration

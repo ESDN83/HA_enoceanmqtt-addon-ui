@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased] (beta channel)
+
+### Added
+
+- **Add the missing channel of a two-channel module.** When only one channel
+  of a D2-01-11 or D2-01-12 module is configured, the device list and the
+  device page offer *Add channel 1/2*. It copies the device with the other
+  channel and the name plus " CH1" or " CH2", cut to 64 characters if
+  needed. ADR-0048.
+
 ## [1.8.7-beta4] - 2026-11-10 (beta channel)
 
 ### Fixed
