@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.8.7-beta6] - 2026-11-12 (beta channel)
+
+### Changed
+
+- **paho-mqtt 2.2.0** (was 2.1.0): rejects malformed MQTT packets instead of
+  failing on them, and keeps the keepalive running while large messages are
+  sent. Dependabot PR #71.
+- **fastapi 0.162.2** (was 0.162.0): documentation only upstream, no change
+  in behaviour. Dependabot PR #72.
+
 ## [1.8.7-beta5] - 2026-11-11 (beta channel)
 
 ### Added

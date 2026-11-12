@@ -1,5 +1,5 @@
 # Web Framework
-fastapi==0.162.0
+fastapi==0.162.2
 # Plain uvicorn: the [standard] extras (uvloop, httptools, watchfiles,
 # python-dotenv) are not used. WebSocket support comes from the websockets pin
 # below.
@@ -11,7 +11,7 @@ python-multipart==0.0.33
 pyserial==3.5
 
 # MQTT (2.x: explicit CallbackAPIVersion, see core/mqtt_handler.py)
-paho-mqtt==2.1.0
+paho-mqtt==2.2.0
 
 # XML/YAML Processing
 lxml==6.1.3
