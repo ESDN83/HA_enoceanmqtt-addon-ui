@@ -30,6 +30,9 @@ RORG_ADT = 0xA6  # addressed destination telegram
 PACKET_TYPE_RESPONSE = 0x02
 PACKET_TYPE_EVENT = 0x04
 PACKET_TYPE_COMMON_COMMAND = 0x05
+# Remote management: the module builds and parses the SYS_EX telegrams
+# itself (ESP3 2.1.8 / 2.7.1). ADR-0051.
+PACKET_TYPE_REMOTE_MAN = 0x07
 
 # Common commands
 CO_RD_VERSION = 0x03
@@ -56,6 +59,7 @@ KEEPALIVE_MISSES_BEFORE_RECONNECT = 2
 
 # Response return codes
 RET_OK = 0x00
+RET_NOT_SUPPORTED = 0x02
 
 # Transmit pacing. The transceiver has one radio and a small transmit queue,
 # and its response packets carry no sequence number. Only one ESP3 request may
@@ -550,6 +554,8 @@ class SerialHandler:
                         self._response_future.set_result(packet_data)
                 elif packet_type == PACKET_TYPE_EVENT:
                     self._log_event(packet_data)
+                elif packet_type == PACKET_TYPE_REMOTE_MAN:
+                    self._process_remote_man(packet_data, optional_data)
 
             except asyncio.CancelledError:
                 break
@@ -1036,6 +1042,46 @@ class SerialHandler:
         line = _radio_log_line(rorg, b"" if secret else data, destination)
         async with self._tx_slot():
             return await self._send_radio_packet(packet, label or f"RORG {rorg:02X}", line)
+
+    async def send_remote_man(self, function: int, manufacturer: int, data: bytes,
+                              destination: int, label: str = "", secret: bool = False) -> int:
+        """A remote management command as ESP3 REMOTE_MAN_COMMAND: the module
+        builds the SYS_EX telegrams and sends them from its chip ID, as
+        EnOcean's own tools and FHEM do (ADR-0051). Returns the module's
+        return code, or -1 when it did not acknowledge. RET_NOT_SUPPORTED
+        means the module (or a gateway in front of it) cannot do this."""
+        packet = self._build_remote_man_packet(function, manufacturer, data, destination)
+        shown = "" if secret else data.hex()
+        line = (f"TX ReMan: fn=0x{function:03X}, manufacturer=0x{manufacturer:03X}, "
+                f"Data={shown}, Dest={destination:08X}")
+        async with self._tx_slot():
+            ret = await self._send_packet_code(packet, label or f"ReMan 0x{function:03X}", line)
+        return -1 if ret is None else ret
+
+    def _build_remote_man_packet(self, function: int, manufacturer: int, data: bytes,
+                                 destination: int) -> bytes:
+        """ESP3 packet type 7: function (2), manufacturer (2), message data;
+        optional destination (4), source 0 = the module's chip ID (4), dBm
+        0xFF (send), send with delay (1 only for a broadcast)."""
+        packet_data = function.to_bytes(2, "big") + manufacturer.to_bytes(2, "big") + data
+        delay = 1 if destination == 0xFFFFFFFF else 0
+        optional = destination.to_bytes(4, "big") + bytes(4) + bytes([0xFF, delay])
+        header = bytes([(len(packet_data) >> 8) & 0xFF, len(packet_data) & 0xFF,
+                        len(optional), PACKET_TYPE_REMOTE_MAN])
+        return (bytes([SYNC_BYTE]) + header + bytes([crc8(header)])
+                + packet_data + optional + bytes([crc8(packet_data + optional)]))
+
+    def _process_remote_man(self, data: bytes, optional: bytes):
+        """A remote management answer the module has already decoded."""
+        if len(data) < 4:
+            return
+        function = int.from_bytes(data[0:2], "big") & 0xFFF
+        manufacturer = int.from_bytes(data[2:4], "big") & 0x7FF
+        source = int.from_bytes(optional[4:8], "big") if len(optional) >= 8 else 0
+        logger.debug(f"RX ReMan [{source:08X}]: fn=0x{function:03X}, "
+                     f"manufacturer=0x{manufacturer:03X}, Data={data[4:].hex()}")
+        if self.recom is not None:
+            self.recom.handle_message(source, function, bytes(data[4:]))
 
     async def send_vld_addressed(self, sender_id: int, data: bytes, destination: int,
                                  label: str = "") -> bool:
@@ -1727,6 +1773,18 @@ class SerialHandler:
         (switches and covers) silent and made a field log readable only by
         counting response packets.
         """
+        ret = await self._send_packet_code(packet, label, telegram)
+        if ret is None:
+            return False
+        if ret != RET_OK:
+            logger.warning(f"Transceiver rejected {label}: return code 0x{ret:02X}")
+            return False
+        return True
+
+    async def _send_packet_code(self, packet: bytes, label: str, telegram: str = ""):
+        """Write one packet, return the module's return code (None when it
+        did not answer or the transport failed). Call while holding
+        _tx_slot()."""
         loop = asyncio.get_running_loop()
         self._response_future = loop.create_future()
         try:
@@ -1738,21 +1796,17 @@ class SerialHandler:
             logger.warning(
                 f"No transceiver ack for {label} within {TX_RESPONSE_TIMEOUT * 1000:.0f} ms"
             )
-            return False
+            return None
         except TransportLostError as e:
             logger.error(f"Transport error sending {label}: {e}")
-            return False
+            return None
         except (ConnectionError, serial.SerialException, OSError) as e:
             logger.error(f"Transport error sending {label}: {e}")
             self._connected = False
-            return False
+            return None
         finally:
             self._response_future = None
-
-        if ret and ret[0] != RET_OK:
-            logger.warning(f"Transceiver rejected {label}: return code 0x{ret[0]:02X}")
-            return False
-        return True
+        return ret[0] if ret else RET_OK
 
     async def _send_command(self, command_code: int) -> bytes:
         """Send an ESP3 common command and wait for response.

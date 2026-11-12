@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.8.7-beta8] - 2026-11-12 (beta channel)
+
+### Changed
+
+- **QR code pairing hands the commands to the transceiver.** Remote
+  Commissioning commands now go to the USB300/TCM310 as ESP3 remote
+  management packets, and the module builds the radio telegrams and decodes
+  the answers itself, as EnOcean's own tools and FHEM do. A real OPUS
+  BRiDGE 563.010 answered none of the telegrams the app built, and this
+  rules out the app's own telegram format. A transceiver or gateway that
+  does not support these packets gets the app-built telegrams as before.
+  The log names the path used. The security code is still never logged.
+  ADR-0051, #67.
+
 ## [1.8.7-beta7] - 2026-11-12 (beta channel)
 
 ### Fixed

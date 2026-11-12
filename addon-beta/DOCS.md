@@ -438,8 +438,11 @@ the security code on their QR label (Remote Commissioning). Create the device
 with its address, profile (e.g. D2-01-03), role and a free sender ID, then
 open it and use **Pair with QR code**: enter the text of the QR code. The app
 writes its sender ID into the device's link table next to the wall switches
-it already has, which stay. Experimental: built from the EnOcean
-specification, not yet confirmed on a real device. Never post the QR code or
+it already has, which stay. The commands are handed to the transceiver as
+remote management packets, so a USB300 or TCM310 builds the radio telegrams
+itself; a transceiver or gateway that cannot do that gets telegrams built by
+the app. Experimental: built from the EnOcean specification, not yet
+confirmed on a real device. Never post the QR code or
 its security code publicly, it unlocks the device.
 
 ### Automation Blueprints

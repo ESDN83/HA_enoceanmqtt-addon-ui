@@ -14,6 +14,14 @@ data field is always 8 bytes, filled from the left: an ERP1 SYS_EX telegram
 is 16 bytes long. 1.8.7-beta2/3 sent shorter ones, and real OPUS BRiDGE
 devices did not answer them (forum, post 20).
 
+Since 1.8.7-beta8 the commands go to the transceiver as ESP3
+REMOTE_MAN_COMMAND (packet type 7) first: the module builds the SYS_EX
+telegrams itself and hands answers back already decoded, as EnOcean's own
+tools and FHEM do. A real 563.010 answered none of the app-built telegrams,
+and this takes the app's bit packing out of the question. A module or
+gateway that does not support it gets the app-built SYS_EX telegrams as
+before. ADR-0051.
+
 Pairing:
 1. UNLOCK (0x001) with the security code from the QR label, twice
 2. PING (0x006), the answer (0x606) shows the device listens
@@ -124,6 +132,9 @@ class Recom:
         self.serial_handler = serial_handler
         self.receiver = SysExReceiver()
         self._waiters: List[Tuple[int, int, asyncio.Future]] = []
+        # "esp3" (REMOTE_MAN_COMMAND), "sysex" (app-built telegrams) or None
+        # until the transceiver has answered the first command.
+        self.mode: Optional[str] = None
 
     def handle_rx(self, telegram) -> bool:
         """Called for every SYS_EX telegram; True when it was handled."""
@@ -131,20 +142,37 @@ class Recom:
         if msg is None:
             return True
         function, manufacturer, payload = msg
-        logger.debug(f"ReCom answer from {telegram.sender_hex}: fn 0x{function:03X}, {len(payload)} bytes")
-        for waiter in list(self._waiters):
-            sender, fn, fut = waiter
-            if sender == telegram.sender_id and fn == function and not fut.done():
-                fut.set_result(payload)
-                self._waiters.remove(waiter)
+        self.handle_message(telegram.sender_id, function, payload)
         return True
 
+    def handle_message(self, source: int, function: int, payload: bytes):
+        """One complete answer, from SYS_EX telegrams or decoded by the module."""
+        logger.debug(f"ReCom answer from 0x{source:08X}: fn 0x{function:03X}, {len(payload)} bytes")
+        for waiter in list(self._waiters):
+            sender, fn, fut = waiter
+            if sender == source and fn == function and not fut.done():
+                fut.set_result(payload)
+                self._waiters.remove(waiter)
+
     async def _send(self, sender: int, destination: int, function: int, payload: bytes = b""):
-        seq = random.randint(1, 3)  # SEQ 0 is not allowed
         secret = function in (FN_UNLOCK, FN_LOCK)
+        label = f"ReCom fn 0x{function:03X}"
+        if self.mode != "sysex":
+            rc = await self.serial_handler.send_remote_man(
+                function, MANUFACTURER_MULTI, payload, destination, label, secret=secret)
+            if rc == 0:
+                self.mode = "esp3"
+                return
+            if self.mode == "esp3":
+                raise RecomError(f"transceiver did not take function 0x{function:03X}")
+            reason = "no answer" if rc < 0 else f"return code 0x{rc:02X}"
+            logger.info(f"Transceiver does not take remote management commands ({reason}), "
+                        "sending SYS_EX telegrams instead")
+            self.mode = "sysex"
+        seq = random.randint(1, 3)  # SEQ 0 is not allowed
         for part in sysex_telegrams(function, payload, seq):
             if not await self.serial_handler.send_radio_addressed(
-                    RORG_SYS_EX, sender, part, destination, f"ReCom fn 0x{function:03X}", secret=secret):
+                    RORG_SYS_EX, sender, part, destination, label, secret=secret):
                 raise RecomError(f"transceiver did not take function 0x{function:03X}")
 
     async def _ask(self, sender: int, destination: int, function: int, payload: bytes,
@@ -174,6 +202,8 @@ class Recom:
                 await self._send(sender, destination, FN_UNLOCK, code_bytes)
                 await asyncio.sleep(0.2)
             steps.append("unlocked")
+            logger.info(f"ReCom 0x{destination:08X}: commands sent as "
+                        f"{'ESP3 remote management' if self.mode == 'esp3' else 'SYS_EX telegrams'}")
             await self._ask(sender, destination, FN_PING, b"", FN_PING_RESPONSE)
             steps.append("ping answered")
             meta = await self._ask(sender, destination, FN_LINK_META, b"", FN_LINK_META_RESPONSE)

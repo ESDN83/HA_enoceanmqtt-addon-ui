@@ -270,6 +270,14 @@ configs are cleared, unless a remaining device publishes the same unique ID.
   `{"qr": "<label text>"}`. The app unlocks the device with the label's
   security code, writes its sender ID at the next free index of the inbound
   link table (learned wall switches stay) and locks it again.
+- Since 1.8.7-beta8 the commands go to the transceiver as ESP3 remote
+  management packets (type 7), which the USB300/TCM310 turns into radio
+  telegrams. The log says `ReCom ...: commands sent as ESP3 remote
+  management` or `... as SYS_EX telegrams` (fallback when the transceiver or
+  gateway answers RET_NOT_SUPPORTED or not at all). `no answer to function
+  0x006` with no RX line in between means the device sent nothing back:
+  check range (does a telegram from its address arrive?), the full QR text,
+  and the transceiver type. ADR-0051.
 - Never ask the user to paste the QR code or security code into a chat or a
   public post. It unlocks the device.
 

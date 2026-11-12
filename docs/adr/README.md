@@ -55,3 +55,4 @@ Rules:
 - [0048](0048-add-missing-channel.md) Add the missing channel of a two-channel module
 - [0049](0049-no-esphome-serial-proxy.md) Stay on raw TCP, do not adopt ESPHome serial_proxy
 - [0050](0050-d2-01-light-dims-only-if-type-can.md) A D2-01 light gets brightness only if its type can dim
+- [0051](0051-recom-via-esp3-remote-management.md) Remote Commissioning through ESP3 remote management packets
