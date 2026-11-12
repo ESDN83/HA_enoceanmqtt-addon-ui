@@ -53,3 +53,4 @@ Rules:
 - [0046](0046-profiles-blueprints-secure.md) Profiles, blueprints and secure telegrams without a tester
 - [0047](0047-remote-commissioning-qr-pairing.md) QR code pairing through Remote Commissioning
 - [0048](0048-add-missing-channel.md) Add the missing channel of a two-channel module
+- [0049](0049-no-esphome-serial-proxy.md) Stay on raw TCP, do not adopt ESPHome serial_proxy
