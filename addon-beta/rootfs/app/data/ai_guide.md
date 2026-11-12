@@ -160,6 +160,9 @@ configs are cleared, unless a remaining device publishes the same unique ID.
 ### Switches and dimmers
 - Relay on F6: `actuator_type: switch` or `light` (no brightness).
 - Dimmer: `A5-38-08` with `actuator_type: light` (brightness works).
+- D2-01 with `actuator_type: light`: brightness only for the types that
+  can dim (02, 03, 04, 05, 09, 16). Any other type (e.g. D2-01-12 relay)
+  is an on/off light without a slider. ADR-0050.
   Eltako dimmers behind a FAM14 (FUD14) confirm with a rocker telegram
   without the level; the app keeps the last brightness.
 - A light that is off keeps its last level in `brightness` (SW / EDIM show

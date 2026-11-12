@@ -19,6 +19,11 @@ from core.valve_control import is_valve_eep, TEMP_RANGE as VALVE_TEMP_RANGE, SUM
 
 logger = logging.getLogger(__name__)
 
+# D2-01 types with the dimming function, from the "Supported function ... of
+# Type" table of the D2-01 specification (EEP 2.6.8, page 3). Every other
+# type only switches, although the telegram carries a dim value. Issue #73.
+DIMMABLE_D2_01 = {"D2-01-02", "D2-01-03", "D2-01-04", "D2-01-05", "D2-01-09", "D2-01-16"}
+
 
 def _rocker_button_binary_sensors() -> Dict[str, Any]:
     """Build the four per-button binary_sensor mappings for an RPS rocker
@@ -1656,11 +1661,15 @@ class MappingManager:
                     "device": device_info,
                     "availability": avail_config
                 }
-                if eep_id.upper().startswith("F6"):
+                eep_upper = eep_id.upper()
+                if eep_upper.startswith("F6") or (
+                        eep_upper.startswith("D2-01-") and eep_upper not in DIMMABLE_D2_01):
                     # A light actuator taught in as a rocker switches, it
-                    # cannot dim. Advertising brightness gives Home Assistant
-                    # a slider that does nothing, and on_command_type
-                    # "brightness" makes it send numbers instead of ON/OFF.
+                    # cannot dim, and neither can a D2-01 type without the
+                    # dimming function (#73). Advertising brightness gives
+                    # Home Assistant a slider that does nothing, and
+                    # on_command_type "brightness" makes it send numbers
+                    # instead of ON/OFF.
                     for key in ("brightness_command_topic", "brightness_state_topic",
                                 "brightness_value_template", "brightness_scale",
                                 "on_command_type"):

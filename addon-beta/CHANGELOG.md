@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.8.7-beta7] - 2026-11-12 (beta channel)
+
+### Fixed
+
+- **D2-01 relays set up as a light showed a brightness slider that did
+  nothing** (e.g. NodOn SIN-2-2-01, D2-01-12). Brightness is now announced
+  only for the D2-01 types that can dim according to the specification (02,
+  03, 04, 05, 09, 16); the others are on/off lights. Entity IDs do not
+  change. ADR-0050, #73 by arno0392.
+
 ## [1.8.7-beta6] - 2026-11-12 (beta channel)
 
 ### Changed

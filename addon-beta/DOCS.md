@@ -451,6 +451,11 @@ blueprint is installed in Home Assistant only when you press Install, so no
 unused blueprints pile up. Create an automation from it in Home Assistant
 under Settings, Automations, Blueprints.
 
+### Relays and Dimmers on D2-01 as a Light
+- Set up as **Light**, a D2-01 module shows a brightness slider only if its
+  type can dim: D2-01-02, 03, 04, 05, 09 and 16. A relay such as the NodOn
+  SIN-2-2-01 (D2-01-12) is an on/off light.
+
 ### Pilot Wire Heating Modules (D2-01-0C, e.g. NodOn SIN-2-FP-21)
 - Pair the module with **Teach-In**; it needs a Sender ID, which the teach-in
   fills in.
