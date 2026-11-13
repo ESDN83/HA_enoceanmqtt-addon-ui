@@ -275,7 +275,7 @@
   "device.device_role": "Gerätefunktion",
   "device.manufacturer": "Hersteller",
   "recom.title": "Mit QR-Code koppeln",
-  "recom.hint": "Für Aktoren, die über ihr QR-Etikett gekoppelt werden, z.B. OPUS BRiDGE: den Text des QR-Codes eingeben. Die App schreibt ihre Sender-ID ins Gerät; angelernte Wandtaster bleiben erhalten. Experimentell, noch nicht an einem echten Gerät bestätigt.",
+  "recom.hint": "Für Aktoren, die über ihr QR-Etikett gekoppelt werden, z.B. OPUS BRiDGE: den Text des QR-Codes eingeben. Die App schreibt ihre Sender-ID ins Gerät; angelernte Wandtaster bleiben erhalten. Als Sender-ID die Base ID des Sticks nehmen. Bestätigt mit OPUS 563.010 und 563.076.",
   "recom.pair": "Koppeln",
   "recom.running": "Koppeln, dauert ein paar Sekunden...",
   "recom.already": "Schon gekoppelt, nichts geändert.",
@@ -555,5 +555,15 @@
   "devices.col_role": "Rolle",
   "devices.col_room": "Raum",
   "devices.col_status": "Status",
-  "devices.col_last_seen": "Zuletzt gesehen"
+  "devices.col_last_seen": "Zuletzt gesehen",
+  "recom_add.title": "QR-Code",
+  "recom_add.desc": "Aktoren mit QR-Etikett, z.B. OPUS BRiDGE",
+  "recom_add.open": "Per QR-Code koppeln",
+  "recom_add.hint": "Namen und den Text des QR-Etiketts eingeben. Die App liest die Adresse aus dem Etikett, nimmt die Base ID des Sticks als Sender, koppelt das Gerät und übernimmt das Profil, das es meldet. Angelernte Wandtaster bleiben erhalten. Bestätigt mit OPUS 563.010 und 563.076.",
+  "recom_add.role": "Typ",
+  "recom_add.role_auto": "Aus dem Profil",
+  "recom_add.qr": "Text des QR-Codes",
+  "recom_add.submit": "Koppeln und hinzufügen",
+  "recom_add.missing": "Namen und Text des QR-Codes eingeben.",
+  "recom_add.done": "Gekoppelt und hinzugefügt."
 }

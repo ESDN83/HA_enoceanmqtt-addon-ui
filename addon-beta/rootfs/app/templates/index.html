@@ -325,7 +325,7 @@
                         <p class="text-muted" data-i18n="teach_in.step1_desc">Choose how to add your device</p>
 
                         <div class="row mt-4">
-                            <div class="col-md-4">
+                            <div class="col-md-6 col-lg-3 mb-3">
                                 <div class="card h-100">
                                     <div class="card-body text-center">
                                         <i class="bi bi-broadcast display-4 text-primary"></i>
@@ -337,7 +337,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-6 col-lg-3 mb-3">
                                 <div class="card h-100">
                                     <div class="card-body text-center">
                                         <i class="bi bi-lightning display-4 text-warning"></i>
@@ -349,7 +349,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-6 col-lg-3 mb-3">
                                 <div class="card h-100">
                                     <div class="card-body text-center">
                                         <i class="bi bi-pencil-square display-4 text-secondary"></i>
@@ -359,6 +359,56 @@
                                             Enter Manually
                                         </button>
                                     </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 col-lg-3 mb-3">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="bi bi-qr-code display-4 text-success"></i>
+                                        <h5 class="mt-3" data-i18n="recom_add.title">QR Code</h5>
+                                        <p data-i18n="recom_add.desc">Actuators with a QR label, e.g. OPUS BRiDGE</p>
+                                        <button class="btn btn-success" onclick="showRecomAdd()" data-i18n="recom_add.open">
+                                            Pair by QR Code
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Add by QR code (Remote Commissioning, ADR-0053) -->
+                        <div id="recom-add-panel" class="mt-4" style="display: none;">
+                            <div class="card border-success">
+                                <div class="card-header"><i class="bi bi-qr-code"></i> <span data-i18n="recom_add.title">QR Code</span></div>
+                                <div class="card-body">
+                                    <p class="small text-muted" data-i18n="recom_add.hint">Enter a name and the text of the QR label. The app reads the address from the label, uses the transceiver's Base ID as sender, pairs the device and takes the profile it reports. Wall switches the device has learned stay. Confirmed on OPUS 563.010 and 563.076.</p>
+                                    <div class="row g-2">
+                                        <div class="col-md-4">
+                                            <label class="form-label small" data-i18n="teach_in.device_name">Device Name</label>
+                                            <input type="text" class="form-control" id="recom-add-name" autocomplete="off">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small" data-i18n="recom_add.role">Type</label>
+                                            <select class="form-select" id="recom-add-role">
+                                                <option value="" data-i18n="recom_add.role_auto">From the profile</option>
+                                                <option value="light">Light</option>
+                                                <option value="switch">Switch</option>
+                                                <option value="cover">Cover</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small" data-i18n="teach_in.room">Room</label>
+                                            <input type="text" class="form-control" id="recom-add-room" list="ha-areas" autocomplete="off" onfocus="loadHaAreas()">
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label small" data-i18n="recom_add.qr">QR code text</label>
+                                            <input type="password" class="form-control" id="recom-add-qr" autocomplete="off" placeholder="30S...+1P...+10Z00+11Z...">
+                                        </div>
+                                    </div>
+                                    <div class="mt-3">
+                                        <button class="btn btn-success" id="recom-add-btn" onclick="recomAdd()" data-i18n="recom_add.submit">Pair and add</button>
+                                        <button class="btn btn-outline-secondary" onclick="hideRecomAdd()" data-i18n="modal.cancel">Cancel</button>
+                                    </div>
+                                    <div id="recom-add-result" class="small mt-2"></div>
                                 </div>
                             </div>
                         </div>

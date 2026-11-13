@@ -275,7 +275,7 @@
   "device.device_role": "Device Role",
   "device.manufacturer": "Manufacturer",
   "recom.title": "Pair with QR code",
-  "recom.hint": "For actuators paired by their QR label, e.g. OPUS BRiDGE: enter the text of the QR code. The app writes its sender ID into the device; wall switches the device has learned stay. Experimental, not confirmed on a real device yet.",
+  "recom.hint": "For actuators paired by their QR label, e.g. OPUS BRiDGE: enter the text of the QR code. The app writes its sender ID into the device; wall switches the device has learned stay. Use the transceiver's Base ID as sender ID. Confirmed on OPUS 563.010 and 563.076.",
   "recom.pair": "Pair",
   "recom.running": "Pairing, this takes a few seconds...",
   "recom.already": "Already paired, nothing changed.",
@@ -555,5 +555,15 @@
   "devices.col_role": "Role",
   "devices.col_room": "Room",
   "devices.col_status": "Status",
-  "devices.col_last_seen": "Last seen"
+  "devices.col_last_seen": "Last seen",
+  "recom_add.title": "QR Code",
+  "recom_add.desc": "Actuators with a QR label, e.g. OPUS BRiDGE",
+  "recom_add.open": "Pair by QR Code",
+  "recom_add.hint": "Enter a name and the text of the QR label. The app reads the address from the label, uses the transceiver's Base ID as sender, pairs the device and takes the profile it reports. Wall switches the device has learned stay. Confirmed on OPUS 563.010 and 563.076.",
+  "recom_add.role": "Type",
+  "recom_add.role_auto": "From the profile",
+  "recom_add.qr": "QR code text",
+  "recom_add.submit": "Pair and add",
+  "recom_add.missing": "Enter a name and the QR code text.",
+  "recom_add.done": "Paired and added."
 }

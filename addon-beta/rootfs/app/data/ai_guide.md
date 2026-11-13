@@ -283,7 +283,13 @@ configs are cleared, unless a remaining device publishes the same unique ID.
   D2-01-00). The result lists it as `device_eep`; a different configured
   profile is logged as a warning. Some devices do not acknowledge the final
   apply step; the pairing still counts. ADR-0052.
-- Confirmed on a real OPUS 563.010 (USB310, Base ID as sender).
+- Confirmed on real OPUS 563.010 and 563.076 (USB310, Base ID as sender).
+- Add Device, *QR Code* does it in one step: `POST /api/gateway/recom-add`
+  with `{"name": "...", "qr": "<label text>", "actuator_type": "", "room": ""}`.
+  Address from the label, sender = Base ID, profile from the ping answer,
+  role from the profile when empty (dimming D2-01 light, other D2-01
+  switch, D2-05 cover). Nothing is created when pairing fails; an address
+  that is already configured is refused (use the device page). ADR-0053.
 - Never ask the user to paste the QR code or security code into a chat or a
   public post. It unlocks the device.
 

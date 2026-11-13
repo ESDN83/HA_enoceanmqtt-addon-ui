@@ -433,6 +433,12 @@ confirmed on a real device.
 
 ### OPUS BRiDGE and Other QR Code Pairing
 
+**Add Device, QR Code** is the quickest way: enter a name and the text of the
+QR label, optionally the type and room. The app reads the address from the
+label, uses the transceiver's Base ID as sender, pairs the device and adds it
+with the profile the device reports. If pairing fails, nothing is added.
+
+
 Some actuators, such as OPUS BRiDGE, are not paired with a button but through
 the security code on their QR label (Remote Commissioning). Create the device
 with its address, profile (e.g. D2-01-03), role and a free sender ID, then

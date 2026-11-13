@@ -203,7 +203,7 @@ class Recom:
                     self._waiters.remove(entry)
         raise RecomError(f"no answer to function 0x{function:03X}")
 
-    async def pair(self, destination: int, code: int, sender: int, eep: str,
+    async def pair(self, destination: int, code: int, sender: int, eep: Optional[str],
                    channel: int = 0) -> Dict[str, Any]:
         """Put the app's sender ID into the device's inbound link table."""
         steps = []
@@ -229,6 +229,8 @@ class Recom:
                     logger.warning(f"ReCom 0x{destination:08X}: configured profile {eep}, "
                                    f"the device reports {reported}; using {reported}")
                 eep = reported
+            if not eep:
+                raise RecomError("the device does not report its profile; add it by Manual Entry and pair it on its page")
             rorg, func, type_ = (int(x, 16) for x in eep.split("-"))
             meta = await self._ask(sender, destination, FN_LINK_META, b"", FN_LINK_META_RESPONSE)
             if len(meta) < 5:

@@ -873,7 +873,7 @@ async function showDeviceDetail(name) {
                 <div class="card mb-3">
                     <div class="card-header"><i class="bi bi-qr-code"></i> ${t('recom.title', 'Pair with QR code')}</div>
                     <div class="card-body">
-                        <p class="small text-muted mb-2">${t('recom.hint', 'For actuators paired by their QR label, e.g. OPUS BRiDGE: enter the text of the QR code. The app writes its sender ID into the device; wall switches the device has learned stay. Experimental, not confirmed on a real device yet.')}</p>
+                        <p class="small text-muted mb-2">${t('recom.hint', 'For actuators paired by their QR label, e.g. OPUS BRiDGE: enter the text of the QR code. The app writes its sender ID into the device; wall switches the device has learned stay. Use the transceiver\'s Base ID as sender ID. Confirmed on OPUS 563.010 and 563.076.')}</p>
                         <div class="input-group">
                             <input type="password" class="form-control" id="recom-qr" autocomplete="off" placeholder="30S...+1P...+10Z00+11Z...">
                             <button class="btn btn-primary" onclick="recomPair(${escapeHtml(JSON.stringify(device.name))})">${t('recom.pair', 'Pair')}</button>

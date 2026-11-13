@@ -275,7 +275,7 @@
   "device.device_role": "Rôle de l'appareil",
   "device.manufacturer": "Fabricant",
   "recom.title": "Appairer par QR code",
-  "recom.hint": "Pour les actionneurs appairés par leur étiquette QR, ex. : OPUS BRiDGE. Saisissez le texte du QR code. L'application écrit son ID émetteur dans l'appareil ; les interrupteurs muraux que l'appareil a appris sont conservés. Expérimental, pas encore confirmé sur un appareil réel.",
+  "recom.hint": "Pour les actionneurs appairés par leur étiquette QR, ex. : OPUS BRiDGE. Saisissez le texte du QR code. L'application écrit son ID émetteur dans l'appareil ; les interrupteurs muraux que l'appareil a appris sont conservés. Utilisez l'ID de base du transceiver comme ID émetteur. Confirmé sur OPUS 563.010 et 563.076.",
   "recom.pair": "Appairer",
   "recom.running": "Appairage en cours, cela prend quelques secondes...",
   "recom.already": "Déjà appairé, rien n'a changé.",
@@ -555,5 +555,15 @@
   "devices.col_role": "Rôle",
   "devices.col_room": "Pièce",
   "devices.col_status": "Statut",
-  "devices.col_last_seen": "Vu en dernier"
+  "devices.col_last_seen": "Vu en dernier",
+  "recom_add.title": "QR code",
+  "recom_add.desc": "Actionneurs avec étiquette QR, ex. : OPUS BRiDGE",
+  "recom_add.open": "Appairer par QR code",
+  "recom_add.hint": "Saisissez un nom et le texte de l'étiquette QR. L'application lit l'adresse sur l'étiquette, utilise l'ID de base du transceiver comme émetteur, appaire l'appareil et reprend le profil qu'il indique. Les interrupteurs muraux que l'appareil a appris sont conservés. Confirmé sur OPUS 563.010 et 563.076.",
+  "recom_add.role": "Type",
+  "recom_add.role_auto": "Selon le profil",
+  "recom_add.qr": "Texte du QR code",
+  "recom_add.submit": "Appairer et ajouter",
+  "recom_add.missing": "Saisissez un nom et le texte du QR code.",
+  "recom_add.done": "Appairé et ajouté."
 }

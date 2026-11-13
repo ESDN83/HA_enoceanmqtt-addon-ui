@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.8.7-beta10] - 2026-11-13 (beta channel)
+
+### Added
+
+- **QR code pairing in Add Device.** A new *QR Code* option pairs and adds
+  an actuator in one step: name and QR label text are enough. The address
+  comes from the label, the sender is the transceiver's Base ID, and the
+  profile is the one the device reports. Nothing is added when pairing
+  fails. Suggested by fzuydwyck, ADR-0053, #67.
+
+### Changed
+
+- **QR pairing confirmed on real devices:** OPUS 563.010 (on/off) and
+  563.076 (on/off and dimming), with the Base ID as sender. Device catalog
+  and hints updated.
+
 ## [1.8.7-beta9] - 2026-11-13 (beta channel)
 
 ### Fixed

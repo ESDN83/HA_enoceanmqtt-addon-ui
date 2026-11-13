@@ -485,3 +485,72 @@ async def recom_pair(name: str, req: RecomPairRequest, request: Request) -> Dict
         raise HTTPException(status_code=502, detail=f"Pairing failed: {e}")
     logger.info(f"Remote Commissioning of {name}: {result['status']} ({'; '.join(result['steps'])})")
     return result
+
+
+class RecomAddRequest(BaseModel):
+    """Add Device by QR code (#67): name, QR label text, optional role/room."""
+    name: str
+    qr: str
+    actuator_type: Optional[str] = ""
+    room: Optional[str] = ""
+
+
+def _default_role(eep: str) -> str:
+    """Light for a D2-01 type that dims, switch for the other D2-01 types,
+    cover for D2-05 (ADR-0050, ADR-0053)."""
+    from core.mapping_manager import DIMMABLE_D2_01
+    eep = eep.upper()
+    if eep.startswith("D2-01-"):
+        return "light" if eep in DIMMABLE_D2_01 else "switch"
+    if eep.startswith("D2-05-"):
+        return "cover"
+    return ""
+
+
+@router.post("/recom-add")
+async def recom_add(req: RecomAddRequest, request: Request) -> Dict[str, Any]:
+    """Pair a device from its QR label and create it in one go (ADR-0053):
+    the address comes from the label, the profile from the device's ping
+    answer, the sender ID is the transceiver's Base ID (the one confirmed on
+    OPUS 563.010 and 563.076). Nothing is created when pairing fails. The
+    security code is used for this call only."""
+    from core.recom import parse_qr, RecomError
+    from api.devices import DeviceCreate, create_device, _validate_device_name
+    serial_handler = request.app.state.serial_handler
+    device_manager = request.app.state.device_manager
+    if not serial_handler or not serial_handler.is_connected or serial_handler.recom is None:
+        raise HTTPException(status_code=503, detail="EnOcean gateway not connected")
+    name = _validate_device_name(req.name)
+    if device_manager.get_device(name):
+        raise HTTPException(status_code=400, detail=f"Device '{name}' already exists")
+    label = parse_qr(req.qr)
+    if label is None:
+        raise HTTPException(status_code=400, detail="This is not an EnOcean QR code with a security code (30S...+11Z...)")
+    address = int(label["address"], 16)
+    address_hex = f"0x{address:08X}"
+    existing = device_manager.get_devices_by_address(address_hex)
+    if existing:
+        raise HTTPException(status_code=400, detail=(
+            f"{address_hex} is already configured as '{existing[0].name}'; "
+            "use Pair with QR code on its page"))
+    base = serial_handler.base_id
+    if not base:
+        raise HTTPException(status_code=503, detail="The transceiver's Base ID is not known yet")
+    try:
+        result = await serial_handler.recom.pair(address, label["code"], int(base, 16), None, 0)
+    except RecomError as e:
+        logger.warning(f"Remote Commissioning of {address_hex} failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Pairing failed: {e}")
+    eep = result["device_eep"]
+    rorg, func, type_ = eep.split("-")
+    role = (req.actuator_type or "").strip().lower() or _default_role(eep)
+    logger.info(f"Remote Commissioning of {address_hex}: {result['status']} ({'; '.join(result['steps'])})")
+    try:
+        created = await create_device(DeviceCreate(
+            name=name, address=address_hex, rorg=rorg, func=func, type=type_,
+            sender_id=base, room=req.room or "", actuator_type=role), request)
+    except HTTPException as e:
+        raise HTTPException(status_code=e.status_code, detail=(
+            f"Paired, but the device was not created: {e.detail}. "
+            "Add it by Manual Entry with these values."))
+    return {**result, "device": created["device"]}

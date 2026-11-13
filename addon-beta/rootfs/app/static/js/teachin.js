@@ -13,6 +13,7 @@ let _lastActuatorTeachIn = null;
 function showActuatorTeachIn() {
     // Cancel any running automatic teach-in first
     cancelTeachIn();
+    hideRecomAdd();
     document.getElementById('actuator-teach-in-panel').style.display = 'block';
     syncTeachGuide();
     readBaseId();
@@ -442,6 +443,7 @@ function cancelTeachIn() {
 }
 function resetTeachInPage() {
     cancelTeachIn();
+    hideRecomAdd();
     document.getElementById('actuator-teach-in-panel').style.display = 'none';
     initTeachHelp();
     // Reset wizard to step 1
@@ -497,4 +499,55 @@ function resetWizard() {
         step.classList.toggle('active', index === 0);
     });
     resetDeviceForm();
+}
+
+// Add Device by QR code (Remote Commissioning, #67, ADR-0053). The label's
+// security code goes to the app once and is cleared from the field at once.
+function showRecomAdd() {
+    cancelTeachIn();
+    document.getElementById('actuator-teach-in-panel').style.display = 'none';
+    document.getElementById('recom-add-result').textContent = '';
+    document.getElementById('recom-add-panel').style.display = 'block';
+    document.getElementById('recom-add-name').focus();
+}
+function hideRecomAdd() {
+    const panel = document.getElementById('recom-add-panel');
+    if (panel) panel.style.display = 'none';
+    const qr = document.getElementById('recom-add-qr');
+    if (qr) qr.value = '';
+}
+async function recomAdd() {
+    const field = document.getElementById('recom-add-qr');
+    const out = document.getElementById('recom-add-result');
+    const btn = document.getElementById('recom-add-btn');
+    const name = document.getElementById('recom-add-name').value.trim();
+    const qr = (field.value || '').trim();
+    field.value = '';
+    if (!name || !qr) {
+        out.textContent = t('recom_add.missing', 'Enter a name and the QR code text.');
+        return;
+    }
+    out.textContent = t('recom.running', 'Pairing, this takes a few seconds...');
+    btn.disabled = true;
+    try {
+        const resp = await fetch(getApiUrl('/api/gateway/recom-add'), {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name, qr,
+                actuator_type: document.getElementById('recom-add-role').value,
+                room: document.getElementById('recom-add-room').value.trim(),
+            })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(data.detail || resp.statusText);
+        out.textContent = t('recom_add.done', 'Paired and added.') + ' ' + (data.steps || []).join(', ');
+        showToast(t('recom_add.done', 'Paired and added.') + ' ' + name, 'success');
+        document.getElementById('recom-add-name').value = '';
+        document.getElementById('recom-add-room').value = '';
+        if (typeof loadDevices === 'function') loadDevices();
+    } catch (e) {
+        out.textContent = t('recom.failed', 'Pairing failed') + ': ' + e.message;
+    } finally {
+        btn.disabled = false;
+    }
 }
