@@ -64,6 +64,18 @@ FN_ACK = 0x240
 _QR = re.compile(r"30S[0-9A-F]{4}([0-9A-F]{8})\+1P([0-9A-F]+)(?:\+.*?)?\+11Z([0-9A-F]{8})", re.I)
 
 
+def eep_from_ping(answer: bytes) -> Optional[str]:
+    """The device's own EEP from a PING answer (0x606): RORG 8 bits, FUNC 6,
+    TYPE 7, as FHEM decodes it. A real 563.010 answers d2 04 08 = D2-01-01."""
+    if len(answer) < 3:
+        return None
+    v = int.from_bytes(answer[:3], "big") >> 3
+    rorg, func, type_ = v >> 13, (v >> 7) & 0x3F, v & 0x7F
+    if rorg == 0:
+        return None
+    return f"{rorg:02X}-{func:02X}-{type_:02X}"
+
+
 def parse_qr(text: str) -> Optional[Dict[str, Any]]:
     """Address, product ID and security code from the QR label text, e.g.
     30S0000AAAAAAAA+1P...+10Z00+11ZCCCCCCCC."""
@@ -194,8 +206,8 @@ class Recom:
     async def pair(self, destination: int, code: int, sender: int, eep: str,
                    channel: int = 0) -> Dict[str, Any]:
         """Put the app's sender ID into the device's inbound link table."""
-        rorg, func, type_ = (int(x, 16) for x in eep.split("-"))
         steps = []
+        result: Dict[str, Any] = {}
         code_bytes = code.to_bytes(4, "big")
         try:
             for _ in range(2):  # recommended: repeat UNLOCK
@@ -204,8 +216,20 @@ class Recom:
             steps.append("unlocked")
             logger.info(f"ReCom 0x{destination:08X}: commands sent as "
                         f"{'ESP3 remote management' if self.mode == 'esp3' else 'SYS_EX telegrams'}")
-            await self._ask(sender, destination, FN_PING, b"", FN_PING_RESPONSE)
+            pong = await self._ask(sender, destination, FN_PING, b"", FN_PING_RESPONSE)
             steps.append("ping answered")
+            # The device only accepts a link table entry with an EEP it
+            # supports: a 563.010 refused D2-01-00 and took D2-01-01, the
+            # EEP its ping answer reports. Use that one.
+            reported = eep_from_ping(pong)
+            if reported:
+                result["device_eep"] = reported
+                steps.append(f"device reports EEP {reported}")
+                if reported.upper() != str(eep).upper():
+                    logger.warning(f"ReCom 0x{destination:08X}: configured profile {eep}, "
+                                   f"the device reports {reported}; using {reported}")
+                eep = reported
+            rorg, func, type_ = (int(x, 16) for x in eep.split("-"))
             meta = await self._ask(sender, destination, FN_LINK_META, b"", FN_LINK_META_RESPONSE)
             if len(meta) < 5:
                 raise RecomError("short link table metadata")
@@ -224,16 +248,27 @@ class Recom:
                                     "eep": f"{e[5]:02X}-{e[6]:02X}-{e[7]:02X}", "channel": e[8]})
             if any(e["id"] == sender for e in entries):
                 steps.append("sender already linked, nothing written")
-                return {"status": "already_linked", "steps": steps}
+                return {"status": "already_linked", "steps": steps, **result}
             if used >= size:
                 raise RecomError(f"inbound link table full ({used} of {size})")
             index = max([e["index"] for e in entries], default=used - 1) + 1
             entry = bytes([index]) + sender.to_bytes(4, "big") + bytes([rorg, func, type_, channel & 0xFF])
-            await self._ask(sender, destination, FN_SET_LINK, bytes([0x00]) + entry, FN_ACK)
+            try:
+                await self._ask(sender, destination, FN_SET_LINK, bytes([0x00]) + entry, FN_ACK)
+            except RecomError:
+                raise RecomError(f"the device did not accept the link table entry "
+                                 f"(sender 0x{sender:08X}, EEP {eep})")
             steps.append(f"sender 0x{sender:08X} written at index {index}")
-            await self._ask(sender, destination, FN_APPLY, bytes([0x80]), FN_ACK)
-            steps.append("changes applied")
-            return {"status": "paired", "steps": steps, "index": index}
+            # Not every device acknowledges APPLY CHANGES (a 563.010 does not,
+            # and switched from the new sender right after); FHEM does not
+            # wait for an answer either. The acknowledged entry counts.
+            try:
+                await self._ask(sender, destination, FN_APPLY, bytes([0x80]), FN_ACK,
+                                timeout=2.0, tries=1)
+                steps.append("changes applied")
+            except RecomError:
+                steps.append("apply changes sent, the device does not acknowledge it")
+            return {"status": "paired", "steps": steps, "index": index, **result}
         finally:
             try:
                 await self._send(sender, destination, FN_LOCK, code_bytes)

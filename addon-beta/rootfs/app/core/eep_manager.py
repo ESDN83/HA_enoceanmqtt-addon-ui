@@ -131,7 +131,7 @@ class EEPManager:
     # EEP families whose types all share one telegram layout; the types only
     # differ in what the device supports. EEP.xml lists some of them, and a
     # device of a missing type had no profile at all, so every status it sent
-    # was dropped (OPUS 563.076 dimmer = D2-01-03, 563.010 switch = D2-01-00,
+    # was dropped (OPUS 563.076 dimmer = D2-01-03, 563.010 switch = D2-01-01 by its ping,
     # forum thread 1026367). The missing types get the layout of a listed one.
     # ADR-0030.
     _FAMILY_TYPES = {

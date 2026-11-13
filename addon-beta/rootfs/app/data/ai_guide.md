@@ -278,6 +278,12 @@ configs are cleared, unless a remaining device publishes the same unique ID.
   0x006` with no RX line in between means the device sent nothing back:
   check range (does a telegram from its address arrive?), the full QR text,
   and the transceiver type. ADR-0051.
+- The link table entry uses the EEP the device reports in its ping answer,
+  not the configured profile (a 563.010 reports D2-01-01 and refuses
+  D2-01-00). The result lists it as `device_eep`; a different configured
+  profile is logged as a warning. Some devices do not acknowledge the final
+  apply step; the pairing still counts. ADR-0052.
+- Confirmed on a real OPUS 563.010 (USB310, Base ID as sender).
 - Never ask the user to paste the QR code or security code into a chat or a
   public post. It unlocks the device.
 

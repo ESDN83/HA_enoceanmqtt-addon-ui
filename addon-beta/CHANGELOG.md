@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.7-beta9] - 2026-11-13 (beta channel)
+
+### Fixed
+
+- **QR code pairing of an OPUS 563.010 reported a failure.** The first test
+  on a real device (beta8) showed two things: the actuator takes a link
+  table entry only with the profile it reports about itself (D2-01-01, not
+  D2-01-00), and it does not acknowledge the final apply step although the
+  entry works. The app now writes the profile from the device's own answer
+  and no longer fails on the missing acknowledgement. Device catalog: the
+  563.010 is D2-01-01, paired by QR code with the Base ID as sender. ADR-0052,
+  #67, thanks to fzuydwyck.
+
 ## [1.8.7-beta8] - 2026-11-12 (beta channel)
 
 ### Changed
