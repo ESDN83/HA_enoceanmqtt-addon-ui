@@ -396,9 +396,10 @@ Teach-In" has to be clicked several times in a row:
 
 ### Radiator Valves A5-20-04 and A5-20-06
 
-Paired and controlled like A5-20-01 above. Built from the EnOcean profile and
-two other implementations, not yet confirmed on a real valve; please report
-how it works.
+Paired and controlled like A5-20-01 above. A5-20-04 is confirmed with the
+HORA SmartDrive MX; A5-20-06 is not yet confirmed on a real valve. Leave the
+type at Sensor: a valve has no light, switch or cover role, and the app
+ignores one.
 
 - **A5-20-04**: Target Temperature 10-30 °C, Valve Setpoint, Control Mode;
   no Summer Mode. Feed temperature, local set point, failure code, battery
@@ -428,8 +429,9 @@ after their secure teach-in: create the device with its profile, or start
 Teach-In, then trigger the secure teach-in on the device. The key stays in
 the app's data folder and is deleted with the device. Backups and exports
 include the keys, so a restored secure device works without a new teach-in:
-keep backups private. Receiving only, and no pre-shared key. Not yet
-confirmed on a real device.
+keep backups private. Receiving only, and no pre-shared key. Secure PTM
+210/215 rocker switches are added as F6-02-01 (or F6-02-02) and then report
+their buttons like an unencrypted rocker.
 
 ### OPUS BRiDGE and Other QR Code Pairing
 

@@ -232,9 +232,13 @@ configs are cleared, unless a remaining device publishes the same unique ID.
 - *Command Pending* on means the valve has not been answered with the new
   value yet. Wait one radio interval before suspecting a problem.
 
-### Radiator valves A5-20-04 and A5-20-06 (since 1.8.7, not confirmed on hardware)
+### Radiator valves A5-20-04 and A5-20-06 (since 1.8.7; A5-20-04 confirmed with HORA SmartDrive MX)
 - Paired and answered like A5-20-01: interactive teach-in, the valve's
   teach-in query is answered and the sender ID stored.
+- A valve has no role: `actuator_type` is stored empty for A5-20-01/04/06
+  and ignored in discovery (since 1.8.7-beta11; a role set before hid all
+  valve entities, #60). Entities missing after teach-in with an older beta:
+  delete the device and teach it in again.
 - A5-20-04: Target Temperature 10-30 °C, no Summer Mode. Entities Valve
   Position, Temperature, Feed Temperature, Local Set Point, Failure, Failure
   Code, Battery Low, Button Lock.
@@ -254,7 +258,7 @@ configs are cleared, unless a remaining device publishes the same unique ID.
   supply air only, exhaust air only) and *Request Status*; all other values
   as sensors, from the basic and the extended status.
 
-### Secure devices (VAES, since 1.8.7, not confirmed on hardware)
+### Secure devices (VAES, since 1.8.7)
 - Create the device with its profile first, or start interactive teach-in,
   then trigger the device's secure teach-in. The key is stored, then every
   secure telegram is verified (CMAC, rolling code) and decrypted. Only
@@ -262,6 +266,10 @@ configs are cleared, unless a remaining device publishes the same unique ID.
   with a warning. Deleting the device deletes the key. Backups and exports
   carry the keys (`secure_devices.yaml`); a restore keeps a key the app
   already has for that address and drops keys of devices it removed.
+- Secure PTM 210/215 rocker switches (configured as F6-02-01/02): their
+  decrypted data is a D2-03-00 code, translated to the F6 byte, so buttons
+  and rocker events work as with a plain rocker (since 1.8.7-beta11, #62,
+  ADR-0054). Before, every press decoded as a release.
 
 ### Remote Commissioning, QR code pairing (OPUS BRiDGE, since 1.8.7, experimental)
 - For actuators that pair through their QR label instead of a button. Create

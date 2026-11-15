@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.8.7-beta11] - 2026-11-15 (beta channel)
+
+### Fixed
+
+- **Secure PTM 210/215 rocker switches showed every press as released.**
+  Decrypted, such a switch sends a 4-bit button code (D2-03-00), not the
+  usual rocker byte. The app now translates it, so buttons, two-button
+  presses and rocker events work as with an unencrypted rocker. ADR-0054,
+  #62, thanks to butonche.
+- **Radiator valve entities were missing when a role was set.** A valve
+  (A5-20-01/04/06) has no light, switch or cover role; the app now stores
+  the role empty and ignores one set earlier, so the valve entities always
+  appear. #60, thanks to julispace.
+
+### Changed
+
+- **HORA SmartDrive MX (A5-20-04) confirmed** by julispace on several
+  drives; added to the device catalog.
+
 ## [1.8.7-beta10] - 2026-11-13 (beta channel)
 
 ### Added

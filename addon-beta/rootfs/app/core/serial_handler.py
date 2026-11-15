@@ -825,8 +825,18 @@ class SerialHandler:
                 if device is None:
                     return
                 inner_rorg = int(str(device.rorg), 16)
+            status = telegram.status
+            if telegram.rorg == RORG_SEC and inner_rorg == 0xF6 and self.secure.is_switch(telegram.sender_hex):
+                # A secure PTM switch sends a D2-03-00 code, not an RPS
+                # byte; without this every press decoded as a release (#62).
+                from core.secure import ptm_to_rps
+                rps = ptm_to_rps(inner_data)
+                if rps is None:
+                    logger.debug(f"RX [{telegram.sender_hex}] secure switch code {inner_data.hex()} unknown")
+                    return
+                inner_data, status = bytes([rps[0]]), rps[1]
             telegram = RadioTelegram(rorg=inner_rorg, data=inner_data, sender_id=sender_id,
-                                     status=telegram.status, dbm=telegram.dbm)
+                                     status=status, dbm=telegram.dbm)
             logger.debug(f"RX [{telegram.sender_hex}] decrypted RORG={telegram.rorg_hex} Data={telegram.data.hex().upper()}")
 
         # Check if this is a teach-in telegram.

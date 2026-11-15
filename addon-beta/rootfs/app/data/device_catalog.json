@@ -235,6 +235,30 @@
       "art": "valve"
     },
     {
+      "id": "hora-smartdrive-mx",
+      "name": "HORA SmartDrive MX radiator drive",
+      "manufacturer": "HORA",
+      "models": [
+        "SmartDrive MX"
+      ],
+      "category": "Radiator valve",
+      "method": "auto",
+      "eep": "A5-20-04",
+      "actuator_type": "",
+      "teach": [
+        "Click Start Teach-In.",
+        "Put the drive into teach-in mode (see its manual). The app answers and fills in the sender ID.",
+        "Save the device with that sender ID. Leave the type at Sensor; the valve entities come from the profile."
+      ],
+      "id_where": "The teach-in fills it in.",
+      "notes": [
+        "The drive only listens right after it sends. A value set in Home Assistant goes out with the next answer.",
+        "If entities are missing on a drive taught in with an older beta, delete it and teach it in again."
+      ],
+      "source": "GitHub issue #60: several drives paired and controlled by julispace on 1.8.7 beta (2026-11-15)",
+      "art": "valve"
+    },
+    {
       "id": "nodon-sin-2-fp-21",
       "name": "NodOn pilot wire heating module",
       "manufacturer": "NodOn",

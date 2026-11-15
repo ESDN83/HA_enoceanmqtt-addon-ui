@@ -1620,7 +1620,11 @@ class MappingManager:
         # A valve (A5-20-01) gets its sender ID only at teach-in, and that ID
         # is the gateway's, not the valve's. Keeping it out of the unique_id
         # keeps the entities when it is assigned (ADR-0029).
-        is_valve = is_valve_eep(eep_id) and not actuator_type
+        # A valve has no light/switch/cover role: its entities come from the
+        # profile. A role left over from the form hid them all (#60).
+        if is_valve_eep(eep_id):
+            actuator_type = ""
+        is_valve = is_valve_eep(eep_id)
         valve_controllable = is_valve and bool(device_sender)
         if is_valve:
             device_sender = ""

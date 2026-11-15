@@ -84,6 +84,14 @@ def _clamp_press_time(value) -> int:
     return max(0, min(PRESS_TIME_MAX_MS, int(value or 0)))
 
 
+def _role_for(rorg, func, type_, role) -> str:
+    """A radiator valve has no light/switch/cover role (#60): its entities
+    and commands come from the profile, so the role is stored empty."""
+    from core.valve_control import is_valve_eep
+    eep = f"{str(rorg).upper().replace('0X', '')}-{str(func).upper().replace('0X', '').zfill(2)}-{str(type_).upper().replace('0X', '').zfill(2)}"
+    return "" if is_valve_eep(eep) else (role or "")
+
+
 def _validate_device_name(name: str) -> str:
     """Return the cleaned name, or raise 400 if it cannot be used as a key."""
     cleaned = (name or "").strip()
@@ -222,7 +230,7 @@ async def create_device(device: DeviceCreate, request: Request) -> Dict[str, Any
         room=device.room or "",
         manufacturer=device.manufacturer or "",
         model=(device.model or "").strip(),
-        actuator_type=device.actuator_type or "",
+        actuator_type=_role_for(device.rorg, device.func, device.type, device.actuator_type),
         invert=bool(device.invert),
         travel_time=max(0, int(device.travel_time or 0)),
         position_control=bool(device.position_control),
@@ -286,6 +294,10 @@ async def update_device(name: str, update: DeviceUpdate, request: Request) -> Di
         update_data["model"] = update.model.strip()
     if update.actuator_type is not None:
         update_data["actuator_type"] = update.actuator_type
+    eep_parts = (update_data.get("rorg", device.rorg), update_data.get("func", device.func),
+                 update_data.get("type", device.type))
+    if _role_for(*eep_parts, "x") == "":
+        update_data["actuator_type"] = ""
     if update.invert is not None:
         update_data["invert"] = bool(update.invert)
     if update.travel_time is not None:

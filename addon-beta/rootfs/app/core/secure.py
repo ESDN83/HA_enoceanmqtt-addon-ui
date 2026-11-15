@@ -128,6 +128,34 @@ def vaes(key: bytes, rlc: bytes, data: bytes) -> bytes:
 
 # --- teach-in and decryption --------------------------------------------------
 
+# A secure PTM 210/215 (teach-in type "switch") sends no RPS byte: its
+# decrypted data is the D2-03-00 code in the low nibble, as FHEM's
+# switch.00 decodes it. Translated to the F6-02 byte and status the
+# configured rocker profile expects (R1 7-5, EB 4, R2 3-1, SA 0; T21 0x20,
+# NU 0x10). Button numbers: AI 0, A0 1, BI 2, B0 3. Issue #62.
+_PTM_RPS = {
+    14: (0x30, 0x30),  # A0
+    13: (0x10, 0x30),  # AI
+    12: (0x70, 0x30),  # B0
+    11: (0x50, 0x30),  # BI
+    7: (0x37, 0x30),   # A0 + B0
+    10: (0x35, 0x30),  # A0 + BI
+    5: (0x17, 0x30),   # AI + B0
+    9: (0x15, 0x30),   # AI + BI
+    8: (0x10, 0x20),   # energy bow pressed, no button
+    6: (0x70, 0x20),   # 3 or 4 buttons
+    15: (0x00, 0x20),  # released
+}
+
+
+def ptm_to_rps(plain: bytes) -> Optional[Tuple[int, int]]:
+    """(F6 data byte, status) for the decrypted data of a secure PTM switch,
+    or None when it is not a known code."""
+    if not plain:
+        return None
+    return _PTM_RPS.get(plain[0] & 0x0F)
+
+
 def parse_slf(slf: int) -> Dict[str, Any]:
     return {
         "rlc_len": {0: 0, 1: 2, 2: 3, 3: 4}[(slf >> 6) & 0x03],
@@ -193,6 +221,10 @@ class SecureDevices:
             del self._devices[address]
         if gone:
             self._save()
+
+    def is_switch(self, address: str) -> bool:
+        """Taught in as a PTM switch (teach-in TYPE bit)."""
+        return bool((self._devices.get(_addr(address)) or {}).get("switch"))
 
     def known(self, address: str) -> bool:
         return _addr(address) in self._devices
