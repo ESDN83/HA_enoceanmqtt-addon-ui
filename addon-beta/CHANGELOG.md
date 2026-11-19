@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.8.7-beta12] - 2026-11-19 (beta channel)
+
+### Changed
+
+- **fastapi 0.163.1** (was 0.162.2): fixes for dependency cleanup when a
+  request is cancelled and for OpenAPI with nested computed fields. Drops
+  Python 3.10, which the add-on does not use (Python 3.14). Dependabot PR
+  #74.
+
 ## [1.8.7-beta11] - 2026-11-15 (beta channel)
 
 ### Fixed
