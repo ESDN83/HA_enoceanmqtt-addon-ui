@@ -1416,8 +1416,10 @@ _VENT_FIELDS = {
             "value_template": _guard("OMS", "value_json.OMS_text")},
     "OUTT": _vent_temp("Outdoor Air Temperature"),
     "SPLYT": _vent_temp("Supply Air Temperature"),
-    "INT": _vent_temp("Indoor Air Temperature"),
-    "EXHT": _vent_temp("Exhaust Air Temperature"),
+    # -64 is raw 0: the unit has no such sensor
+    "INT": dict(_vent_temp("Indoor Air Temperature"), value_template=_guard("INT", "(value_json.INT if value_json.INT > -64 else None)")),
+    # -64 is raw 0: the unit has no such sensor
+    "EXHT": dict(_vent_temp("Exhaust Air Temperature"), value_template=_guard("EXHT", "(value_json.EXHT if value_json.EXHT > -64 else None)")),
     "SPLYFF": {"component": "sensor", "name": "Supply Air Flow", "unit_of_measurement": "m³/h",
                "device_class": "volume_flow_rate", "state_class": "measurement"},
     "EXHFF": {"component": "sensor", "name": "Exhaust Air Flow", "unit_of_measurement": "m³/h",
@@ -1458,8 +1460,8 @@ _VENT_FIELDS = {
             "value_template": _guard("IMS", "value_json.IMS | int")},
 }
 _VENT_TYPES = {
-    "D2-50-00": ["OMS", "SFP", "EFP", "DMS", "CPS", "DHS", "TOMS", "FMS", "AQS1", "MSS",
-                 "OUTT", "SPLYT", "SPLYFF", "EXHFF", "SPLYFS", "EXHFS", "SVI", "OHC", "IMS", "FS"],
+    "D2-50-00": ["OMS", "HBS", "SFP", "EFP", "DMS", "CPS", "DHS", "TOMS", "FMS", "AQS1", "MSS",
+                 "OUTT", "SPLYT", "INT", "EXHT", "SPLYFF", "EXHFF", "SPLYFS", "EXHFS", "SVI", "OHC", "IMS", "FS"],
     "D2-50-01": ["OMS", "SFP", "EFP", "DMS", "CPS", "OHS", "DHS", "TOMS", "FMS", "AQS1", "MSS",
                  "OUTT", "SPLYT", "SPLYFF", "EXHFF", "SPLYFS", "EXHFS", "SVI", "OHC", "IMS", "FS"],
     "D2-50-10": ["OMS", "DMS", "CPS", "OHS", "SHS", "TOMS", "FMS", "WTPS", "RTCS", "AQS1", "AQS2",
@@ -1476,6 +1478,10 @@ for _eep, _fields in _VENT_TYPES.items():
         _d.setdefault("value_template", _guard(_f))
         _m[_f] = _d
     DEFAULT_MAPPINGS[_eep] = _m
+
+# Profiles without entities before 1.8.7-beta13 (ADR-0055)
+from core.profile_mappings import MAPPINGS as _PROFILE_MAPPINGS
+DEFAULT_MAPPINGS.update(_PROFILE_MAPPINGS)
 
 class MappingManager:
     """Manages EEP to MQTT/HA entity mappings"""
@@ -1837,6 +1843,11 @@ class MappingManager:
         from core.rocker_events import is_rocker_eep, discovery_configs as rocker_configs
         if not actuator_type and is_rocker_eep(eep_id):
             configs.extend(rocker_configs(self.build_unique_id, eep_id, device_address,
+                                          device_sender, device_name, mqtt_prefix, device_info))
+
+        from core.button_events import has_button_events, discovery_configs as button_configs
+        if not actuator_type and has_button_events(eep_id):
+            configs.extend(button_configs(self.build_unique_id, eep_id, device_address,
                                           device_sender, device_name, mqtt_prefix, device_info))
 
         if valve_controllable:

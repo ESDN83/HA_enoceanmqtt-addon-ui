@@ -59,3 +59,5 @@ Rules:
 - [0052](0052-recom-link-entry-uses-reported-eep.md) The link table entry uses the EEP the device reports
 - [0053](0053-add-device-by-qr-code.md) Add Device by QR code
 - [0054](0054-secure-ptm-switch-code.md) Secure PTM switches: translate the D2-03-00 code to RPS
+- [0055](0055-entities-for-unmapped-profiles.md) Entities for profiles that had none
+- [0056](0056-encrypted-sending.md) Encrypted sending

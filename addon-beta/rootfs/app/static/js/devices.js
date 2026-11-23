@@ -882,6 +882,23 @@ async function showDeviceDetail(name) {
                     </div>
                 </div>` : ''}
 
+                ${['D2', 'A5'].includes(device.rorg) && device.sender_id ? `
+                <details class="card mb-3">
+                    <summary class="card-header"><i class="bi bi-shield-lock"></i> ${t('secure.title', 'Encrypted sending')}</summary>
+                    <div class="card-body">
+                        <p class="small text-muted mb-2">${t('secure.hint', 'Only for devices that require encrypted commands. Put the device into pairing mode, then send the key. From then on every command addressed to it is encrypted, and a device that did not take the key ignores them: then press Stop. Not confirmed on a real device.')}</p>
+                        <div class="input-group">
+                            <select class="form-select" id="secure-parts">
+                                <option value="3">${t('secure.three', '3 telegrams, addressed')}</option>
+                                <option value="2">${t('secure.two', '2 telegrams, broadcast')}</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="secureTeachIn(${escapeHtml(JSON.stringify(device.name))})">${t('secure.send', 'Send key')}</button>
+                            <button class="btn btn-outline-secondary" onclick="secureStop(${escapeHtml(JSON.stringify(device.name))})">${t('secure.stop', 'Stop')}</button>
+                        </div>
+                        <div id="secure-result" class="small mt-2"></div>
+                    </div>
+                </details>` : ''}
+
                 ${device.actuator_type ? `
                 <div class="card mb-3">
                     <div class="card-header bg-warning bg-opacity-25">
@@ -1040,4 +1057,27 @@ async function recomPair(name) {
     } catch (e) {
         out.textContent = t('recom.failed', 'Pairing failed') + ': ' + e.message;
     }
+}
+
+// Encrypted sending to a secure device (ADR-0056).
+async function secureRequest(name, options, done) {
+    const out = document.getElementById('secure-result');
+    try {
+        const resp = await fetch(getApiUrl(`/api/gateway/secure-teach-in/${encodeURIComponent(name)}`), options);
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(data.detail || resp.statusText);
+        out.textContent = done;
+    } catch (e) {
+        out.textContent = t('secure.failed', 'Failed') + ': ' + e.message;
+    }
+}
+async function secureTeachIn(name) {
+    if (!confirm(t('secure.confirm', 'Send a new key to this device and encrypt all commands to it from now on?'))) return;
+    await secureRequest(name, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({telegrams: parseInt(document.getElementById('secure-parts').value, 10)})
+    }, t('secure.sent', 'Key sent. Commands are encrypted now.'));
+}
+async function secureStop(name) {
+    await secureRequest(name, {method: 'DELETE'}, t('secure.stopped', 'Commands are sent unencrypted again.'));
 }

@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.8.7-beta13] - 2026-11-23 (beta channel)
+
+### Added
+
+- **19 profiles get entities in Home Assistant**; before, only signal
+  strength and last seen: A5-04-04, A5-06-02, A5-09-0C, A5-10-03/05/10/12,
+  A5-12-00, A5-13-01 to 06, A5-30-04, D2-03-0A, D2-06-01, F6-04-01,
+  F6-05-01. Buttons of D2-03-0A and D2-06-01 as events and device triggers.
+  ADR-0055.
+- **D2-50-00**: indoor and exhaust air temperature, heat exchanger bypass.
+- **Encrypted sending** to secure devices: the app hands the device a key,
+  then encrypts every command addressed to it. Off until used. Tested with
+  simulated telegrams only. ADR-0056.
+
+### Fixed
+
+- **A5-13-01 weather stations**: the six telegram layouts were decoded over
+  each other; now the identifier selects one.
+- **Secure teach-in in three telegrams** was refused.
+
 ## [1.8.7-beta12] - 2026-11-19 (beta channel)
 
 ### Changed

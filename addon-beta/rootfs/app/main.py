@@ -32,6 +32,7 @@ from core.valve_control import ValveControl, is_valve
 from core.pilot_wire import PilotWire, is_pilot, ENTITY_MODE as PILOT_ENTITY_MODE
 from core.ventilation import Ventilation, is_ventilation
 from core.rocker_events import RockerEvents
+from core.button_events import ButtonEvents
 from core.secure import SecureDevices
 from core.recom import Recom
 from core.telegram_buffer import TelegramBuffer
@@ -197,6 +198,7 @@ async def lifespan(app: FastAPI):
 
         # Rocker button events and device triggers (#56, ADR-0042).
         serial_handler.rocker_events = RockerEvents(mqtt_handler)
+        serial_handler.button_events = ButtonEvents(mqtt_handler)
         serial_handler.secure = SecureDevices(CONFIG_PATH)
         serial_handler.recom = Recom(serial_handler)
 

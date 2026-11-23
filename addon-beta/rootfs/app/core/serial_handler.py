@@ -16,9 +16,11 @@ from typing import Optional, Callable, List, Dict, Any
 from dataclasses import dataclass
 
 from core.rocker_events import is_rocker
+from core.button_events import has_button_events
+from core.profile_mappings import MERGE_EEPS, merge_state as merge_profile_state
 from core.valve_control import is_valve
 from core.ventilation import is_ventilation, merge_state as merge_ventilation_state
-from core.secure import RORG_SEC, RORG_SEC_ENCAPS, RORG_SEC_TI
+from core.secure import RORG_SEC, RORG_SEC_ENCAPS, RORG_SEC_TI, SecureSendError
 from core.recom import RORG_SYS_EX
 
 logger = logging.getLogger(__name__)
@@ -230,6 +232,7 @@ class SerialHandler:
         self.pilot_wire = None
         # Rocker button events and device triggers (#56, ADR-0042); set by main.
         self.rocker_events = None
+        self.button_events = None
         # Keys of secure devices (core.secure.SecureDevices), set by main
         self.secure = None
         # Remote Commissioning (core.recom.Recom), set by main
@@ -1048,10 +1051,30 @@ class SerialHandler:
                                    label: str = "", secret: bool = False) -> bool:
         """One telegram of any RORG to one device, e.g. a SYS_EX part (#67).
         secret keeps the data out of the log (a security code)."""
-        packet = self._build_radio_packet(sender_id, rorg, data, destination, 0x00)
+        try:
+            packet = self._build_radio_packet(sender_id, rorg, data, destination, 0x00)
+        except SecureSendError as e:
+            logger.error(f"Not sent to 0x{destination:08X}: {e}")
+            return False
         line = _radio_log_line(rorg, b"" if secret else data, destination)
         async with self._tx_slot():
             return await self._send_radio_packet(packet, label or f"RORG {rorg:02X}", line)
+
+    async def send_secure_teach_in(self, sender_id: int, destination: int, parts: int = 3) -> bool:
+        """Hand a new key to a device. Three telegrams are addressed to it,
+        two are broadcast (they are too long to be addressed). The key is in
+        them, so their data is never logged."""
+        target = destination if parts == 3 else 0xFFFFFFFF
+        address = f"0x{destination:08X}"
+        telegrams = self.secure.start_sending(address, parts)
+        for i, data in enumerate(telegrams):
+            if not await self.send_radio_addressed(RORG_SEC_TI, sender_id, data, target,
+                                                   f"secure teach-in {i + 1}/{parts}", secret=True):
+                self.secure.stop_sending(address)
+                return False
+            await asyncio.sleep(0.1)
+        logger.info(f"Secure teach-in sent to {address} ({parts} telegrams)")
+        return True
 
     async def send_remote_man(self, function: int, manufacturer: int, data: bytes,
                               destination: int, label: str = "", secret: bool = False) -> int:
@@ -1096,7 +1119,11 @@ class SerialHandler:
     async def send_vld_addressed(self, sender_id: int, data: bytes, destination: int,
                                  label: str = "") -> bool:
         """One VLD (D2) telegram to one device, e.g. a pilot wire command."""
-        packet = self._build_radio_packet(sender_id, 0xD2, data, destination, 0x00)
+        try:
+            packet = self._build_radio_packet(sender_id, 0xD2, data, destination, 0x00)
+        except SecureSendError as e:
+            logger.error(f"Not sent to 0x{destination:08X}: {e}")
+            return False
         line = _radio_log_line(0xD2, data, destination)
         async with self._tx_slot():
             ok = await self._send_radio_packet(packet, label or "VLD", line)
@@ -1107,7 +1134,11 @@ class SerialHandler:
     async def send_4bs_addressed(self, sender_id: int, data: bytes, destination: int,
                                  label: str = "") -> bool:
         """One 4BS telegram to one device, e.g. a valve's reply (ADR-0029)."""
-        packet = self._build_radio_packet(sender_id, 0xA5, data, destination, 0x00)
+        try:
+            packet = self._build_radio_packet(sender_id, 0xA5, data, destination, 0x00)
+        except SecureSendError as e:
+            logger.error(f"Not sent to 0x{destination:08X}: {e}")
+            return False
         line = _radio_log_line(0xA5, data, destination)
         async with self._tx_slot():
             ok = await self._send_radio_packet(packet, label or "4BS", line)
@@ -1217,6 +1248,11 @@ class SerialHandler:
         except (ValueError, AttributeError, TypeError):
             expected_rorg = telegram.rorg  # unparsable profile RORG: decode anyway
 
+        # A weather station sends several A5-13 layouts, told apart by their
+        # identifier; only A5-13-01 describes them all (ADR-0055).
+        if str(device.eep_id).upper() in ("A5-13-02", "A5-13-03", "A5-13-04", "A5-13-05", "A5-13-06"):
+            profile = self.eep_manager.get_profile("A5-13-01") or profile
+
         if telegram.rorg == expected_rorg:
             # Decode telegram using EEP profile
             decoded = self._decode_telegram(telegram, profile)
@@ -1308,6 +1344,8 @@ class SerialHandler:
                     payload.update(self.valve_control.state_fields(target.name))
                 if is_ventilation(target) and self.mqtt_handler is not None:
                     payload = merge_ventilation_state(self.mqtt_handler.get_last_state(target.name), payload)
+                if str(target.eep_id).upper() in MERGE_EEPS and self.mqtt_handler is not None:
+                    payload = merge_profile_state(self.mqtt_handler.get_last_state(target.name), payload)
                 if self.pilot_wire is not None and self.pilot_wire.meters(target):
                     payload = self.pilot_wire.merge_state(target, payload)
                 if d2_01_status:
@@ -1367,6 +1405,9 @@ class SerialHandler:
                 logger.debug(f"TX MQTT [{target.name}] Published state to {self.mqtt_handler.prefix}/{target.name}/state")
                 if self.rocker_events is not None and is_rocker(target):
                     await self.rocker_events.handle(target, decoded, telegram.status)
+                if (self.button_events is not None and has_button_events(target.eep_id)
+                        and not target.actuator_type):
+                    await self.button_events.handle(target, decoded)
 
         return device.name, device.eep_id, decoded
 
@@ -1632,7 +1673,7 @@ class SerialHandler:
             return fields
         matched = []
         for cmd, group in groups.items():
-            cmd_field = next((f for f in group if f.get("shortcut") in ("CMD", "COM", "MT")), None)
+            cmd_field = next((f for f in group if f.get("shortcut") in ("CMD", "COM", "MT", "ID")), None)
             if cmd_field is None:
                 continue
             shift = data_bits - cmd_field.get("offset", 0) - cmd_field.get("size", 4)
@@ -1644,6 +1685,8 @@ class SerialHandler:
                     matched.extend(group)
             except (TypeError, ValueError):
                 continue
+        if not matched and any(f.get("shortcut") == "ID" for g in groups.values() for f in g):
+            return untagged  # A5-13: an identifier the profile does not know
         return untagged + matched if matched else fields
 
     def _decode_telegram(self, telegram: RadioTelegram, profile) -> Dict[str, Any]:
@@ -2331,7 +2374,13 @@ class SerialHandler:
 
     def _build_radio_packet(self, sender_id: int, rorg: int, data: bytes,
                             destination: int = 0xFFFFFFFF, status: int = None) -> bytes:
-        """Assemble an ESP3 RADIO_ERP1 packet."""
+        """Assemble an ESP3 RADIO_ERP1 packet. Every transmit path ends here,
+        so this is where a telegram to a secure device is encrypted: none can
+        leave it out (ADR-0056)."""
+        if (destination != 0xFFFFFFFF and self.secure is not None
+                and self.secure.must_encrypt(f"0x{destination:08X}", rorg)):
+            rorg, data = self.secure.encrypt(f"0x{destination:08X}", rorg, bytes(data))
+            status = 0x00
         # RORG + data + sender_id (4 bytes) + status (1 byte)
         sender_bytes = sender_id.to_bytes(4, 'big')
         if status is None:
@@ -2367,7 +2416,11 @@ class SerialHandler:
             logger.error("Cannot send - not connected")
             return False
 
-        packet = self._build_radio_packet(sender_id, rorg, data, destination, status)
+        try:
+            packet = self._build_radio_packet(sender_id, rorg, data, destination, status)
+        except SecureSendError as e:
+            logger.error(f"Not sent to 0x{destination:08X}: {e}")
+            return False
         label = f"RORG={rorg:02X} Data={data.hex()} Dest={destination:08X}"
         telegram = _radio_log_line(rorg, data, destination)
 

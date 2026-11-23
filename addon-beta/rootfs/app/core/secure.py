@@ -17,9 +17,11 @@ As in the EnOcean Security Specification, cross-checked against FHEM
 - 0x31 (encapsulated): the first decrypted byte is the inner RORG. 0x30 has
   none; its data is decoded with the device's configured profile.
 
-Only receiving is supported, without a pre-shared key: the teach-in of a
-device that encrypts it with a PSK is refused, and the app never sends
-secure telegrams. Keys stay in /data/secure_devices.yaml and are never
+Sending (ADR-0056): the app generates a key, hands it to the device with its
+own secure teach-in, and from then on encapsulates (0x31) every telegram
+addressed to that device. The sending rolling code is saved before the
+telegram goes out, so it is never used twice. No pre-shared key in either
+direction. Keys stay in /data/secure_devices.yaml and are never
 logged. Backups and exports carry the file, so a restored secure device
 works without a new teach-in; treat a backup as secret.
 
@@ -30,6 +32,7 @@ FIPS-197 and RFC 4493 vectors.
 
 import logging
 import os
+import secrets
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
@@ -120,10 +123,14 @@ def aes_cmac(key: bytes, msg: bytes) -> bytes:
 
 
 def vaes(key: bytes, rlc: bytes, data: bytes) -> bytes:
-    """VAES for up to 16 bytes (an ERP1 telegram never carries more)."""
-    aes_in = bytes(a ^ b for a, b in zip(PUBLIC_KEY, rlc.ljust(16, b"\x00")))
-    pad = aes128_encrypt(key, aes_in)
-    return bytes(a ^ b for a, b in zip(data, pad))
+    """VAES; encryption and decryption are the same operation. From the second
+    16-byte block on, the previous key stream is mixed into the input."""
+    iv = bytes(a ^ b for a, b in zip(PUBLIC_KEY, rlc.ljust(16, b"\x00")))
+    out, pad = b"", bytes(16)
+    for i in range(0, len(data), 16):
+        pad = aes128_encrypt(key, bytes(a ^ b for a, b in zip(iv, pad)))
+        out += bytes(a ^ b for a, b in zip(data[i:i + 16], pad))
+    return out
 
 
 # --- teach-in and decryption --------------------------------------------------
@@ -169,6 +176,30 @@ def _addr(address: str) -> str:
     return "0x" + str(address).upper().replace("0X", "")
 
 
+SEND_SLF = 0x8B  # RLC 3 bytes not sent, CMAC 3 bytes, VAES
+# How the 16 key bytes are split over the teach-in telegrams: the layout of
+# the specification's example, and the one of gateways that address theirs.
+_KEY_SPLIT = {2: (7, 9), 3: (4, 8, 4)}
+# RORG + data of an addressed ERP1 telegram
+MAX_ADDRESSED = 10
+# Already secure, teach-in or remote management telegrams stay as they are
+_NEVER_ENCRYPT = {RORG_SEC, RORG_SEC_ENCAPS, RORG_SEC_TI, 0xC5, 0xC6, 0xC7, 0xD4, 0xF6}
+
+
+class SecureSendError(Exception):
+    pass
+
+
+def build_teach_in(key: bytes, rlc: bytes, parts: int, bidirectional: bool = False) -> List[bytes]:
+    """Data fields of the app's own secure teach-in (0x35)."""
+    out, off = [], 0
+    for idx, n in enumerate(_KEY_SPLIT[parts]):
+        head = (bytes([(parts << 4) | (0x01 if bidirectional else 0), SEND_SLF]) + rlc) if idx == 0 else bytes([idx << 6])
+        out.append(head + key[off:off + n])
+        off += n
+    return out
+
+
 class SecureDevices:
     """Keys and rolling codes per sender address."""
 
@@ -183,15 +214,78 @@ class SecureDevices:
             except Exception as e:
                 logger.error(f"Could not read {self._file}: {e}")
 
-    def _save(self):
+    def _save(self) -> bool:
         try:
             tmp = self._file + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
                 yaml.safe_dump(self._devices, f)
             os.chmod(tmp, 0o600)
             os.replace(tmp, self._file)
+            return True
         except Exception as e:
             logger.error(f"Could not write {self._file}: {e}")
+            return False
+
+    # --- sending --------------------------------------------------------------
+
+    def sends_secure(self, address: str) -> bool:
+        return bool((self._devices.get(_addr(address)) or {}).get("snd_key"))
+
+    def start_sending(self, address: str, parts: int) -> List[bytes]:
+        """New key for this device; returns the teach-in telegrams. The device
+        uses the same key for its own telegrams unless it sends a teach-in of
+        its own, which then replaces the receiving key."""
+        address, key, rlc = _addr(address), secrets.token_bytes(16), bytes(3)
+        previous = self._devices.get(address)
+        entry = dict(parse_slf(SEND_SLF), key=key.hex(), rlc=rlc.hex(),
+                     switch=False, bidirectional=True, snd_key=key.hex(), snd_rlc=rlc.hex(), rx_seen=False)
+        if previous:
+            # Whether the device took the new key shows only when it uses it.
+            # Until then its old one is accepted as well.
+            entry["old"] = previous.get("old") or dict(previous)
+        self._devices[address] = entry
+        if not self._save():
+            self._restore_entry(address, previous)
+            raise SecureSendError("the key could not be saved")
+        return build_teach_in(key, rlc, parts, bidirectional=True)
+
+    def _restore_entry(self, address: str, entry):
+        if entry is None:
+            self._devices.pop(address, None)
+        else:
+            self._devices[address] = entry
+
+    def stop_sending(self, address: str):
+        entry = self._devices.get(_addr(address))
+        if entry:
+            if "old" in entry:
+                # it never used the new key: back to what it had
+                entry = entry["old"]
+                self._devices[_addr(address)] = entry
+            entry.pop("snd_key", None)
+            entry.pop("snd_rlc", None)
+            if not entry.get("rx_seen", True):
+                del self._devices[_addr(address)]
+            self._save()
+
+    def encrypt(self, address: str, rorg: int, payload: bytes) -> Tuple[int, bytes]:
+        """(0x31, data) for one telegram to the device. The next rolling code
+        is saved first; without that nothing is sent."""
+        address = _addr(address)
+        dev = self._devices[address]
+        key, rlc = bytes.fromhex(dev["snd_key"]), bytes.fromhex(dev["snd_rlc"])
+        plain = bytes([rorg]) + payload
+        if 1 + len(plain) + 3 > MAX_ADDRESSED:
+            raise SecureSendError(f"{len(payload)} data bytes do not fit into one secure telegram")
+        dev["snd_rlc"] = ((int.from_bytes(rlc, "big") + 1) % (1 << 24)).to_bytes(3, "big").hex()
+        if not self._save():
+            dev["snd_rlc"] = rlc.hex()
+            raise SecureSendError("the rolling code could not be saved")
+        enc = vaes(key, rlc, plain)
+        return RORG_SEC_ENCAPS, enc + aes_cmac(key, bytes([RORG_SEC_ENCAPS]) + enc + rlc)[:3]
+
+    def must_encrypt(self, address: str, rorg: int) -> bool:
+        return rorg not in _NEVER_ENCRYPT and self.sends_secure(address)
 
     @property
     def file(self) -> str:
@@ -255,13 +349,23 @@ class SecureDevices:
             entry = dict(slf, rlc=data[2:2 + n].hex(), key=data[2 + n:].hex(),
                          switch=bool(ti_type), bidirectional=bool(ti_info and not ti_type))
             if cnt <= 1:
+                self._pending.pop(address, None)
                 return self._store(address, entry)
-            self._pending[address] = entry
+            # two telegrams, or three (some gateways address theirs)
+            self._pending[address] = (cnt, 1, entry)
             return None
-        if idx == 1 and address in self._pending:
-            entry = self._pending.pop(address)
-            entry["key"] += data[1:].hex()
-            return self._store(address, entry)
+        if address in self._pending:
+            cnt, expected, entry = self._pending[address]
+            if idx == expected:
+                entry["key"] += data[1:].hex()
+                if idx + 1 < cnt:
+                    self._pending[address] = (cnt, idx + 1, entry)
+                    return None
+                del self._pending[address]
+                return self._store(address, entry)
+            if idx < expected:
+                return None  # a repeated telegram
+            del self._pending[address]
         logger.warning(f"Secure teach-in from {address}: telegram {idx} of {cnt} out of sequence")
         return None
 
@@ -269,6 +373,10 @@ class SecureDevices:
         if len(entry["key"]) != 32:
             logger.warning(f"Secure teach-in from {address}: key has {len(entry['key']) // 2} bytes, expected 16")
             return None
+        old = self._devices.get(address) or {}
+        for field in ("snd_key", "snd_rlc"):  # the app's own key stays
+            if field in old:
+                entry[field] = old[field]
         self._devices[address] = entry
         self._save()
         logger.info(f"Secure teach-in from {address}: stored (RLC {entry['rlc_len']} bytes, "
@@ -282,6 +390,23 @@ class SecureDevices:
         dev = self._devices.get(address)
         if dev is None:
             return None
+        plain = self._decrypt_with(dev, rorg, payload)
+        if plain is not None:
+            dev.pop("old", None)
+            dev["rx_seen"] = True
+        elif "old" in dev:
+            plain = self._decrypt_with(dev["old"], rorg, payload)
+        if plain is None:
+            logger.warning(f"Secure telegram from {address} could not be verified (wrong key or RLC out of window)")
+            return None
+        self._save()
+        if rorg == RORG_SEC_ENCAPS:
+            return plain[0], plain[1:]
+        return None, plain
+
+    @staticmethod
+    def _decrypt_with(dev: Dict[str, Any], rorg: int, payload: bytes) -> Optional[bytes]:
+        """The decrypted data, with dev's rolling code moved on, or None."""
         key = bytes.fromhex(dev["key"])
         n_rlc, n_mac = dev["rlc_len"], dev["mac_len"]
         tail = n_mac + (n_rlc if dev["rlc_tx"] else 0)
@@ -303,9 +428,5 @@ class SecureDevices:
                 continue
             plain = vaes(key, rlc, enc)
             dev["rlc"] = ((value + 1) % limit).to_bytes(n_rlc, "big").hex()
-            self._save()
-            if rorg == RORG_SEC_ENCAPS:
-                return plain[0], plain[1:]
-            return None, plain
-        logger.warning(f"Secure telegram from {address} could not be verified (wrong key or RLC out of window)")
+            return plain
         return None

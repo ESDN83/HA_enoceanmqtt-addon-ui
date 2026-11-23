@@ -429,9 +429,24 @@ after their secure teach-in: create the device with its profile, or start
 Teach-In, then trigger the secure teach-in on the device. The key stays in
 the app's data folder and is deleted with the device. Backups and exports
 include the keys, so a restored secure device works without a new teach-in:
-keep backups private. Receiving only, and no pre-shared key. Secure PTM
+keep backups private. No pre-shared key. Secure PTM
 210/215 rocker switches are added as F6-02-01 (or F6-02-02) and then report
 their buttons like an unencrypted rocker.
+
+**Encrypted sending** (on the device page, needs a sender ID) is for devices
+that require encrypted commands. Put the device into pairing mode and press
+*Send key*; from then on every command addressed to it is encrypted. The
+device does not confirm the key: if it ignores commands afterwards, press
+*Stop*. After restoring an old backup, send the key again. Commands longer
+than 5 data bytes cannot be encrypted. Tested with simulated telegrams only.
+
+### More Sensor Profiles
+
+Since 1.8.7-beta13 these profiles have entities in Home Assistant: A5-04-04,
+A5-06-02, A5-09-0C (VOC), A5-10-03/05/10/12 (room units), A5-12-00 (counter),
+A5-13-01 to 06 (weather stations, use A5-13-01), A5-30-04, D2-03-0A (push
+button), D2-06-01 (window sensor), F6-04-01 (key card), F6-05-01 (water leak).
+The buttons of D2-03-0A and D2-06-01 are events and device triggers.
 
 ### OPUS BRiDGE and Other QR Code Pairing
 

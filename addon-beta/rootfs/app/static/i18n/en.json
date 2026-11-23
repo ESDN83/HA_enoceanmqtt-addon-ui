@@ -565,5 +565,15 @@
   "recom_add.qr": "QR code text",
   "recom_add.submit": "Pair and add",
   "recom_add.missing": "Enter a name and the QR code text.",
-  "recom_add.done": "Paired and added."
+  "recom_add.done": "Paired and added.",
+  "secure.title": "Encrypted sending",
+  "secure.hint": "Only for devices that require encrypted commands. Put the device into pairing mode, then send the key. From then on every command addressed to it is encrypted, and a device that did not take the key ignores them: then press Stop. Not confirmed on a real device.",
+  "secure.three": "3 telegrams, addressed",
+  "secure.two": "2 telegrams, broadcast",
+  "secure.send": "Send key",
+  "secure.stop": "Stop",
+  "secure.failed": "Failed",
+  "secure.confirm": "Send a new key to this device and encrypt all commands to it from now on?",
+  "secure.sent": "Key sent. Commands are encrypted now.",
+  "secure.stopped": "Commands are sent unencrypted again."
 }

@@ -4558,6 +4558,10 @@
             <item description="Exhaust air only" value="14" />
             <item description="Reserved" value="15" />
           </enum>
+          <enum description="Heat Exchanger Bypass Status" shortcut="HBS" offset="13" size="1">
+            <item description="Bypass closed (heat-recovery active)" value="0" />
+            <item description="Bypass opened (heat-recovery inactive)" value="1" />
+          </enum>
           <enum description="Supply Air Flap Position" shortcut="SFP" offset="14" size="1">
             <item description="Supply air flap closed" value="0" />
             <item description="Supply air flap opened" value="1" />
@@ -4606,6 +4610,26 @@
             </scale>
           </value>
           <value description="Supply Air Temperature" shortcut="SPLYT" offset="47" size="7" unit="°C">
+            <range>
+              <min>0</min>
+              <max>127</max>
+            </range>
+            <scale>
+              <min>-64.0</min>
+              <max>63.0</max>
+            </scale>
+          </value>
+          <value description="Indoor Air Temperature" shortcut="INT" offset="54" size="7" unit="°C">
+            <range>
+              <min>0</min>
+              <max>127</max>
+            </range>
+            <scale>
+              <min>-64.0</min>
+              <max>63.0</max>
+            </scale>
+          </value>
+          <value description="Exhaust Air Temperature" shortcut="EXHT" offset="61" size="7" unit="°C">
             <range>
               <min>0</min>
               <max>127</max>

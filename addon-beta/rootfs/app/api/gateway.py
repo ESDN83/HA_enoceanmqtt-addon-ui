@@ -554,3 +554,59 @@ async def recom_add(req: RecomAddRequest, request: Request) -> Dict[str, Any]:
             f"Paired, but the device was not created: {e.detail}. "
             "Add it by Manual Entry with these values."))
     return {**result, "device": created["device"]}
+
+
+class SecureTeachInRequest(BaseModel):
+    """3 telegrams addressed to the device, or 2 broadcast (specification
+    example)."""
+    telegrams: int = 3
+
+
+@router.post("/secure-teach-in/{name:path}")
+async def secure_teach_in(name: str, req: SecureTeachInRequest, request: Request) -> Dict[str, Any]:
+    """Give a device a new key; every telegram to it is encrypted from then
+    on (ADR-0056). Put the device into pairing mode first."""
+    from core.secure import SecureSendError
+    serial_handler = request.app.state.serial_handler
+    device_manager = request.app.state.device_manager
+    if not serial_handler or not serial_handler.is_connected or serial_handler.secure is None:
+        raise HTTPException(status_code=503, detail="EnOcean gateway not connected")
+    device = device_manager.get_device(name) if device_manager else None
+    if device is None:
+        raise HTTPException(status_code=404, detail=f"Device '{name}' not found")
+    if not device.sender_id:
+        raise HTTPException(status_code=400, detail="The device needs a sender ID first")
+    if req.telegrams not in (2, 3):
+        raise HTTPException(status_code=400, detail="telegrams must be 2 or 3")
+    sender = int(device.sender_id.replace("0x", "").replace("0X", ""), 16)
+    destination = int(device.address.replace("0x", "").replace("0X", ""), 16)
+    try:
+        ok = await serial_handler.send_secure_teach_in(sender, destination, req.telegrams)
+    except SecureSendError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    if not ok:
+        raise HTTPException(status_code=502, detail="The transceiver did not send the teach-in")
+    return {"status": "sent", "telegrams": req.telegrams}
+
+
+@router.get("/secure-teach-in/{name:path}")
+async def secure_status(name: str, request: Request) -> Dict[str, Any]:
+    """Whether the app has a key for this device, and encrypts to it."""
+    serial_handler = request.app.state.serial_handler
+    device = request.app.state.device_manager.get_device(name)
+    if device is None or serial_handler is None or serial_handler.secure is None:
+        raise HTTPException(status_code=404, detail=f"Device '{name}' not found")
+    return {"receives": serial_handler.secure.known(device.address),
+            "sends": serial_handler.secure.sends_secure(device.address)}
+
+
+@router.delete("/secure-teach-in/{name:path}")
+async def secure_stop(name: str, request: Request) -> Dict[str, Any]:
+    """Send unencrypted to this device again. Received telegrams are still
+    decrypted."""
+    serial_handler = request.app.state.serial_handler
+    device = request.app.state.device_manager.get_device(name)
+    if device is None or serial_handler is None or serial_handler.secure is None:
+        raise HTTPException(status_code=404, detail=f"Device '{name}' not found")
+    serial_handler.secure.stop_sending(device.address)
+    return {"status": "stopped"}

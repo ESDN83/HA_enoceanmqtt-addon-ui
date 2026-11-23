@@ -565,5 +565,15 @@
   "recom_add.qr": "Texte du QR code",
   "recom_add.submit": "Appairer et ajouter",
   "recom_add.missing": "Saisissez un nom et le texte du QR code.",
-  "recom_add.done": "Appairé et ajouté."
+  "recom_add.done": "Appairé et ajouté.",
+  "secure.title": "Envoi chiffré",
+  "secure.hint": "Uniquement pour les appareils qui exigent des commandes chiffrées. Mettez l'appareil en mode appairage, puis envoyez la clé. Ensuite, chaque commande adressée à l'appareil est chiffrée ; s'il n'a pas pris la clé, il les ignore : appuyez alors sur Arrêter. Non confirmé sur un appareil réel.",
+  "secure.three": "3 télégrammes, adressés",
+  "secure.two": "2 télégrammes, diffusion",
+  "secure.send": "Envoyer la clé",
+  "secure.stop": "Arrêter",
+  "secure.failed": "Échec",
+  "secure.confirm": "Envoyer une nouvelle clé à cet appareil et chiffrer toutes ses commandes à partir de maintenant ?",
+  "secure.sent": "Clé envoyée. Les commandes sont maintenant chiffrées.",
+  "secure.stopped": "Les commandes sont de nouveau envoyées sans chiffrement."
 }

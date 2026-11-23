@@ -258,14 +258,34 @@ configs are cleared, unless a remaining device publishes the same unique ID.
   supply air only, exhaust air only) and *Request Status*; all other values
   as sensors, from the basic and the extended status.
 
+### Profiles with entities since 1.8.7-beta13 (not confirmed on hardware)
+- A5-04-04, A5-06-02, A5-09-0C, A5-10-03/05/10/12, A5-12-00, A5-13-01 to 06,
+  A5-30-04, D2-03-0A, D2-06-01, F6-04-01, F6-05-01: sensors, Manual Entry.
+- A5-13 weather stations send several layouts from one address: configure
+  A5-13-01, it has all entities.
+- D2-03-0A and D2-06-01 publish button events on `<device>/event` and device
+  triggers, as rockers do. ADR-0055.
+
 ### Secure devices (VAES, since 1.8.7)
 - Create the device with its profile first, or start interactive teach-in,
   then trigger the device's secure teach-in. The key is stored, then every
-  secure telegram is verified (CMAC, rolling code) and decrypted. Only
-  receiving, no pre-shared key. Telegrams that fail the check are dropped
-  with a warning. Deleting the device deletes the key. Backups and exports
+  secure telegram is verified (CMAC, rolling code) and decrypted. No
+  pre-shared key. Telegrams that fail the check are dropped
+  with a warning. Deleting the device deletes the key. Two- and
+  three-telegram teach-ins are understood. Backups and exports
   carry the keys (`secure_devices.yaml`); a restore keeps a key the app
   already has for that address and drops keys of devices it removed.
+- Sending (since 1.8.7-beta13, simulated only, no hardware confirmation):
+  off until the app has sent the device a key. Device page, *Encrypted
+  sending*, or `POST /api/gateway/secure-teach-in/<device name>` with
+  `{"telegrams": 3}` (addressed) or 2 (broadcast), while the device is in
+  pairing mode. Needs a sender ID. Then every A5/D2 telegram addressed to it
+  goes out as RORG 31. `GET` on the same path shows `receives` and `sends`,
+  `DELETE` goes back to unencrypted. The teach-in itself is not acknowledged:
+  if the device ignores commands afterwards, `DELETE`. Commands over 5 data
+  bytes are refused (no chaining), so D2-50 modes and D2-33-00 heaters are
+  not supported. Broadcast commands (Eltako dimmers, F6) are never
+  encrypted. After restoring an old backup, send the key again. ADR-0056.
 - Secure PTM 210/215 rocker switches (configured as F6-02-01/02): their
   decrypted data is a D2-03-00 code, translated to the F6 byte, so buttons
   and rocker events work as with a plain rocker (since 1.8.7-beta11, #62,

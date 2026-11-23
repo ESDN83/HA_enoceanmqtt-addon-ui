@@ -565,5 +565,15 @@
   "recom_add.qr": "Text des QR-Codes",
   "recom_add.submit": "Koppeln und hinzufügen",
   "recom_add.missing": "Namen und Text des QR-Codes eingeben.",
-  "recom_add.done": "Gekoppelt und hinzugefügt."
+  "recom_add.done": "Gekoppelt und hinzugefügt.",
+  "secure.title": "Verschlüsselt senden",
+  "secure.hint": "Nur für Geräte, die verschlüsselte Befehle verlangen. Das Gerät in den Anlernmodus bringen, dann den Schlüssel senden. Ab dann wird jeder an das Gerät adressierte Befehl verschlüsselt. Hat es den Schlüssel nicht übernommen, ignoriert es die Befehle: dann Stopp drücken. Nicht an einem echten Gerät bestätigt.",
+  "secure.three": "3 Telegramme, adressiert",
+  "secure.two": "2 Telegramme, Broadcast",
+  "secure.send": "Schlüssel senden",
+  "secure.stop": "Stopp",
+  "secure.failed": "Fehlgeschlagen",
+  "secure.confirm": "Einen neuen Schlüssel an dieses Gerät senden und ab jetzt alle Befehle verschlüsseln?",
+  "secure.sent": "Schlüssel gesendet. Befehle werden jetzt verschlüsselt.",
+  "secure.stopped": "Befehle werden wieder unverschlüsselt gesendet."
 }
