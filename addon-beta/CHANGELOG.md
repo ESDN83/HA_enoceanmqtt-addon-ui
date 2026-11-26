@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.8.7-beta14] - 2026-11-26 (beta channel)
+
+### Changed
+
+- **fastapi 0.165.0** (was 0.163.1): optional request and form size limits;
+  the defaults change nothing for the add-on's uploads. Dependabot PR #75.
+- **python-multipart 0.0.34** (was 0.0.33): faster form parsing, stricter
+  boundary and header handling. Dependabot PR #76.
+- **PyYAML 6.0.4** (was 6.0.3): fixes exponential merge key expansion, which
+  a crafted YAML file could use to stall the add-on. Dependabot PR #77.
+
 ## [1.8.7-beta13] - 2026-11-23 (beta channel)
 
 ### Added
