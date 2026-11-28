@@ -91,8 +91,8 @@
     <nav class="navbar navbar-dark fixed-top" style="background-color: var(--bg-navbar);">
         <div class="container-fluid">
             <!-- Mobile menu toggle button -->
-            <button class="navbar-toggler d-md-none me-2" type="button" onclick="toggleSidebar()">
-                <span class="navbar-toggler-icon"></span>
+            <button class="navbar-toggler d-md-none me-2" type="button" onclick="toggleSidebar()" aria-label="Menu">
+                <i class="bi bi-list"></i>
             </button>
             <a class="navbar-brand" href="#">
                 <i class="bi bi-broadcast-pin"></i> EnOcean MQTT UI
@@ -254,7 +254,7 @@
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 data-i18n="devices.title">Devices</h2>
                 <button class="btn btn-primary" onclick="navigateTo('teach-in')">
-                    <i class="bi bi-plus-circle"></i> Add Device
+                    <i class="bi bi-plus-circle"></i> <span data-i18n="nav.add_device">Add Device</span>
                 </button>
             </div>
 

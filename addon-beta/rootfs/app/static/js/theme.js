@@ -62,6 +62,7 @@ function applyHAThemeVars(parentDoc) {
         '--card-background-color': '--bg-card',
         '--sidebar-background-color': '--bg-sidebar',
         '--app-header-background-color': '--bg-navbar',
+        '--app-header-text-color': '--navbar-text',
         '--primary-text-color': '--text-color',
         '--secondary-text-color': '--text-muted',
         '--divider-color': '--border-color',
