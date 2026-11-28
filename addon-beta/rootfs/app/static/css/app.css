@@ -8,6 +8,7 @@
     --bg-card: #fff;
     --bg-sidebar: #fff;
     --bg-navbar: #0d6efd;
+    --navbar-text: #fff;
     --text-color: #212529;
     --text-muted: #6c757d;
     --border-color: rgba(0, 0, 0, 0.125);
@@ -30,6 +31,7 @@
     --bg-card: #1c1c1c;
     --bg-sidebar: #1c1c1c;
     --bg-navbar: #1c1c1c;
+    --navbar-text: #e1e1e1;
     --text-color: #e1e1e1;
     --text-muted: #9b9b9b;
     --border-color: rgba(255, 255, 255, 0.12);
@@ -113,6 +115,22 @@ body {
 }
 
 /* ===== Dark theme overrides for Bootstrap components ===== */
+/* Navbar text and menu button follow --navbar-text, not the fixed white
+   of Bootstrap's .navbar-dark. Inside HA the bar takes HA's header colours
+   (theme.js), which are light in the light theme: a white toggler on a
+   white bar made the mobile menu button invisible. */
+.navbar .navbar-brand,
+.navbar .navbar-brand:hover,
+.navbar .navbar-brand:focus,
+.navbar .navbar-toggler {
+    color: var(--navbar-text);
+}
+.navbar .navbar-toggler {
+    border-color: color-mix(in srgb, var(--navbar-text) 35%, transparent);
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
 [data-theme="dark"] .navbar {
     background-color: var(--bg-navbar) !important;
 }
